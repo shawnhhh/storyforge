@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local configuration and user-created content
+.env
+.env.*
+!.env.example
+/data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+coverage/
+*.tsbuildinfo
+
+# Additional SQLite filenames and compressed/copied database files
+*.sqlite3
+*.sqlite3-*
+*.sqlite.*
+*.sqlite3.*
+*.db.*
+
+# Local backups and editor-exported unpublished drafts
+backup/
+backups/
+*.bak
+*.backup
+*-草稿.json
