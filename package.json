@@ -11,8 +11,9 @@
     "dev:all": "concurrently -k -n web,server \"npm run dev\" \"npm run dev:server\"",
     "dev:server": "tsx watch --env-file-if-exists=.env server/src/index.ts",
     "start:server": "tsx --env-file-if-exists=.env server/src/index.ts",
-    "typecheck": "tsc -b && tsc -p server/tsconfig.json",
-    "test": "node --import tsx --test server/tests/*.test.ts"
+    "typecheck": "tsc -b && tsc -p server/tsconfig.json && tsc -p tests/e2e/tsconfig.json",
+    "test": "node --import tsx --test server/tests/*.test.ts",
+    "test:e2e": "node --import tsx tests/e2e/run.ts"
   },
   "dependencies": {
     "@tiptap/core": "^3.32.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/express": "^5.0.6",
     "@types/node": "^24.13.3",

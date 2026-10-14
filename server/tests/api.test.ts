@@ -47,8 +47,9 @@ async function request(base: string, path: string, method = 'GET', body?: unknow
 test('HTTP CRUD validates input, detects conflicts and restores SQLite after a process restart', { timeout: 20000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'storyforge-api-'))
   const port = await freePort()
-  let server = await start(dir, port)
+  let server: Awaited<ReturnType<typeof start>> | undefined
   try {
+    server = await start(dir, port)
     assert.equal((await request(server.base, '/novels', 'POST', { title: '' })).status, 400)
     assert.equal((await request(server.base, '/novels', 'POST', { title: '恶意来源' }, 'https://example.com')).status, 403)
     const novelResponse = await request(server.base, '/novels', 'POST', { title: '浏览器共享小说', description: '本机测试' }, 'http://127.0.0.1:5173')
@@ -64,7 +65,8 @@ test('HTTP CRUD validates input, detects conflicts and restores SQLite after a p
     const stale = await request(server.base, `/chapters/${first.chapter.id}`, 'PUT', { version: first.chapter.version, title: 'Chrome 旧版本', content })
     assert.equal(stale.status, 409)
     assert.equal((await request(server.base, `/novels/${novel.id}`, 'DELETE', { version: first.novel.version })).status, 409)
-    const simultaneous = await Promise.all(['Safari 并发保存', 'Chrome 并发保存'].map(title => request(server.base, `/chapters/${first.chapter.id}`, 'PUT', { version: written.chapter.version, title, content })))
+    const base = server.base
+    const simultaneous = await Promise.all(['Safari 并发保存', 'Chrome 并发保存'].map(title => request(base, `/chapters/${first.chapter.id}`, 'PUT', { version: written.chapter.version, title, content })))
     assert.deepEqual(simultaneous.map(response => response.status).sort(), [200, 409])
     written = await simultaneous.find(response => response.status === 200)!.json() as ChapterResult
     await server.stop()
@@ -80,5 +82,40 @@ test('HTTP CRUD validates input, detects conflicts and restores SQLite after a p
     assert.equal(renamed.title, '重命名小说')
     assert.equal((await request(server.base, `/novels/${novel.id}`, 'DELETE', { version: renamed.version })).status, 204)
     assert.equal((await request(server.base, `/chapters/${first.chapter.id}`)).status, 404)
-  } finally { await server.stop(); rmSync(dir, { recursive: true, force: true }) }
+  } finally { await server?.stop(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('HTTP chapter order and deletion validate inputs and preserve data on rejected writes', { timeout: 20000 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'storyforge-api-validation-'))
+  let server: Awaited<ReturnType<typeof start>> | undefined
+  try {
+    server = await start(dir, await freePort())
+    const base = server.base
+    const novel = await (await request(base, '/novels', 'POST', { title: '排序验证' })).json() as Novel
+    const first = await (await request(base, `/novels/${novel.id}/chapters`, 'POST', { title: '一', version: novel.version })).json() as ChapterResult
+    const second = await (await request(base, `/novels/${novel.id}/chapters`, 'POST', { title: '二', version: first.novel.version })).json() as ChapterResult
+    const before = await (await request(base, `/novels/${novel.id}`)).json() as NovelDetail
+    for (const chapterIds of [[first.chapter.id], [first.chapter.id, first.chapter.id], [first.chapter.id, 'unknown'], [first.chapter.id, 42]]) {
+      assert.equal((await request(base, `/novels/${novel.id}/chapter-order`, 'PUT', { version: before.novel.version, chapterIds })).status, 400)
+    }
+    for (const version of [undefined, 0, -1, 1.5, '1', Number.MAX_SAFE_INTEGER + 1]) {
+      assert.equal((await request(base, `/chapters/${first.chapter.id}`, 'PUT', { version, title: '非法版本', content: first.chapter.content })).status, 400)
+    }
+    for (const content of [{ type: 'doc', content: [{ type: 'unknown' }] }, { type: 'doc', content: [{ type: 'text', text: '不合法的顶层文本' }] }]) {
+      assert.equal((await request(base, `/chapters/${first.chapter.id}`, 'PUT', { version: first.chapter.version, title: '非法文档', content })).status, 400)
+    }
+    assert.equal((await request(base, `/chapters/${first.chapter.id}`, 'PUT', { version: first.chapter.version, title: '超限', content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x'.repeat(1024 * 1024) }] }] } })).status, 413)
+    assert.deepEqual(await (await request(base, `/novels/${novel.id}`)).json(), before)
+    assert.deepEqual(await (await request(base, `/chapters/${first.chapter.id}`)).json(), first.chapter)
+    const reorderedResponse = await request(base, `/novels/${novel.id}/chapter-order`, 'PUT', { version: before.novel.version, chapterIds: [second.chapter.id, first.chapter.id] })
+    assert.equal(reorderedResponse.status, 200)
+    const reordered = await reorderedResponse.json() as NovelDetail
+    assert.deepEqual(reordered.chapters.map(item => item.id), [second.chapter.id, first.chapter.id])
+    assert.equal((await request(base, `/chapters/${first.chapter.id}`, 'DELETE', { version: first.chapter.version, novelVersion: before.novel.version })).status, 409)
+    const removedResponse = await request(base, `/chapters/${second.chapter.id}`, 'DELETE', { version: second.chapter.version, novelVersion: reordered.novel.version })
+    assert.equal(removedResponse.status, 200)
+    const removed = await removedResponse.json() as NovelDetail
+    assert.deepEqual(removed.chapters.map(item => [item.id, item.position]), [[first.chapter.id, 0]])
+    assert.equal((await request(base, `/chapters/${second.chapter.id}`)).status, 404)
+  } finally { await server?.stop(); rmSync(dir, { recursive: true, force: true }) }
 })
