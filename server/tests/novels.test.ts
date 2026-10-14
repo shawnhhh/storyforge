@@ -93,3 +93,47 @@ test('a failed migration rolls back and leaves existing conflicting tables untou
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE name='schema_migrations'").get()!.count, 0)
   db.close(); rmSync(dir, { recursive: true, force: true })
 })
+
+test('independent SQLite connections protect aggregate versions while allowing different chapters to save', () => {
+  const f = fixture()
+  const other = openDatabase(f.dir)
+  try {
+    const client = new NovelStore(other)
+    const novel = f.store.create('连接隔离测试', '')
+    const first = f.store.createChapter(novel.id, novel.version, '一')
+    const second = f.store.createChapter(novel.id, first.novel.version, '二')
+    const saved = client.saveChapter(first.chapter.id, first.chapter.version, '另一连接写入', document)
+    assert.throws(() => f.store.removeChapter(second.chapter.id, second.chapter.version, second.novel.version), conflict)
+    assert.throws(() => f.store.createChapter(novel.id, second.novel.version, '过期创建'), conflict)
+    assert.throws(() => f.store.saveChapter(first.chapter.id, first.chapter.version, '过期正文', document), conflict)
+    assert.equal(f.store.detail(novel.id).chapters.length, 2)
+    const independent = f.store.saveChapter(second.chapter.id, second.chapter.version, '另一章节写入', document)
+    assert.equal(independent.novel.version, saved.novel.version + 1)
+    assert.equal(client.chapter(first.chapter.id).title, '另一连接写入')
+  } finally { other.close(); f.cleanup() }
+})
+
+test('a persistence failure rolls back both chapter data and aggregate version', () => {
+  const f = fixture()
+  try {
+    const novel = f.store.create('回滚测试', '')
+    const created = f.store.createChapter(novel.id, novel.version, '原始章节')
+    f.db.exec("CREATE TRIGGER fail_novel_update BEFORE UPDATE ON novels BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END")
+    assert.throws(() => f.store.saveChapter(created.chapter.id, created.chapter.version, '失败写入', document), /simulated write failure/)
+    assert.deepEqual(f.store.chapter(created.chapter.id), created.chapter)
+    assert.deepEqual(f.store.novel(novel.id), created.novel)
+    f.db.exec('DROP TRIGGER fail_novel_update')
+    assert.equal(f.store.saveChapter(created.chapter.id, created.chapter.version, '恢复写入', document).chapter.version, 2)
+  } finally { f.cleanup() }
+})
+
+test('a newer schema is refused without changing existing data or migrations', () => {
+  const f = fixture()
+  try {
+    const novel = f.store.create('未来版本数据', '')
+    f.db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)').run(2, new Date().toISOString())
+    assert.throws(() => openDatabase(f.dir), /newer/)
+    assert.equal(f.store.novel(novel.id).title, novel.title)
+    assert.equal(f.db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()!.count, 2)
+  } finally { f.cleanup() }
+})

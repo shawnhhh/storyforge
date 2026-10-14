@@ -48,3 +48,8 @@ backups/
 *.bak
 *.backup
 *-草稿.json
+
+# Browser test reports and local task scratch files
+playwright-report/
+test-results/
+work/

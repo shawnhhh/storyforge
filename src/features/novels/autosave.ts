@@ -37,6 +37,7 @@ export class ChapterSaver {
     this.listeners.forEach(listener => listener(this.state, result))
   }
   change(title: string, content: RichTextDocument) {
+    if (this.disposed) return
     this.title = title
     this.content = content
     this.revision++
@@ -54,11 +55,15 @@ export class ChapterSaver {
     this.publish('saving')
     try {
       const result = await this.save(this.chapter.id, this.version, this.title, this.content)
+      if (this.disposed) return
       this.version = result.chapter.version
       this.savedRevision = revision
       this.publish(this.revision === revision ? 'saved' : 'pending', '', result)
     } catch (error) {
-      this.publish(error instanceof ApiError && error.status === 409 ? 'conflict' : 'failed', error instanceof Error ? error.message : '保存失败')
+      if (this.disposed) return
+      // Edits made during a failed request must not leave a timed retry behind.
+      clearTimeout(this.timer)
+      this.publish(error instanceof ApiError && [404, 409].includes(error.status) ? 'conflict' : 'failed', error instanceof Error ? error.message : '保存失败')
     } finally { this.running = false }
     if (!this.disposed && this.state.status === 'pending') this.timer = setTimeout(() => { void this.flush() }, 0)
   }
