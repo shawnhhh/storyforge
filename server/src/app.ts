@@ -7,6 +7,8 @@ import { HttpError, NovelStore } from './modules/novels/store.js'
 import { BackupService } from './modules/backups/service.js'
 import { backupRoutes } from './modules/backups/routes.js'
 import { exportNovel } from './modules/novels/export.js'
+import { storyBibleRoutes } from './modules/story-bible/routes.js'
+import { StoryBibleStore } from './modules/story-bible/store.js'
 
 export function createApp(database: DatabaseSync, backups?: BackupService) {
   const app = express()
@@ -44,6 +46,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService) {
   })
   if (backups) app.use('/api', backupRoutes(backups))
   app.use('/api', novelRoutes(novels))
+  app.use('/api', storyBibleRoutes(new StoryBibleStore(database)))
   app.use('/api', (_req, res) => { res.status(404).json({ message: '接口不存在' }) })
   const errors: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
     void _next

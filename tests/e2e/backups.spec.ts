@@ -45,6 +45,8 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await page.getByRole('button', { name: '返回写作', exact: true }).click()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
   await page.locator('.chapter-select').filter({ hasText: '初见' }).click()
+  await expect(page.getByRole('textbox', { name: '章节标题' })).toHaveValue('初见')
+  await expect(body).toBeEditable()
   await body.fill('备份之后的正文')
   await expect(page.locator('.save-status')).toHaveText('已保存')
   await page.getByRole('button', { name: '备份与恢复', exact: true }).click()
