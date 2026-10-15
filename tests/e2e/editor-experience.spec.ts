@@ -152,15 +152,29 @@ test('long prose keeps the contenteditable node, scroll and selection while savi
   const text = '长篇正文 hello world 123。'.repeat(1500)
   await body(page).fill(text)
   await expect(page.getByLabel('字数统计')).toHaveText('10500 字')
-  const original = await body(page).elementHandle()
-  await body(page).press('ControlOrMeta+End')
-  await body(page).press('End')
-  await page.keyboard.insertText('字')
-  await expect(page.getByLabel('字数统计')).toHaveText('10501 字')
-  const before = await page.locator('.document').evaluate(element => element.scrollTop)
   await saved(page)
-  expect(await body(page).evaluate((element, previous) => element === previous, original)).toBe(true)
-  expect(await page.locator('.document').evaluate(element => element.scrollTop)).toBe(before)
+  const original = await body(page).elementHandle()
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/chapters/*', async route => {
+    if (route.request().method() === 'PUT') await gate
+    await route.continue()
+  })
+  try {
+    await body(page).press('ControlOrMeta+End')
+    await body(page).press('End')
+    await page.keyboard.insertText('字')
+    await expect(page.getByLabel('字数统计')).toHaveText('10501 字')
+    // Wait for the real request and normal caret scrolling before measuring.
+    // Only the completion of autosave is allowed to change after this snapshot.
+    await expect(page.locator('.save-status')).toHaveText('保存中…')
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    const before = await page.locator('.document').evaluate(element => element.scrollTop)
+    release()
+    await saved(page)
+    expect(await body(page).evaluate((element, previous) => element === previous, original)).toBe(true)
+    expect(await page.locator('.document').evaluate(element => element.scrollTop)).toBe(before)
+  } finally { release(); await page.unroute('**/api/chapters/*') }
   await page.getByRole('button', { name: '刷新本地数据' }).click()
   await expect(page.getByLabel('字数统计')).toHaveText('10501 字')
   await expect(body(page)).toContainText(text)
