@@ -4,6 +4,8 @@
 
 第二阶段的数据位置、安全机制、自动备份触发条件和 Mac Safari 验收步骤见 [备份、恢复与导出说明](docs/backup-restore-export.md)。
 
+第三阶段人物档案、世界观、关系与时间线的操作、自动保存规则及 Safari 验收步骤见 [人物与世界观工作台](docs/characters-worldbuilding.md)。
+
 ## 启动与检查
 
 要求 Node 24.x（`.nvmrc`）与 npm。
