@@ -129,7 +129,7 @@ test('network failure keeps the document, retry and keyboard save use the curren
   await page.getByRole('button', { name: '重试保存' }).click()
   await saved(page)
   await body(page).fill('快捷键保存的正文')
-  await body(page).press('ControlOrMeta+s')
+  await body(page).press('ControlOrMeta+Alt+Shift+s')
   await saved(page)
   await page.getByRole('button', { name: '刷新本地数据' }).click()
   await expect(body(page)).toHaveText('快捷键保存的正文')

@@ -5,6 +5,9 @@ import { downloadNovel } from './download'
 import { BackupPanel } from '../backups/BackupPanel'
 import { StoryBiblePanel } from '../story-bible/StoryBiblePanel'
 import { NovelDialog } from './NovelDialog'
+import { ChapterNavigation } from './ChapterNavigation'
+import type { EditorControl } from './ChapterEditor'
+import { editorShortcut } from './editor-shortcuts'
 import './workspace.css'
 
 const ChapterEditor = lazy(() => import('./ChapterEditor').then(module => ({ default: module.ChapterEditor })))
@@ -25,6 +28,8 @@ export function Workspace() {
   const [exportFormat, setExportFormat] = useState<'markdown' | 'txt' | 'json'>('markdown')
   const [notice, setNotice] = useState('')
   const [view, setView] = useState<'writing' | 'characters' | 'world'>('writing')
+  const [chapterQuery, setChapterQuery] = useState('')
+  const editorControl = useRef<EditorControl | null>(null)
   const active = useRef(false)
   const blocked = loading || busy || dirty
   const updateNovel = useCallback((novel: Novel) => {
@@ -52,12 +57,27 @@ export function Workspace() {
     const loaded = await api.chapter(id)
     setChapter(loaded); setSession(value => value + 1); setDirty(false)
   }
+  function selectChapter(id: string) {
+    if (view !== 'writing' || loading || busy || id === chapter?.id) return
+    void run(async () => {
+      // A lazy editor may not be mounted yet; a clean chapter can still switch.
+      const control = editorControl.current
+      if (control ? !await control.saveBeforeLeave() : dirty) {
+        setError('当前章节尚未保存，已保留在编辑器中。请先重试保存或处理版本冲突，再切换章节。')
+        return
+      }
+      await loadChapter(id)
+    })
+  }
+  useEffect(() => {
+    document.querySelector('.chapter-list .active')?.scrollIntoView({ block: 'nearest' })
+  }, [chapter?.id])
   function selectNovel(novel: Novel) {
     if (blocked || backups) return
     void run(async () => {
       const loaded = await api.detail(novel.id)
       const first = loaded.chapters[0] ? await api.chapter(loaded.chapters[0].id) : null
-      setDetail(loaded); updateNovel(loaded.novel); setChapter(first); setSession(value => value + 1)
+      setChapterQuery(''); setDetail(loaded); updateNovel(loaded.novel); setChapter(first); setSession(value => value + 1)
     })
   }
   function refresh() {
@@ -109,7 +129,21 @@ export function Workspace() {
       setDetail(loaded); updateNovel(loaded.novel); setChapter(fresh); setSession(value => value + 1); setDirty(false)
     })
   }
-  return <div className={`workspace ${view !== 'writing' && detail ? 'with-story-bible' : ''} ${focused && detail && view === 'writing' ? 'focused' : ''}`} aria-busy={loading || busy}>
+  return <div className={`workspace ${view !== 'writing' && detail ? 'with-story-bible' : ''} ${focused && detail && view === 'writing' ? 'focused' : ''}`} aria-busy={loading || busy} onKeyDownCapture={event => {
+    if (view !== 'writing' || !chapter || backups || modal || (event.target instanceof Element && event.target.closest('dialog'))) return
+    const action = editorShortcut(event.nativeEvent)
+    if (!action || (action === 'escape' && !focused)) return
+    event.preventDefault()
+    if (action === 'save') editorControl.current?.save()
+    else if (action === 'focus' || action === 'escape') {
+      setFocused(action === 'escape' ? false : !focused)
+      editorControl.current?.focus()
+    } else if (detail) {
+      const index = detail.chapters.findIndex(item => item.id === chapter.id)
+      const target = detail.chapters[index + (action === 'previous' ? -1 : 1)]
+      if (target) selectChapter(target.id)
+    }
+  }}>
     <aside className="library-pane">
       <div className="brand"><span className="brand-mark">S</span><div><strong>StoryForge</strong><small>原创故事工作台</small></div></div>
       <div className="library-heading"><span>我的小说 <span className="count">{novels.length}</span></span><button aria-label="创建小说" disabled={blocked || backups} onClick={() => openModal('create')}>＋</button></div>
@@ -118,16 +152,18 @@ export function Workspace() {
       <div className="library-bottom"><button disabled={blocked || backups} onClick={() => { setBackups(true); setFocused(false); setChapter(null); setDetail(null) }}>备份与恢复</button><button disabled={blocked || backups} onClick={refresh}>刷新本地数据</button><small>● 本地存储 · 无需登录</small></div>
     </aside>
     <main className="main-workspace">
-      <header className="workspace-heading"><div><span className="eyebrow">创作空间</span><h1>{backups ? '备份与恢复' : detail?.novel.title ?? '欢迎来到 StoryForge'}</h1></div>{detail && <div className="button-row"><select aria-label="小说导出格式" disabled={blocked} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="markdown">Markdown</option><option value="txt">TXT</option><option value="json">JSON</option></select><button disabled={blocked} onClick={() => { setNotice('正在导出小说…'); void run(async () => { await downloadNovel(detail.novel.id, detail.novel.title, exportFormat); setNotice('导出文件已交给浏览器下载，请查看下载列表。') }).then(() => setNotice(current => current === '正在导出小说…' ? '' : current)) }}>导出小说</button><button disabled={view !== 'writing'} aria-pressed={focused} onClick={() => setFocused(value => !value)}>{focused ? '退出专注' : '专注写作'}</button><button disabled={blocked} onClick={() => openModal('edit')}>小说设置</button><button className="danger" disabled={blocked} onClick={() => {
+      <header className="workspace-heading"><div><span className="eyebrow">创作空间</span><h1>{backups ? '备份与恢复' : detail?.novel.title ?? '欢迎来到 StoryForge'}</h1></div>{detail && <div className="button-row"><select aria-label="小说导出格式" disabled={blocked} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="markdown">Markdown</option><option value="txt">TXT</option><option value="json">JSON</option></select><button disabled={blocked} onClick={() => { setNotice('正在导出小说…'); void run(async () => { await downloadNovel(detail.novel.id, detail.novel.title, exportFormat); setNotice('导出文件已交给浏览器下载，请查看下载列表。') }).then(() => setNotice(current => current === '正在导出小说…' ? '' : current)) }}>导出小说</button><button className="focus-toggle" disabled={!chapter || view !== 'writing'} title="Ctrl/⌘ + Alt + Shift + F；Esc 退出" aria-pressed={focused} onClick={() => { setFocused(value => !value); editorControl.current?.focus() }}>{focused ? '退出专注' : '专注写作'}</button><button disabled={blocked} onClick={() => openModal('edit')}>小说设置</button><button className="danger" disabled={blocked} onClick={() => {
         if (!window.confirm(`删除《${detail.novel.title}》及全部章节、人物和世界观？此操作不可撤销。`)) return
         void run(async () => { await api.remove(detail.novel); setNovels(items => items.filter(item => item.id !== detail.novel.id)); setDetail(null); setChapter(null) })
       }}>删除小说</button></div>}</header>
       {detail && <nav className="workspace-sections" aria-label="小说工作台模块">{([['writing', '章节写作'], ['characters', '人物档案'], ['world', '世界观']] as const).map(([key, label]) => <button key={key} aria-pressed={view === key} disabled={blocked} onClick={() => { setView(key); setFocused(false) }}>{label}</button>)}</nav>}
       {error && <div className="workspace-error" role="alert">{error}<button onClick={() => setError('')} aria-label="关闭提示">×</button><small>若数据已在其他浏览器变化，请先保存或处理当前草稿，再点击“刷新本地数据”。</small></div>}
-      {dirty && <div className="pending-note">{view === 'writing' ? '正文存在未保存修改，保存完成后即可切换小说、章节或调整顺序。' : '正在处理资料或存在未保存修改，完成保存后即可切换小说与模块。'}</div>}
+      {dirty && <div className="pending-note">{view === 'writing' ? '正文存在未保存修改。切换章节会先保存；切换小说或调整顺序请等待保存完成。' : '正在处理资料或存在未保存修改，完成保存后即可切换小说与模块。'}</div>}
       {!backups && notice && <p className="backup-status" role="status">{notice}</p>}
       {backups ? <BackupPanel onBack={() => { setBackups(false); setNotice(''); void run(async () => { setNovels(await api.list()) }) }} /> : detail && view !== 'writing' ? <StoryBiblePanel key={`${detail.novel.id}:${view}:${session}`} novelId={detail.novel.id} mode={view} disabled={busy} onDirty={setDirty} /> : detail ? <div className="writing-area"><aside className="chapter-pane"><div className="chapter-heading"><span>章节 <span className="count">{detail.chapters.length}</span></span><button disabled={blocked} onClick={addChapter} aria-label="添加章节">＋</button></div>
-        <ol className="chapter-list">{detail.chapters.map((item, index) => <li key={item.id} className={chapter?.id === item.id ? 'active' : ''}><button className="chapter-select" aria-current={chapter?.id === item.id ? 'page' : undefined} disabled={blocked} onClick={() => { void run(() => loadChapter(item.id)) }}><span className="chapter-number">{String(index + 1).padStart(2, '0')}</span><span>{item.title}</span></button><div className="order-buttons"><button aria-label={`上移 ${item.title}`} disabled={blocked || index === 0} onClick={() => move(item, -1)}>↑</button><button aria-label={`下移 ${item.title}`} disabled={blocked || index === detail.chapters.length - 1} onClick={() => move(item, 1)}>↓</button></div></li>)}</ol>
+        <input className="chapter-search" type="search" aria-label="搜索章节" placeholder="搜索章节标题或序号" value={chapterQuery} onChange={event => setChapterQuery(event.target.value)} />
+        <ol className="chapter-list">{detail.chapters.map((item, index) => <li hidden={!!chapterQuery.trim() && !item.title.toLocaleLowerCase().includes(chapterQuery.trim().toLocaleLowerCase()) && String(index + 1) !== chapterQuery.trim()} key={item.id} className={chapter?.id === item.id ? 'active' : ''}><button className="chapter-select" aria-current={chapter?.id === item.id ? 'page' : undefined} disabled={loading || busy || chapter?.id === item.id} onClick={() => selectChapter(item.id)}><span className="chapter-number">{String(index + 1).padStart(2, '0')}</span><span>{item.title}</span></button><div className="order-buttons"><button aria-label={`上移 ${item.title}`} disabled={blocked || index === 0} onClick={() => move(item, -1)}>↑</button><button aria-label={`下移 ${item.title}`} disabled={blocked || index === detail.chapters.length - 1} onClick={() => move(item, 1)}>↓</button></div></li>)}</ol>
+        {chapterQuery.trim() && !detail.chapters.some((item, index) => item.title.toLocaleLowerCase().includes(chapterQuery.trim().toLocaleLowerCase()) || String(index + 1) === chapterQuery.trim()) && <p className="chapter-no-results" role="status">没有匹配的章节</p>}
         {chapter && <button className="delete-chapter danger" disabled={blocked} onClick={() => {
           if (!window.confirm(`删除“${chapter.title}”？此操作不可撤销。`)) return
           void run(async () => {
@@ -137,7 +173,7 @@ export function Workspace() {
             else setChapter(null)
           })
         }}>删除当前章节</button>}
-      </aside>{chapter ? <Suspense fallback={<div className="empty-state">正在加载编辑器…</div>}><ChapterEditor key={`${chapter.id}:${session}`} chapter={chapter} onSaved={onSaved} onDirty={setDirty} onReload={reloadEditor} disabled={busy} /></Suspense> : <div className="empty-state"><span className="empty-icon">✎</span><h2>故事，从第一章开始</h2><p>为《{detail.novel.title}》创建一个章节。</p><button className="primary" disabled={blocked} onClick={addChapter}>创建第一章</button></div>}</div> : <div className="empty-state welcome"><span className="empty-icon">▤</span><h2>让灵感成为故事</h2><p>创建小说，整理章节，专注写作。<br />你的故事保存在这台设备上。</p><button className="primary" disabled={blocked || backups} onClick={() => openModal('create')}>创建小说</button></div>}
+      </aside>{chapter ? <div className="chapter-workspace"><ChapterNavigation chapters={detail.chapters} currentId={chapter.id} disabled={loading || busy} onSelect={selectChapter} /><Suspense fallback={<div className="empty-state">正在加载编辑器…</div>}><ChapterEditor key={`${chapter.id}:${session}`} chapter={chapter} controlRef={editorControl} onSaved={onSaved} onDirty={setDirty} onReload={reloadEditor} disabled={busy} /></Suspense></div> : <div className="empty-state"><span className="empty-icon">✎</span><h2>故事，从第一章开始</h2><p>为《{detail.novel.title}》创建一个章节。</p><button className="primary" disabled={blocked} onClick={addChapter}>创建第一章</button></div>}</div> : <div className="empty-state welcome"><span className="empty-icon">▤</span><h2>让灵感成为故事</h2><p>创建小说，整理章节，专注写作。<br />你的故事保存在这台设备上。</p><button className="primary" disabled={blocked || backups} onClick={() => openModal('create')}>创建小说</button></div>}
     </main>
     {modal && <NovelDialog novel={modal === 'edit' ? detail?.novel ?? null : null} busy={busy} error={error} returnFocusTo={dialogOpener} onClose={() => { setModal(null); setError('') }} onSubmit={(title, description) => {
       void run(async () => {

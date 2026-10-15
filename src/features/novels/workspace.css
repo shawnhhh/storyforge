@@ -23,3 +23,25 @@ fieldset.format-bar{margin:0;min-width:0;border-left:0;border-right:0}
 @media(max-width:720px){.workspace.focused{min-width:0}.focused .workspace-heading{flex-wrap:wrap}.focused .workspace-heading .button-row{flex-wrap:wrap}.focused .chapter-title{font-size:23px}.focused .editor-heading,.focused .format-bar,.focused .editor-footer{padding-left:20px;padding-right:20px}}
 
 select{font:inherit;color:#454a54;border:1px solid #dce0e6;background:#fff;border-radius:7px;padding:7px}.workspace-heading .button-row{flex-wrap:wrap;justify-content:flex-end}.backup-panel{overflow:auto;padding:28px 32px;line-height:1.7}.backup-last{margin:20px 0 8px;font-weight:600}.backup-note{color:#7e8590;font-size:13px;margin:8px 0}.backup-path{overflow-wrap:anywhere}.backup-settings{margin:24px 0;padding:18px;background:#fff;border:1px solid #e1e5eb;border-radius:10px}.backup-settings label{display:inline-flex;align-items:center;gap:8px;margin-right:18px}.backup-settings input[type=number]{width:80px;border:1px solid #dce0e6;border-radius:6px;padding:6px}.backup-status{color:#416da7;padding:12px 0;overflow-wrap:anywhere}.main-workspace> .backup-status{padding:12px 32px}.backup-panel h2{font-size:18px;margin-top:24px}.backup-list{list-style:none;padding:0}.backup-list li{display:flex;align-items:center;justify-content:space-between;gap:20px;background:#fff;border:1px solid #e1e5eb;border-radius:10px;padding:18px;margin:12px 0}.backup-list li>div:first-child{min-width:0}.backup-list span,.backup-list small{display:block;overflow-wrap:anywhere}.backup-list .button-row{flex-shrink:0}.backup-list span{font-size:12px;color:#7e8590;margin:3px 0}.backup-panel .novel-dialog p{margin-bottom:15px}.backup-panel .workspace-error{margin:12px 0}
+
+/* Phase 4: keep writing controls local to the editor and its navigation. */
+.chapter-workspace{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.chapter-navigation{display:flex;align-items:center;gap:8px;flex-shrink:0;padding:12px 24px;background:#fff;border-bottom:1px solid #e4e7ec;flex-wrap:wrap}
+.chapter-navigation select{min-width:0;max-width:340px;flex:1;text-overflow:ellipsis}
+.chapter-position{font-size:12px;color:#7e8590;white-space:nowrap}
+.chapter-search{min-width:0;width:100%;padding:8px 10px;margin-bottom:10px;border:1px solid #dce0e6;border-radius:7px;background:#fff}
+.chapter-list li[hidden]{display:none}.chapter-no-results{padding:12px 8px;color:#7e8590;font-size:12px}
+.editor-tools{display:flex;align-items:center;flex-wrap:wrap;border-block:1px solid #f0f1f4;flex-shrink:0;padding-right:24px}
+.editor-tools .format-bar{flex:1;border:0}.editor-tools>.save-now{border:0;color:#416da7}
+.shortcut-help,.word-statistics{position:relative}.shortcut-help{margin-left:auto;font-size:12px}
+.shortcut-help summary,.word-statistics summary{cursor:pointer;padding:4px;border-radius:4px}
+.shortcut-details,.statistics-details{position:absolute;z-index:5;right:0;width:min(380px,80vw);padding:16px;background:#fff;color:#586170;border:1px solid #dce0e6;border-radius:8px;box-shadow:0 5px 20px #182a4a20;line-height:1.8;font-size:12px}
+.shortcut-details{top:100%}.statistics-details{bottom:100%;left:0;right:auto}.statistics-details p+p,.shortcut-details p+p{margin-top:5px}
+.focused .workspace-heading{min-height:60px;padding:12px 24px}.focused .workspace-heading .eyebrow{display:none}.focused .workspace-heading h1{font-size:16px}
+.focused .workspace-heading .button-row>:not(.focus-toggle){display:none}
+.focused .editor-tools .format-bar{display:none}.focused .editor-tools{justify-content:flex-end;border-top:0;padding:4px 24px}
+.focused .editor-heading,.focused .editor-footer{padding:12px 24px}.focused .chapter-navigation{padding:8px 24px}
+.focused .chapter-title{margin-top:16px;margin-bottom:16px}.focused .document{max-width:950px}
+@media(max-width:720px){.chapter-navigation{gap:6px;padding:8px 12px}.chapter-navigation button{font-size:12px;padding:6px}.shortcut-help{margin-left:0}.focused .workspace-heading{flex-wrap:nowrap}.focused .chapter-navigation{padding:8px 12px}}
+
+.focused .workspace-sections{display:none}
