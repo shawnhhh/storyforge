@@ -1,6 +1,8 @@
 # StoryForge
 
-原创 IP 创作平台。第一阶段在 Mac 本地运行，无登录、无云服务；小说、章节和富文本正文由本机 Express 服务保存到 SQLite。当前已实现小说 CRUD、章节 CRUD / 排序、Tiptap 编辑、串行自动保存与多浏览器版本冲突保护。
+原创 IP 创作平台。第一阶段在 Mac 本地运行，无登录、无云服务；小说、章节和富文本正文由本机 Express 服务保存到 SQLite。当前已实现小说 CRUD、章节管理、Tiptap 自动保存、多浏览器冲突保护，以及第二阶段安全备份、事务恢复和 Markdown / TXT / JSON 小说导出。
+
+第二阶段的数据位置、安全机制、自动备份触发条件和 Mac Safari 验收步骤见 [备份、恢复与导出说明](docs/backup-restore-export.md)。
 
 ## 启动与检查
 
@@ -76,7 +78,7 @@ shared/
 
 小说记录标题、简介、UUID、版本及时间。章节记录标题、顺序、Tiptap JSON、`content_schema_version=1`、并发版本及时间。删除小说级联删除章节，界面要求明确确认；排序和删除均在事务中完成。删除操作没有回收站，请谨慎确认。
 
-`data/`、数据库及 WAL/SHM、`.env`、node_modules、dist 均不提交 Git；源码、SQL 迁移、配置示例和 package-lock.json 应提交。备份请先关闭服务后复制整个数据目录，或使用 SQLite 备份 API；运行中不能仅复制主数据库文件。测试使用系统临时目录，不向用户数据文件写入测试小说。
+`data/`、数据库及 WAL/SHM、`.env`、node_modules、dist 均不提交 Git；源码、SQL 迁移、配置示例和 package-lock.json 应提交。备份使用界面中的“手动备份”或自动备份，均调用 SQLite 官方备份 API；禁止直接复制正在使用的数据库文件。测试使用系统临时目录，不向用户数据文件写入测试小说。
 
 ## 保存与并发规则
 
@@ -118,7 +120,7 @@ shared/
 
 浏览器回归覆盖小说创建 / 设置 / 删除、章节创建 / 排序 / 删除、富文本自动保存与刷新恢复、双窗口冲突及草稿导出、远端删除后的恢复、网络失败重试、快捷键保存和对话框焦点。`test:e2e` 自动分配本机端口，启动专用前后端，强制使用系统临时目录作为 `STORYFORGE_DATA_DIR`，结束后关闭进程并清理该目录；不会读取 `.env` 中的数据目录或复用已有服务。失败报告位于被 Git 忽略的 `work/e2e-results/`。可用 `E2E_CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e` 选择云环境预装浏览器。GitHub Actions 在 Node 24 下运行 lint、类型检查 / 构建、服务端测试和 Chromium 测试。Safari 的实际 Mac 界面仍需手动验证。
 
-下一步优先实现导入导出、备份恢复和回收站，再扩展角色与世界观。Mac / Windows 后续选择桌面容器并使用用户应用数据目录；iOS / Android 需要原生存储适配，不能直接运行 Node 服务。CloudBase 未来作为独立同步适配器，实施前设计同步队列、删除标记和冲突规则；当前不引入云 SDK 或账号。
+下一步可实现小说导入与回收站，再扩展角色与世界观。Mac / Windows 后续选择桌面容器并使用用户应用数据目录；iOS / Android 需要原生存储适配，不能直接运行 Node 服务。CloudBase 未来作为独立同步适配器，实施前设计同步队列、删除标记和冲突规则；当前不引入云 SDK 或账号。
 
 ---
 

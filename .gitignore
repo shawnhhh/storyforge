@@ -45,6 +45,10 @@ coverage/
 # Local backups and editor-exported unpublished drafts
 backup/
 backups/
+!server/src/modules/backups/
+!server/src/modules/backups/**
+!src/features/backups/
+!src/features/backups/**
 *.bak
 *.backup
 *-草稿.json

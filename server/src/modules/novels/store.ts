@@ -6,7 +6,7 @@ export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message) }
 }
 const novelColumns = 'id, title, description, version, created_at AS createdAt, updated_at AS updatedAt'
-const chapterColumns = 'id, novel_id AS novelId, title, position, version, updated_at AS updatedAt, content, content_schema_version AS contentSchemaVersion'
+const chapterColumns = 'id, novel_id AS novelId, title, position, version, created_at AS createdAt, updated_at AS updatedAt, content, content_schema_version AS contentSchemaVersion'
 
 export class NovelStore {
   constructor(private db: DatabaseSync) {}
@@ -30,6 +30,17 @@ export class NovelStore {
     const novel = this.novel(id)
     const chapters = this.db.prepare('SELECT id, novel_id AS novelId, title, position, version, updated_at AS updatedAt FROM chapters WHERE novel_id = ? ORDER BY position, id').all(id) as unknown as ChapterSummary[]
     return { novel, chapters }
+  }
+  exportData(id: string) {
+    // A read transaction keeps metadata and every chapter in one SQLite snapshot,
+    // including when another connection commits while this connection reads.
+    this.db.exec('BEGIN')
+    try {
+      const detail = this.detail(id)
+      const result = { novel: detail.novel, chapters: detail.chapters.map(chapter => this.chapter(chapter.id)) }
+      this.db.exec('COMMIT')
+      return result
+    } catch (error) { this.db.exec('ROLLBACK'); throw error }
   }
   private check(actual: number, expected: number) {
     if (actual !== expected) throw new HttpError(409, '数据已在另一个窗口更新。当前修改尚未保存，请复制内容后重新加载。')
