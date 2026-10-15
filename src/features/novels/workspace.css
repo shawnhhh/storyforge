@@ -45,3 +45,8 @@ select{font:inherit;color:#454a54;border:1px solid #dce0e6;background:#fff;borde
 @media(max-width:720px){.chapter-navigation{gap:6px;padding:8px 12px}.chapter-navigation button{font-size:12px;padding:6px}.shortcut-help{margin-left:0}.focused .workspace-heading{flex-wrap:nowrap}.focused .chapter-navigation{padding:8px 12px}}
 
 .focused .workspace-sections{display:none}
+
+/* Keep the writing viewport stable when autosave clears the pending notice.
+   visibility also retains the same wrapped height at narrow viewport widths. */
+.pending-note{flex-shrink:0}
+.pending-note[aria-hidden="true"]{visibility:hidden}
