@@ -1,3 +1,5 @@
+import { PlanningStore } from './modules/planning/store.js'
+import { planningRoutes } from './modules/planning/routes.js'
 import express from 'express'
 import type { ErrorRequestHandler } from 'express'
 import type { DatabaseSync } from 'node:sqlite'
@@ -37,14 +39,16 @@ export function createApp(database: DatabaseSync, backups?: BackupService) {
     response.json(health)
   })
   const novels = new NovelStore(database)
+  const planning = new PlanningStore(database)
   app.get('/api/novels/:id/export', (req, res) => {
-    const exported = exportNovel(novels, req.params.id, req.query.format)
+    const exported = exportNovel(novels, req.params.id, req.query.format, planning.read(req.params.id))
     res.setHeader('Content-Type', exported.mime)
     res.setHeader('Content-Disposition', `attachment; filename="novel.${exported.extension}"; filename*=UTF-8''${encodeURIComponent(exported.filename).replace(/['()*]/g, char => '%' + char.charCodeAt(0).toString(16))}`)
     res.setHeader('Cache-Control', 'no-store')
     res.send(exported.body)
   })
   if (backups) app.use('/api', backupRoutes(backups))
+  app.use('/api', planningRoutes(planning))
   app.use('/api', novelRoutes(novels))
   app.use('/api', storyBibleRoutes(new StoryBibleStore(database)))
   app.use('/api', (_req, res) => { res.status(404).json({ message: '接口不存在' }) })

@@ -37,7 +37,7 @@ async function start(dir: string, port: number) {
   generations.delete(base)
   for (let attempt = 0; attempt < 80; attempt++) {
     if (child.exitCode !== null) throw new Error(log)
-    try { if ((await fetch(`${base}/health`)).ok) return { base, stop } } catch { /* wait for server */ }
+    try { if ((await fetch(`${base}/health`, { signal: AbortSignal.timeout(1000) })).ok) return { base, stop } } catch { /* wait for server */ }
     await delay(75)
   }
   await stop(); throw new Error(`Server startup timed out: ${log}`)

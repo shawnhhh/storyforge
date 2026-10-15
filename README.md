@@ -6,6 +6,8 @@
 
 第三阶段人物档案、世界观、关系与时间线的操作、自动保存规则及 Safari 验收步骤见 [人物与世界观工作台](docs/characters-worldbuilding.md)。
 
+第五阶段新增「创作规划」：独立作品大纲、剧情线/卡片、伏笔、多章节关联和本机草稿恢复。使用方法、具名迁移和 Safari 验收见 [大纲与剧情规划说明](docs/plot-planning.md)。
+
 ## 启动与检查
 
 要求 Node 24.x（`.nvmrc`）与 npm。
