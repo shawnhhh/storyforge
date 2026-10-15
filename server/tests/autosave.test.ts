@@ -128,3 +128,59 @@ test('empty chapter titles remain dirty without writing and can be corrected', a
     assert.equal(saver.state.status, 'saved')
   } finally { saver.dispose() }
 })
+
+test('navigation drains in-flight and queued revisions with current title/content/version', async () => {
+  let finish!: (value: ChapterResult) => void
+  const writes: { version: number; title: string; text?: string }[] = []
+  const saver = new ChapterSaver(chapter, async (_id, version, title, content) => {
+    writes.push({ version, title, text: content.content?.[0]?.text })
+    if (writes.length === 1) return new Promise(resolve => { finish = resolve })
+    return result(version + 1, title)
+  }, 60000)
+  try {
+    saver.change('第一版', { type: 'doc' })
+    const saving = saver.flush()
+    saver.change('第二版', () => ({ type: 'doc', content: [{ type: 'text', text: '最新内容' }] }))
+    const leaving = saver.saveBeforeLeave()
+    finish(result(2, '第一版'))
+    await saving
+    assert.equal(await leaving, true)
+    assert.deepEqual(writes, [{ version: 1, title: '第一版', text: undefined }, { version: 2, title: '第二版', text: '最新内容' }])
+    assert.equal(saver.state.dirty, false)
+  } finally { saver.dispose() }
+})
+
+test('navigation blocks on failure, conflict and invalid titles without retry loops', async () => {
+  for (const error of [new Error('离线'), new ApiError(409, '冲突')]) {
+    let attempts = 0
+    const saver = new ChapterSaver(chapter, async () => { attempts++; throw error }, 60000)
+    try {
+      saver.change('未保存草稿', { type: 'doc' })
+      assert.equal(await saver.saveBeforeLeave(), false)
+      assert.equal(await saver.saveBeforeLeave(), false)
+      assert.equal(attempts, 1)
+      assert.equal(saver.state.dirty, true)
+    } finally { saver.dispose() }
+  }
+  const saver = new ChapterSaver(chapter, async () => { throw new Error('must not write') }, 60000)
+  try {
+    saver.change('', { type: 'doc' })
+    assert.equal(await saver.saveBeforeLeave(), false)
+    assert.equal(saver.state.status, 'failed')
+  } finally { saver.dispose() }
+})
+
+test('typing defers serialization and does not publish identical save states per keystroke', async () => {
+  let serializations = 0
+  const states: string[] = []
+  const saver = new ChapterSaver(chapter, async (_id, version, title) => result(version + 1, title), 60000)
+  saver.subscribe(state => states.push(state.status))
+  try {
+    for (let i = 0; i < 100; i++) saver.change('长篇', () => { serializations++; return { type: 'doc' } })
+    assert.equal(serializations, 0)
+    assert.deepEqual(states, ['saved', 'pending'])
+    assert.equal(await saver.saveBeforeLeave(), true)
+    assert.equal(serializations, 1)
+    assert.deepEqual(states, ['saved', 'pending', 'saving', 'saved'])
+  } finally { saver.dispose() }
+})
