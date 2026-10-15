@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { expectChapterReady, chapterBody } from './editor-helpers.js'
 const panel = (page: Page) => page.getByRole('region', { name: '创作规划', exact: true })
 const saved = (page: Page) => expect(page.locator('.planning-status')).toHaveText('已保存')
 async function seed(page: Page, title: string) {
@@ -184,4 +185,47 @@ test('temporarily empty required titles remain recoverable in local drafts', asy
   await expect(panel(page).getByRole('textbox', { name: '详细内容', exact: true })).toHaveValue('尚未命名但必须保留的内容')
   await panel(page).getByLabel('规划标题', { exact: true }).fill('补全标题')
   await saved(page)
+})
+
+
+test('planning drafts keep writing shortcuts scoped and preserve editor navigation, counts and focus', async ({ page }) => {
+  const { novel } = await seed(page, '第四第五阶段整合验证')
+  await open(page, novel.title)
+  await panel(page).getByRole('button', { name: '新建大纲', exact: true }).click()
+  await saved(page)
+  await page.route('**/api/novels/*/planning', route => route.request().method() === 'PUT' ? route.abort('failed') : route.continue())
+  const title = panel(page).getByLabel('规划标题', { exact: true })
+  await title.fill('待保存的整合大纲')
+  await expect(page.locator('.planning-status')).toHaveText('保存失败 · 草稿已保留')
+  const modules = page.getByRole('navigation', { name: '小说工作台模块' })
+  await expect(modules.getByRole('button', { name: '章节写作', exact: true })).toBeDisabled()
+  await expect(modules.getByRole('button', { name: '人物档案', exact: true })).toBeDisabled()
+  let chapterReads = 0
+  page.on('request', request => { if (request.method() === 'GET' && /\/api\/chapters\//.test(request.url())) chapterReads++ })
+  for (const key of ['f', 's', 'ArrowDown', 'ArrowUp']) await title.press(`ControlOrMeta+Alt+Shift+${key}`)
+  await title.press('Escape')
+  await expect(page.locator('.workspace')).not.toHaveClass(/focused/)
+  await expect(title).toHaveValue('待保存的整合大纲')
+  expect(chapterReads).toBe(0)
+  await page.unroute('**/api/novels/*/planning')
+  await panel(page).getByRole('button', { name: '重试保存规划', exact: true }).click()
+  await saved(page)
+  await panel(page).getByRole('button', { name: '返回写作', exact: true }).click()
+  const body = await expectChapterReady(page, '第一章')
+  await body.fill('中文 Hello 2026')
+  await expect(page.getByLabel('字数统计')).toHaveText('4 字')
+  // Navigation must drain a pending chapter save before reading the next chapter.
+  await page.getByRole('button', { name: '下一章', exact: true }).click()
+  await expectChapterReady(page, '第二章')
+  await page.getByRole('button', { name: '上一章', exact: true }).click()
+  await expectChapterReady(page, '第一章', '中文 Hello 2026')
+  await chapterBody(page).press('ControlOrMeta+Alt+Shift+f')
+  await expect(modules).not.toBeVisible()
+  await chapterBody(page).press('Escape')
+  await expect(modules).toBeVisible()
+  await page.getByLabel('搜索章节', { exact: true }).fill('2')
+  await expect(page.locator('.chapter-select:visible')).toHaveCount(1)
+  await expect(page.locator('.chapter-select:visible')).toContainText('第二章')
+  await modules.getByRole('button', { name: '创作规划', exact: true }).click()
+  await expect(page.locator('.planning-items')).toContainText('待保存的整合大纲')
 })
