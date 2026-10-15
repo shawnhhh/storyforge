@@ -21,8 +21,8 @@ export function WorldEditor({ record, characters, disabled, onSaved, onDirty, on
       <legend className="sr-only">编辑世界观设定</legend>
       <div className="profile-form-grid">
         <label>设定名称<input maxLength={200} value={value.name} onChange={event => change({ name: event.target.value })} /></label>
-        <label>设定分类<select value={value.category} onChange={event => change({ category: event.target.value as WorldCategory })}>{Object.entries(worldCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        <label className="profile-wide">设定内容<textarea rows={12} maxLength={100000} value={value.description} onChange={event => change({ description: event.target.value })} /></label>
+        <label>设定分类<select aria-label="设定分类" value={value.category} onChange={event => change({ category: event.target.value as WorldCategory })}>{Object.entries(worldCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <label className="profile-wide">设定内容<textarea aria-label="设定内容" rows={12} maxLength={100000} value={value.description} onChange={event => change({ description: event.target.value })} /></label>
       </div>
       <h3>设定标签</h3><TagsEditor tags={value.tags} onChange={tags => change({ tags })} />
       <h3>事件时间线</h3>

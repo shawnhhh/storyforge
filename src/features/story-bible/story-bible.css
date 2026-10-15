@@ -6,7 +6,7 @@
 .story-toolbar h2{font-size:19px}.story-toolbar p,.profile-hint{color:#7e8590;font-size:12px;line-height:1.7}.story-toolbar p{margin-top:6px}
 .story-columns{display:flex;flex:1;min-height:0;min-width:0}
 .story-list-pane{width:240px;flex-shrink:0;overflow:auto;padding:18px 14px;background:#f8f9fb;border-right:1px solid #e4e7ec}
-.story-list-pane>input,.story-list-pane label{display:block;width:100%;margin-bottom:14px}.story-list-pane label{font-size:12px;color:#657081}.story-list-pane select{display:block;width:100%;margin-top:6px}
+.story-list-pane>input,.story-list-pane label:not(.sr-only){display:block;width:100%;margin-bottom:14px}.story-list-pane label{font-size:12px;color:#657081}.story-list-pane select{display:block;width:100%;margin-top:6px}
 .story-bible input:not([type=checkbox]),.story-bible textarea{border:1px solid #dce1e9;border-radius:7px;padding:9px;color:#303b49;background:#fff;min-width:0}
 .world-categories{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px}.world-categories button{font-size:12px;padding:6px 8px}
 .story-list-pane>.profile-hint{margin:14px 0 6px}.profile-list{display:flex;flex-direction:column;gap:5px}.profile-list>button{text-align:left;padding:13px 10px;background:transparent;border:1px solid transparent;overflow-wrap:anywhere}

@@ -166,5 +166,35 @@ test('world save failures preserve drafts, invalid input blocks writes and retry
   await saved(page)
   await page.getByRole('button', { name: '刷新资料', exact: true }).click()
   await expect(page.getByLabel('设定内容', { exact: true })).toHaveValue('离线仍保留的设定内容 🌕')
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  for (const width of [1440, 1024, 700, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    const layout = await page.evaluate(() => ({
+      width: window.innerWidth,
+      scroll: document.documentElement.scrollWidth,
+      overflowing: [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 8).map(element => ({ tag: element.tagName, class: element.className, right: element.getBoundingClientRect().right })),
+    }))
+    expect(layout.scroll, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width)
+  }
+})
+
+test('Chinese composition pauses browser autosave and saves the committed text after compositionend', async ({ page }) => {
+  await novel(page, '中文输入法保存')
+  await module(page, '人物档案')
+  await page.getByRole('button', { name: '新增人物', exact: true }).first().click()
+  const name = page.getByLabel('姓名', { exact: true })
+  await expect(name).toBeEditable()
+  let writes = 0
+  page.on('request', request => { if (request.method() === 'PUT' && /\/characters\//.test(request.url())) writes++ })
+  await name.dispatchEvent('compositionstart', { data: '' })
+  await name.fill('lin')
+  // Intentionally span the 700ms debounce: no intermediate IME text may write.
+  await page.waitForTimeout(900)
+  expect(writes).toBe(0)
+  await expect(page.locator('.profile-save-status')).toHaveText('等待保存…')
+  await name.fill('林月🌕')
+  await name.dispatchEvent('compositionend', { data: '林月🌕' })
+  await saved(page)
+  expect(writes).toBe(1)
+  await page.getByRole('button', { name: '刷新资料', exact: true }).click()
+  await expect(name).toHaveValue('林月🌕')
 })

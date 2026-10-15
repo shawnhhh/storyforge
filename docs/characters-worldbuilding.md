@@ -36,3 +36,7 @@
 `server/tests/profile-autosave.test.ts` 测试前端保存队列的串行写入、版本更新、404/409、网络失败重试、非法输入、中文组合输入及卸载行为，并测试中文搜索、标签组合筛选和时间线排序。该文件不打开数据库。
 
 `tests/e2e/story-bible.spec.ts` 使用现有隔离测试运行器，覆盖人物/设定 CRUD、字段与特殊字符、搜索筛选、关系与关联、刷新恢复、小说隔离、时间线、冲突草稿下载、删除冲突、网络失败和窄屏布局。运行器使用系统临时数据库与备份目录，不读取真实用户数据。Chromium 自动化不能替代 Mac Safari 实机验收。
+
+`server/tests/story-bible.test.ts` 验证 v1 向 v2 的无损迁移及失败回滚、资料持久化、数据库级跨小说约束、删除后的版本冲突保护、完整 v2 恢复回滚，以及 v1 备份经临时副本升级后的恢复和原始备份字节保留。浏览器另用 compositionstart/compositionend 事件测试表单在组合输入期间不发出中间稿写入；实际 macOS 输入法仍按上文手动验收。
+
+前端 API 继续共享 `X-StoryForge-Generation` 会话保护。接口为 `GET /api/novels/:novelId/story-bible`，以及 `/api/novels/:novelId/characters` 和 `/api/novels/:novelId/world` 的 POST、`/:id` 的 PUT/DELETE；更新和删除必须携带实体版本。人物关系与设定关联随人物资料在同一事务中保存。JSON 字段结构与分类、时间线字段的契约位于 `shared/contracts/story-bible.ts`，方便未来 AI 模块读取已保存的本地结构化资料。
