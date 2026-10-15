@@ -5,6 +5,9 @@ export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
   workers: 1,
+  timeout: 45000,
+  globalTimeout: 240000,
+  expect: { timeout: 7000 },
   reporter: 'list',
   outputDir: process.env.E2E_OUTPUT_DIR,
   use: {

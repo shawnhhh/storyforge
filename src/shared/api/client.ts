@@ -3,8 +3,8 @@ export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) { super(message); this.status = status }
 }
-export async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
-  const response = await fetch(`/api${path}`, { method, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(generation ? { 'X-StoryForge-Generation': generation } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
+export async function request<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`/api${path}`, { method, signal, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(generation ? { 'X-StoryForge-Generation': generation } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
   if (!generation && response.ok) generation = response.headers.get('X-StoryForge-Generation')
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: '本地服务不可用' })) as { message?: string }
@@ -17,3 +17,5 @@ export async function request<T>(path: string, method = 'GET', body?: unknown): 
 export function getJson<T>(path: `/api/${string}`): Promise<T> {
   return request<T>(path.slice(4))
 }
+
+export function serviceGeneration() { return generation }

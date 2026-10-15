@@ -1,3 +1,6 @@
+import { migratePlanning } from '../../db/planning-migrate.js'
+import { PlanningStore } from '../planning/store.js'
+import { planningInput } from '../planning/validation.js'
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import { constants, chmodSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -16,11 +19,18 @@ const textSchema = getSchema([StarterKit])
 function schemaSignature(db: DatabaseSync) {
   return JSON.stringify(db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name").all())
 }
-const expectedSchemas = new Map<number, string>()
+// Accept only exact, supported combinations of base and module schemas.
+const schemaKey = (base: number, planning: number) => `${base}:${planning}`
+const expectedSchemas = new Map<string, string>()
 for (let version = 1; version <= schemaVersion; version++) {
-  const reference = new DatabaseSync(':memory:')
-  try { migrate(reference, version); expectedSchemas.set(version, schemaSignature(reference)) }
-  finally { reference.close() }
+  for (const planning of [0, 1]) {
+    const reference = new DatabaseSync(':memory:')
+    try {
+      migrate(reference, version)
+      if (planning) migratePlanning(reference)
+      expectedSchemas.set(schemaKey(version, planning), schemaSignature(reference))
+    } finally { reference.close() }
+  }
 }
 
 // Persist metadata atomically with restrictive permissions. SQLite backup files are
@@ -87,7 +97,7 @@ export class BackupService {
       if (!name.endsWith('.json') || !idPattern.test(name.slice(0, -5))) continue
       try {
         const entry = JSON.parse(readFileSync(this.safeFile(name), 'utf8')) as BackupEntry
-        if (entry.id !== name.slice(0, -5) || !['manual', 'automatic', 'before-restore'].includes(entry.kind) || !Number.isFinite(Date.parse(entry.createdAt)) || !Number.isSafeInteger(entry.size) || entry.size < 1 || !/^[a-f0-9]{64}$/.test(entry.sha256) || !expectedSchemas.has(entry.schemaVersion)) throw new Error('Invalid metadata')
+        if (entry.id !== name.slice(0, -5) || !['manual', 'automatic', 'before-restore'].includes(entry.kind) || !Number.isFinite(Date.parse(entry.createdAt)) || !Number.isSafeInteger(entry.size) || entry.size < 1 || !/^[a-f0-9]{64}$/.test(entry.sha256) || !expectedSchemas.has(schemaKey(entry.schemaVersion, entry.planningVersion ?? 0))) throw new Error('Invalid metadata')
         entries.push(entry)
       } catch { /* Invalid metadata is never selectable for restore. */ }
     }
@@ -101,7 +111,7 @@ export class BackupService {
     this.settings = settings
     return this.history()
   }
-  private validateDatabase(path: string, expectedVersion?: number) {
+  private validateDatabase(path: string, expectedVersion?: number, expectedPlanning?: number) {
     const header = Buffer.alloc(100), fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
     try { readSync(fd, header, 0, header.length, 0) } finally { closeSync(fd) }
     if (!header.subarray(0, 16).equals(Buffer.from('SQLite format 3\0'))) throw new HttpError(400, '不是有效的 SQLite 数据库')
@@ -112,7 +122,16 @@ export class BackupService {
       if (candidate.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Foreign keys invalid')
       const versions = candidate.prepare('SELECT version FROM schema_migrations ORDER BY version').all()
       const current = versions.length
-      if ((expectedVersion !== undefined && current !== expectedVersion) || versions.some((row, index) => row.version !== index + 1) || schemaSignature(candidate) !== expectedSchemas.get(current) || candidate.prepare('PRAGMA user_version').get()?.user_version !== 0 || candidate.prepare('PRAGMA application_id').get()?.application_id !== 0) throw new Error('Incompatible schema')
+      const hasPlanning = !!candidate.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='planning_migrations'").get()
+      const planningVersion = hasPlanning ? 1 : 0
+      if ((expectedVersion !== undefined && current !== expectedVersion) || (expectedPlanning !== undefined && planningVersion !== expectedPlanning) || versions.some((row, index) => row.version !== index + 1) || schemaSignature(candidate) !== expectedSchemas.get(schemaKey(current, planningVersion)) || candidate.prepare('PRAGMA user_version').get()?.user_version !== 0 || candidate.prepare('PRAGMA application_id').get()?.application_id !== 0) throw new Error('Incompatible schema')
+      if (hasPlanning) {
+        const modules = candidate.prepare('SELECT name FROM planning_migrations').all()
+        if (modules.length !== 1 || modules[0].name !== 'planning/001') throw new Error('Incompatible planning schema')
+        if (candidate.prepare('SELECT 1 FROM planning_chapter_links l JOIN chapters c ON c.id=l.chapter_id WHERE l.novel_id<>c.novel_id LIMIT 1').get()) throw new Error('Invalid chapter scope')
+        const store = new PlanningStore(candidate)
+        for (const row of candidate.prepare('SELECT id FROM novels').all()) planningInput(store.read(String(row.id)))
+      }
       for (const row of candidate.prepare('SELECT content,content_schema_version FROM chapters').iterate()) {
         if (row.content_schema_version !== 1) throw new Error('Incompatible content schema')
         const doc = JSON.parse(String(row.content))
@@ -136,7 +155,7 @@ export class BackupService {
     if (!entry) throw new HttpError(404, '备份不在可信历史列表中')
     const path = this.safeFile(id)
     if (statSync(path).size !== entry.size || digest(path) !== entry.sha256) throw new HttpError(400, '备份大小或 SHA-256 校验失败，当前数据未更改')
-    this.validateDatabase(path, entry.schemaVersion)
+    this.validateDatabase(path, entry.schemaVersion, entry.planningVersion ?? 0)
     return entry
   }
   private async snapshot(kind: BackupEntry['kind']) {
@@ -147,10 +166,10 @@ export class BackupService {
       // node:sqlite backup wraps sqlite3_backup_init/step/finish, including WAL.
       await backup(this.db, pending)
       finalizeSnapshot(pending)
-      this.validateDatabase(pending, schemaVersion)
+      this.validateDatabase(pending, schemaVersion, 1)
       const fd = openSync(pending, constants.O_RDONLY)
       try { fsyncSync(fd) } finally { closeSync(fd) }
-      const entry: BackupEntry = { id, createdAt, size: statSync(pending).size, sha256: digest(pending), schemaVersion, kind }
+      const entry: BackupEntry = { id, createdAt, size: statSync(pending).size, sha256: digest(pending), schemaVersion, planningVersion: 1, kind }
       renameSync(pending, destination)
       atomicJson(`${destination}.json`, entry)
       return entry
@@ -196,9 +215,9 @@ export class BackupService {
       // Upgrade only the private stage. Never migrate or rewrite the original
       // history file, and never downgrade the live schema when restoring v1.
       const staged = new DatabaseSync(stage)
-      try { migrate(staged) } finally { staged.close() }
+      try { migrate(staged); migratePlanning(staged) } finally { staged.close() }
       finalizeSnapshot(stage)
-      this.validateDatabase(stage, schemaVersion)
+      this.validateDatabase(stage, schemaVersion, 1)
       const safety = await this.snapshot('before-restore')
       this.db.prepare('ATTACH DATABASE ? AS restore_source').run(stage)
       try {
@@ -206,7 +225,7 @@ export class BackupService {
         try {
           // Every application table in schema v2 is restored atomically. No live
           // file copying, connection replacement, or WAL/SHM removal is involved.
-          this.db.exec(`DELETE FROM character_relations; DELETE FROM character_world_links;
+          this.db.exec(`DELETE FROM planning_workspaces; DELETE FROM planning_migrations; DELETE FROM character_relations; DELETE FROM character_world_links;
             DELETE FROM characters; DELETE FROM world_entries;
             DELETE FROM chapters; DELETE FROM novels; DELETE FROM schema_migrations;
             INSERT INTO novels SELECT * FROM restore_source.novels;
@@ -215,7 +234,11 @@ export class BackupService {
             INSERT INTO world_entries SELECT * FROM restore_source.world_entries;
             INSERT INTO character_relations SELECT * FROM restore_source.character_relations;
             INSERT INTO character_world_links SELECT * FROM restore_source.character_world_links;
-            INSERT INTO schema_migrations SELECT * FROM restore_source.schema_migrations;`)
+            INSERT INTO schema_migrations SELECT * FROM restore_source.schema_migrations;
+            INSERT INTO planning_migrations SELECT * FROM restore_source.planning_migrations;
+            INSERT INTO planning_workspaces SELECT * FROM restore_source.planning_workspaces;
+            INSERT INTO planning_records SELECT * FROM restore_source.planning_records;
+            INSERT INTO planning_chapter_links SELECT * FROM restore_source.planning_chapter_links;`)
           if (this.db.prepare('PRAGMA main.foreign_key_check').all().length) throw new Error('Restore foreign keys invalid')
           beforeCommit?.() // Fault injection is available to unit tests, never HTTP.
           this.db.exec('COMMIT')

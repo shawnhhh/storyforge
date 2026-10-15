@@ -60,7 +60,7 @@ export function BackupPanel({ onBack }: { onBack: () => void }) {
     <ul className="backup-list">{history?.entries.map(entry => <li key={entry.id}>
       <div><strong>{time(entry.createdAt)}</strong><span>{kinds[entry.kind]} · {(entry.size / 1024).toFixed(1)} KB · 数据库 v{entry.schemaVersion}</span><small>{entry.id}</small><small>SHA-256：{entry.sha256}</small></div>
       <div className="button-row"><button disabled={blocked || history.busy} onClick={() => { void run('正在检查备份…', async () => { await api.verifyBackup(entry.id); return '完整性检查通过：SHA-256、SQLite、数据库版本及正文格式有效' }) }}>检查完整性</button><button className="danger" disabled={blocked || history.busy} onClick={() => {
-        if (!window.confirm('恢复将替换当前全部小说、章节、人物和世界观。继续检查这份备份？检查后还需再次确认。')) return
+        if (!window.confirm('恢复将替换当前全部小说、章节、人物、世界观和创作规划。继续检查这份备份？检查后还需再次确认。')) return
         opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
         void run('正在验证恢复备份…', async () => { const result = await api.prepareRestore(entry.id); setConfirmation(''); setPrepared(result); return '备份验证通过，请再次确认恢复' })
       }}>恢复此备份</button></div>
@@ -72,8 +72,9 @@ export function BackupPanel({ onBack }: { onBack: () => void }) {
         return `恢复成功。恢复前数据已保存为 ${result.safety.id}。请重新加载工作台；其他窗口也须刷新整个页面。`
       }) }}>
         <h2 id="restore-title">确认替换全部数据</h2>
-        <p>当前全部小说、章节、人物和世界观将被 {time(prepared.backup.createdAt)} 的备份替换。恢复前会自动创建安全备份。请先保存其他窗口的修改，并导出未保存草稿。</p>
+        <p>当前全部小说、章节、人物、世界观和创作规划将被 {time(prepared.backup.createdAt)} 的备份替换。恢复前会自动创建安全备份。请先保存其他窗口的修改，并导出未保存草稿。</p>
         {prepared.backup.schemaVersion === 1 && <p className="backup-note">此备份创建于人物与世界观功能之前；恢复后人物与世界观资料库将为空。当前资料会保存在恢复前安全备份中。</p>}
+        {prepared.backup.planningVersion !== 1 && <p className="backup-note">此备份不含创作规划；恢复后大纲、剧情卡片与伏笔将为空。当前规划会保存在恢复前安全备份中。</p>}
         <p className="backup-note">确认有效期至 {time(prepared.expiresAt)}。</p>
         <label>请输入「替换当前全部数据」<input autoFocus disabled={busy} value={confirmation} onChange={event => setConfirmation(event.target.value)} /></label>
         {error && <p role="alert" className="dialog-error">{error}</p>}
