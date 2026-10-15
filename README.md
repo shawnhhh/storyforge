@@ -1,6 +1,6 @@
 # StoryForge
 
-原创 IP 创作平台。在 Mac 本地运行，无登录、无云服务；资料和富文本正文由本机 Express 服务保存到 SQLite。当前已实现小说 CRUD、章节管理、Tiptap 自动保存、多浏览器冲突保护、安全备份、事务恢复和 Markdown / TXT / JSON 小说导出，以及第三阶段人物档案、世界观、人物关系和事件时间线。
+原创 IP 创作平台。在 Mac 本地运行，无需登录；资料和富文本正文由本机 Express 服务保存到 SQLite。默认不连接云服务，AI 辅助写作可选连接用户配置的模型服务。当前已实现小说 CRUD、章节管理、Tiptap 自动保存、多浏览器冲突保护、安全备份、事务恢复和 Markdown / TXT / JSON 小说导出，以及第三阶段人物档案、世界观、人物关系和事件时间线。
 
 第二阶段的数据位置、安全机制、自动备份触发条件和 Mac Safari 验收步骤见 [备份、恢复与导出说明](docs/backup-restore-export.md)。
 
@@ -205,3 +205,6 @@ export default defineConfig([
 ])
 
 ```
+## AI 辅助写作（第一版）
+
+章节编辑器已支持 AI 续写、润色、扩写、改写及灵感建议。结果先预览，明确接受后才通过原有机制自动保存；API Key 只在本地服务端配置，未配置时其他功能正常使用。详见 [中文使用与配置说明](docs/ai-writing.md) 和 [测试报告](docs/ai-writing-test-report.md)。
