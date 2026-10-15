@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { request as httpRequest } from 'node:http'
 import { openDatabase } from '../src/db/database.js'
 import { BackupService } from '../src/modules/backups/service.js'
 import { NovelStore } from '../src/modules/novels/store.js'
@@ -153,7 +154,17 @@ test('HTTP requires loopback Host, safe origin, session generation and two-stage
     const base = `http://127.0.0.1:${address.port}/api`
     const generation = f.service.generation
     const request = (path: string, body: unknown = {}, headers = {}) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StoryForge-Generation': generation, ...headers }, body: JSON.stringify(body) })
-    assert.equal((await fetch(base + '/backups', { headers: { Host: 'evil.example' } })).status, 403)
+    // fetch/Undici can replace a caller-supplied Host with the URL's host.
+    // Use node:http to ensure this security test sends the hostile Host on wire.
+    const hostileHostStatus = await new Promise<number | undefined>((resolve, reject) => {
+      const request = httpRequest(base + '/backups', { headers: { Host: 'evil.example' } }, response => {
+        response.resume()
+        resolve(response.statusCode)
+      })
+      request.once('error', reject)
+      request.end()
+    })
+    assert.equal(hostileHostStatus, 403)
     assert.equal((await request('/backups', {}, { Origin: 'https://evil.example' })).status, 403)
     assert.equal((await request('/backups', {}, { 'X-StoryForge-Generation': '' })).status, 409)
     assert.equal((await request('/backups/%2e%2e%2fdata%2fstoryforge.sqlite/verify')).status, 400)
