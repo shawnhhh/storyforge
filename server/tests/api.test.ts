@@ -33,6 +33,7 @@ async function start(dir: string, port: number) {
     assert.equal(result, 0, log)
   }
   const base = `http://127.0.0.1:${port}/api`
+  generations.delete(base)
   for (let attempt = 0; attempt < 80; attempt++) {
     if (child.exitCode !== null) throw new Error(log)
     try { if ((await fetch(`${base}/health`)).ok) return { base, stop } } catch { /* wait for server */ }
@@ -40,15 +41,17 @@ async function start(dir: string, port: number) {
   }
   await stop(); throw new Error(`Server startup timed out: ${log}`)
 }
+const generations = new Map<string, string>()
 async function request(base: string, path: string, method = 'GET', body?: unknown, origin?: string) {
-  return fetch(base + path, { method, headers: { 'Content-Type': 'application/json', ...(origin ? { Origin: origin } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
+  if (!generations.has(base)) { const health = await fetch(base + '/health'); generations.set(base, health.headers.get('X-StoryForge-Generation')!) }
+  return fetch(base + path, { method, headers: { 'Content-Type': 'application/json', 'X-StoryForge-Generation': generations.get(base)!, ...(origin ? { Origin: origin } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
 }
 
 test('HTTP CRUD validates input, detects conflicts and restores SQLite after a process restart', { timeout: 20000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'storyforge-api-'))
-  const port = await freePort()
   let server: Awaited<ReturnType<typeof start>> | undefined
   try {
+    const port = await freePort()
     server = await start(dir, port)
     assert.equal((await request(server.base, '/novels', 'POST', { title: '' })).status, 400)
     assert.equal((await request(server.base, '/novels', 'POST', { title: '恶意来源' }, 'https://example.com')).status, 403)

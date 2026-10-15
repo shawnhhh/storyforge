@@ -25,6 +25,7 @@ export interface ChapterSummary {
   updatedAt: string
 }
 export interface Chapter extends ChapterSummary {
+  createdAt: string
   content: RichTextDocument
   contentSchemaVersion: number
 }

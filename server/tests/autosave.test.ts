@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import type { Chapter, ChapterResult } from '../../shared/contracts/novels.js'
 import { ChapterSaver } from '../../src/features/novels/autosave.js'
 import { ApiError } from '../../src/features/novels/api.js'
-const chapter: Chapter = { id: 'chapter', novelId: 'novel', title: '一', position: 0, version: 1, updatedAt: '', contentSchemaVersion: 1, content: { type: 'doc' } }
+const chapter: Chapter = { id: 'chapter', novelId: 'novel', title: '一', position: 0, version: 1, createdAt: '', updatedAt: '', contentSchemaVersion: 1, content: { type: 'doc' } }
 const result = (version: number, title: string): ChapterResult => ({ chapter: { ...chapter, version, title }, novel: { id: 'novel', title: '', description: '', version, createdAt: '', updatedAt: '' } })
 test('autosave serializes writes and queues edits with the newly returned version', async () => {
   const calls: number[] = []
