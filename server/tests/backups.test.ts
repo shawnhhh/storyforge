@@ -40,7 +40,7 @@ test('official backup includes uncheckpointed WAL, all tables, size, SHA-256 and
     try {
       assert.deepEqual(new NovelStore(db).chapter(first.chapter.id).content, rich)
       assert.equal(db.prepare('PRAGMA integrity_check').get()?.integrity_check, 'ok')
-      assert.equal(db.prepare('SELECT version FROM schema_migrations').get()?.version, 1)
+      assert.equal(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()?.version, 2)
     } finally { db.close() }
     assert.deepEqual(new BackupService(f.db, f.service.directory).history().entries, [entry])
   } finally { await f.close() }
@@ -97,7 +97,7 @@ test('restore rejects corrupt files, SQLite impostors, incompatible schema, trav
     assert.throws(() => f.service.verify(corrupt.id), /SQLite/)
     const newer = await f.service.create()
     const newerDb = new DatabaseSync(join(f.service.directory, newer.id))
-    newerDb.exec("INSERT INTO schema_migrations VALUES (2,'future')"); newerDb.close(); changeMetadata(newer.id)
+    newerDb.exec("INSERT INTO schema_migrations VALUES (3,'future')"); newerDb.close(); changeMetadata(newer.id)
     assert.throws(() => f.service.verify(newer.id), /数据库版本/)
     const broken = await f.service.create()
     const brokenDb = new DatabaseSync(join(f.service.directory, broken.id))

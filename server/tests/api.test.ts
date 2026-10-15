@@ -19,7 +19,8 @@ async function freePort() {
 }
 async function start(dir: string, port: number) {
   const child = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-    env: { ...process.env, SERVER_PORT: String(port), STORYFORGE_DATA_DIR: dir }, stdio: ['ignore', 'pipe', 'pipe'],
+    // Override both paths: process-level tests must never use user backups.
+    env: { ...process.env, SERVER_PORT: String(port), STORYFORGE_DATA_DIR: dir, STORYFORGE_BACKUP_DIR: join(dir, 'backups') }, stdio: ['ignore', 'pipe', 'pipe'],
   })
   let log = ''
   child.stdout.on('data', data => { log += data })
