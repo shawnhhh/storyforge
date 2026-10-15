@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { chapterBody, expectChapterReady } from './editor-helpers.js'
 
 test('downloads all formats, verifies backups, confirms restore twice and preserves an old window draft', async ({ page, context }) => {
   const errors: string[] = []
@@ -9,11 +10,12 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await page.getByRole('dialog').getByLabel('小说名称').fill('中文导出/恢复🌕')
   await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
   await page.getByRole('button', { name: '创建第一章' }).click()
-  const body = page.getByRole('textbox', { name: '小说正文' })
+  const body = await expectChapterReady(page, '第 1 章')
   await page.getByRole('textbox', { name: '章节标题' }).fill('初见')
   await body.fill('备份中的中文正文 <&> 🌕')
   await expect(page.locator('.save-status')).toHaveText('已保存')
   await page.getByRole('button', { name: '添加章节' }).click()
+  await expectChapterReady(page, '第 2 章')
   await page.getByRole('textbox', { name: '章节标题' }).fill('远航')
   await expect(page.locator('.save-status')).toHaveText('已保存')
   await page.getByRole('button', { name: '上移 远航', exact: true }).click()
@@ -35,7 +37,7 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await other.goto('/')
   await other.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
   await other.locator('.chapter-select').filter({ hasText: '初见' }).click()
-  await expect(other.getByRole('textbox', { name: '小说正文' })).toHaveText('备份中的中文正文 <&> 🌕')
+  await expectChapterReady(other, '初见', '备份中的中文正文 <&> 🌕')
   await page.getByRole('button', { name: '备份与恢复', exact: true }).click()
   await page.getByRole('button', { name: '手动备份', exact: true }).click()
   await expect(page.getByRole('status')).toHaveText('备份创建成功')
@@ -45,6 +47,7 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await page.getByRole('button', { name: '返回写作', exact: true }).click()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
   await page.locator('.chapter-select').filter({ hasText: '初见' }).click()
+  await expectChapterReady(page, '初见', '备份中的中文正文 <&> 🌕')
   await body.fill('备份之后的正文')
   await expect(page.locator('.save-status')).toHaveText('已保存')
   await page.getByRole('button', { name: '备份与恢复', exact: true }).click()
@@ -59,13 +62,13 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await confirmation.getByRole('button', { name: '确认恢复' }).click()
   await expect(page.getByRole('status')).toContainText('恢复成功')
   await expect(page.locator('.backup-list')).toContainText('恢复前安全备份')
-  await other.getByRole('textbox', { name: '小说正文' }).fill('旧窗口未保存草稿')
+  await chapterBody(other).fill('旧窗口未保存草稿')
   await expect(other.locator('.save-status')).toHaveText('版本冲突 · 未保存')
   await expect(other.getByRole('textbox', { name: '小说正文' })).toHaveText('旧窗口未保存草稿')
   await page.getByRole('button', { name: '重新加载工作台' }).click()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
   await page.locator('.chapter-select').filter({ hasText: '初见' }).click()
-  await expect(body).toHaveText('备份中的中文正文 <&> 🌕')
+  await expectChapterReady(page, '初见', '备份中的中文正文 <&> 🌕')
   expect(errors).toEqual([])
   await other.close({ runBeforeUnload: false })
 })

@@ -1,7 +1,8 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test'
+import { chapterBody, expectChapterReady } from './editor-helpers.js'
 
-const body = (page: Page) => page.getByRole('textbox', { name: '小说正文' })
+const body = chapterBody
 const title = (page: Page) => page.getByRole('textbox', { name: '章节标题' })
 const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存')
 async function start(page: Page, name: string, second = false) {
@@ -10,12 +11,12 @@ async function start(page: Page, name: string, second = false) {
   await page.getByRole('dialog').getByLabel('小说名称').fill(`第四阶段虚构测试-${name}`)
   await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
   await page.getByRole('button', { name: '创建第一章' }).click()
-  await expect(body(page)).toBeVisible()
+  await expectChapterReady(page, '第 1 章')
   if (second) {
     await page.getByRole('button', { name: '添加章节' }).click()
-    await expect(title(page)).toHaveValue('第 2 章')
+    await expectChapterReady(page, '第 2 章')
     await page.getByRole('button', { name: '上一章', exact: true }).click()
-    await expect(title(page)).toHaveValue('第 1 章')
+    await expectChapterReady(page, '第 1 章')
   }
 }
 const browserErrors = new WeakMap<Page, string[]>()
@@ -39,7 +40,23 @@ test('live counts explain mixed prose and remain correct through formatting and 
   await page.getByRole('button', { name: '撤销', exact: true }).click()
   await expect(page.getByLabel('字数统计')).toHaveText('9 字')
   await saved(page)
-  await page.getByRole('button', { name: '刷新本地数据' }).click()
+  // Hold the real chapter read so this race is deterministic on fast and slow CI:
+  // the old 9-word editor stays visible but must be locked while refresh is pending.
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/chapters/*', async route => {
+    if (route.request().method() === 'GET') await gate
+    await route.continue()
+  })
+  try {
+    await page.getByRole('button', { name: '刷新本地数据' }).click()
+    await expect(page.locator('.workspace')).toHaveAttribute('aria-busy', 'true')
+    await expect(body(page)).toHaveAttribute('contenteditable', 'false')
+    await expect(page.getByLabel('字数统计')).toHaveText('9 字')
+    await test.info().attach('refresh-loading-state', { body: await page.locator('.workspace').ariaSnapshot(), contentType: 'text/plain' })
+  } finally { release() }
+  await expectChapterReady(page, '第 1 章', "你好，世界！Hello world, don't stop. 2026 😀")
+  await page.unroute('**/api/chapters/*')
   await expect(page.getByLabel('字数统计')).toHaveText('9 字')
   await body(page).fill('，。！？😀 \n\t')
   await expect(page.getByLabel('字数统计')).toHaveText('0 字')

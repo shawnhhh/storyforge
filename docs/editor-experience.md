@@ -65,3 +65,13 @@ Tiptap 不随每个事务重渲染整个编辑器。正文、格式工具和统�
 只读检查第三阶段 PR #3 的文件列表后，**实际重叠文件仅 `src/features/novels/Workspace.tsx`**：第三阶段接入资料库入口，第四阶段加入章节导航、专注控制和快捷键。合并时需同时保留双方入口及未保存保护，并核查快捷键仅作用于小说正文工作区。没有读取或引入第三阶段未合并的实现、修改第三阶段分支，或修改人物、世界观、迁移、共享契约、共享 API、备份恢复代码。
 
 已知限制：未保存草稿仍保留在页面内存，强制关闭可能丢失；可下载草稿。未增加磁盘草稿缓存或改变既有保存契约。实际 macOS 快捷键、Safari 和中文输入法仍需人工验收；Chromium 组合事件测试不等于实机输入法验证。
+
+## PR #4 CI 时序修复
+
+原提交 `398cd88` 的 push run [38697593625](https://github.com/shawnhhh/storyforge/actions/runs/38697593625) 为 9/11 通过，两个 `fill()` 均命中正确的正文 div，但日志明确显示 `contenteditable="false"`。同一提交的 pull_request run [38697677241](https://github.com/shawnhhh/storyforge/actions/runs/38697677241) 为 11/11 通过。原 workflow 未上传工件，两次 run 的 artifacts 均为空，无法下载日志所引用的 error-context 文件。
+
+确认为测试的异步等待不足：切章或刷新期间旧正文仍可见，刷新前后字数也可能相同；这些条件不表示章节读取已完成。Tiptap 在工作区 busy 时锁定正文是正常保护行为。受控 GET 请求验证了等待期间 `aria-busy=true`、正文 `contenteditable=false` 且旧字数仍为 9；放行请求后正文恢复可编辑，内容和统计均正确，没有发现持续无法编辑的产品缺陷。
+
+修复只涉及测试与诊断：新增 `expectChapterReady`，依次断言工作区非忙、目标章节标题、`contenteditable=true`、实际可编辑及预期正文；备份流程在切章完成后才输入，字数用例在刷新完成后才输入。角色选择器使用精确名称。字数测试通过控制真实章节请求的完成时机，覆盖加载中的锁定状态与完成后的解锁，不使用固定等待、force、跳过、自动重试或放宽断言。备份恢复、自动保存、中文正文和富文本产品代码均未修改。
+
+修复后两个定向用例 2/2 通过（14.8 秒）；lint、typecheck、build、`git diff --check` 通过。完整本地 E2E 的启动工具调用被中断，未产生完整运行结果，不能把定向结果称为全量通过。最终完整浏览器结果以修复提交的 push / pull_request Actions 检查为准。失败时现在保留 trace、截图和 error-context，并上传独立命名的 Actions artifact（保留 7 天），以便后续准确诊断。
