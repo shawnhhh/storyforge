@@ -28,6 +28,7 @@ export function Workspace() {
   const [dashboardRevision, setDashboardRevision] = useState(0)
   const preferences = usePreferences()
   const [utility, setUtility] = useState<'search' | 'preferences' | null>(null)
+  const [utilityOpener, setUtilityOpener] = useState<HTMLElement | null>(null)
   const [searchTarget, setSearchTarget] = useState<SearchHit | null>(null)
   const [novels, setNovels] = useState<Novel[]>([])
   const [detail, setDetail] = useState<NovelDetail | null>(null)
@@ -114,8 +115,12 @@ export function Workspace() {
       }
     })
   }
-  function openModal(mode: 'create' | 'edit') {
-    setDialogOpener(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  function openUtility(mode: 'search' | 'preferences', opener: HTMLElement) {
+    setUtilityOpener(opener); setUtility(mode)
+  }
+  function openModal(mode: 'create' | 'edit', opener: HTMLElement) {
+    // WebKit mouse clicks need not focus a button. Keep the actual trigger.
+    setDialogOpener(opener)
     setError(''); setModal(mode)
   }
   function addChapter() {
@@ -194,14 +199,14 @@ export function Workspace() {
     <aside className="library-pane">
       <div className="brand"><span className="brand-mark">S</span><div><strong>StoryForge</strong><small>原创故事工作台</small></div></div>
       <button className="dashboard-home" aria-current={!detail && !backups ? 'page' : undefined} disabled={blocked || backups} onClick={() => { setBackups(false); setDetail(null); setChapter(null); setFocused(false); setView('writing'); setNotice(''); setError('') }}>⌂ 创作工作台</button>
-      <div className="library-utilities"><button disabled={backups} onClick={() => setUtility('search')}>统一搜索</button><button onClick={() => setUtility('preferences')}>偏好设置</button></div>
-      <div className="library-heading"><span>我的小说 <span className="count">{novels.length}</span></span><button aria-label="创建小说" disabled={blocked || backups} onClick={() => openModal('create')}>＋</button></div>
+      <div className="library-utilities"><button disabled={backups} onClick={event => openUtility('search', event.currentTarget)}>统一搜索</button><button onClick={event => openUtility('preferences', event.currentTarget)}>偏好设置</button></div>
+      <div className="library-heading"><span>我的小说 <span className="count">{novels.length}</span></span><button aria-label="创建小说" disabled={blocked || backups} onClick={event => openModal('create', event.currentTarget)}>＋</button></div>
       <nav aria-label="小说列表">{novels.map(novel => <button key={novel.id} aria-current={detail?.novel.id === novel.id ? 'page' : undefined} className={`novel-item ${detail?.novel.id === novel.id ? 'selected' : ''}`} disabled={blocked || backups} onClick={() => selectNovel(novel)}><span className="book-icon">▤</span><span><strong>{novel.title}</strong><small>{new Date(novel.updatedAt).toLocaleDateString('zh-CN')}</small></span></button>)}</nav>
       {!novels.length && <p className="sidebar-note" role="status">{loading ? '正在读取本地小说…' : '从一部新小说开始，构建你的故事世界。'}</p>}
       <div className="library-bottom"><button disabled={blocked || backups} onClick={() => { setBackups(true); setFocused(false); setChapter(null); setDetail(null) }}>备份与恢复</button><button disabled={blocked || backups} onClick={refresh}>刷新本地数据</button><small>● 本地存储 · 无需登录</small></div>
     </aside>
     <main className="main-workspace">
-      <header className="workspace-heading"><div><span className="eyebrow">创作空间</span><div className="focus-utilities"><button onClick={() => setUtility('search')}>统一搜索</button><button onClick={() => setUtility('preferences')}>偏好设置</button></div><h1>{backups ? '备份与恢复' : detail?.novel.title ?? '创作工作台'}</h1></div>{detail && <div className="button-row"><select aria-label="小说导出格式" disabled={blocked} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="markdown">Markdown</option><option value="txt">TXT</option><option value="json">JSON</option></select><button disabled={blocked} onClick={() => { setNotice('正在导出小说…'); void run(async () => { await downloadNovel(detail.novel.id, detail.novel.title, exportFormat); setNotice('导出文件已交给浏览器下载，请查看下载列表。') }).then(() => setNotice(current => current === '正在导出小说…' ? '' : current)) }}>导出小说</button><button className="focus-toggle" disabled={!chapter || view !== 'writing'} title="Ctrl/⌘ + Alt + Shift + F；Esc 退出" aria-pressed={focused} onClick={() => { setFocused(value => !value); editorControl.current?.focus() }}>{focused ? '退出专注' : '专注写作'}</button><button disabled={blocked || view === 'planning'} onClick={() => openModal('edit')}>小说设置</button><button className="danger" disabled={blocked || view === 'planning'} onClick={() => {
+      <header className="workspace-heading"><div><span className="eyebrow">创作空间</span><div className="focus-utilities"><button onClick={event => openUtility('search', event.currentTarget)}>统一搜索</button><button onClick={event => openUtility('preferences', event.currentTarget)}>偏好设置</button></div><h1>{backups ? '备份与恢复' : detail?.novel.title ?? '创作工作台'}</h1></div>{detail && <div className="button-row"><select aria-label="小说导出格式" disabled={blocked} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="markdown">Markdown</option><option value="txt">TXT</option><option value="json">JSON</option></select><button disabled={blocked} onClick={() => { setNotice('正在导出小说…'); void run(async () => { await downloadNovel(detail.novel.id, detail.novel.title, exportFormat); setNotice('导出文件已交给浏览器下载，请查看下载列表。') }).then(() => setNotice(current => current === '正在导出小说…' ? '' : current)) }}>导出小说</button><button className="focus-toggle" disabled={!chapter || view !== 'writing'} title="Ctrl/⌘ + Alt + Shift + F；Esc 退出" aria-pressed={focused} onClick={() => { setFocused(value => !value); editorControl.current?.focus() }}>{focused ? '退出专注' : '专注写作'}</button><button disabled={blocked || view === 'planning'} onClick={event => openModal('edit', event.currentTarget)}>小说设置</button><button className="danger" disabled={blocked || view === 'planning'} onClick={() => {
         if (!window.confirm(`删除《${detail.novel.title}》及全部章节、人物、世界观和规划？此操作不可撤销。`)) return
         void run(async () => { await api.remove(detail.novel); setNovels(items => items.filter(item => item.id !== detail.novel.id)); setDetail(null); setChapter(null) })
       }}>删除小说</button></div>}</header>
@@ -222,10 +227,10 @@ export function Workspace() {
             else setChapter(null)
           })
         }}>删除当前章节</button>}
-      </aside>{chapter ? <div className="chapter-workspace"><ChapterNavigation chapters={detail.chapters} currentId={chapter.id} disabled={loading || busy || referenceBusy} onSelect={selectChapter} /><Suspense fallback={<div className="empty-state">正在加载编辑器…</div>}><ChapterEditor key={`${chapter.id}:${session}`} chapter={chapter} controlRef={editorControl} onSaved={onSaved} onDirty={setDirty} onReload={reloadEditor} disabled={busy || referenceBusy}><ChapterReferences novelId={detail.novel.id} chapterId={chapter.id} chapters={detail.chapters} disabled={busy || dirty || referenceBusy} onBusy={setReferenceBusy} onOpen={openMaterial} /></ChapterEditor></Suspense></div> : <div className="empty-state"><span className="empty-icon">✎</span><h2>故事，从第一章开始</h2><p>为《{detail.novel.title}》创建一个章节。</p><button className="primary" disabled={blocked} onClick={addChapter}>创建第一章</button></div>}</div> : <Dashboard disabled={blocked} revision={dashboardRevision} onOpen={selectNovel} onCreate={() => openModal('create')} />}
+      </aside>{chapter ? <div className="chapter-workspace"><ChapterNavigation chapters={detail.chapters} currentId={chapter.id} disabled={loading || busy || referenceBusy} onSelect={selectChapter} /><Suspense fallback={<div className="empty-state">正在加载编辑器…</div>}><ChapterEditor key={`${chapter.id}:${session}`} chapter={chapter} controlRef={editorControl} onSaved={onSaved} onDirty={setDirty} onReload={reloadEditor} disabled={busy || referenceBusy}><ChapterReferences novelId={detail.novel.id} chapterId={chapter.id} chapters={detail.chapters} disabled={busy || dirty || referenceBusy} onBusy={setReferenceBusy} onOpen={openMaterial} /></ChapterEditor></Suspense></div> : <div className="empty-state"><span className="empty-icon">✎</span><h2>故事，从第一章开始</h2><p>为《{detail.novel.title}》创建一个章节。</p><button className="primary" disabled={blocked} onClick={addChapter}>创建第一章</button></div>}</div> : <Dashboard disabled={blocked} revision={dashboardRevision} onOpen={selectNovel} onCreate={opener => openModal('create', opener)} />}
     </main>
-    {utility === 'search' && <SearchDialog novels={novels} blocked={blocked} onSelect={openSearchResult} onClose={() => setUtility(null)} />}
-    {utility === 'preferences' && <PreferencesDialog value={preferences.value} error={preferences.error} onChange={preferences.change} onClose={() => setUtility(null)} />}
+    {utility === 'search' && <SearchDialog returnFocusTo={utilityOpener} novels={novels} blocked={blocked} onSelect={openSearchResult} onClose={() => setUtility(null)} />}
+    {utility === 'preferences' && <PreferencesDialog returnFocusTo={utilityOpener} value={preferences.value} error={preferences.error} onChange={preferences.change} onClose={() => setUtility(null)} />}
     {modal && <NovelDialog novel={modal === 'edit' ? detail?.novel ?? null : null} busy={busy} error={error} returnFocusTo={dialogOpener} onClose={() => { setModal(null); setError('') }} onSubmit={(title, description) => {
       void run(async () => {
         if (modal === 'create') {

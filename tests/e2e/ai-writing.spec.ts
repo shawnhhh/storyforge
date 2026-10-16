@@ -166,6 +166,8 @@ for (const width of [1440, 700]) {
     const original = await body.elementHandle()
     const scroll = await page.locator('.document').evaluate(el => el.scrollTop)
     const selection = await page.evaluate(() => window.getSelection()?.toString())
+    expect(selection).toBe('。')
+    const range = await page.evaluate(() => ({ anchor: window.getSelection()?.anchorOffset, focus: window.getSelection()?.focusOffset }))
     await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: '生成预览' }).click()
@@ -175,6 +177,8 @@ for (const width of [1440, 700]) {
     await expect(body).toBeFocused()
     expect(await page.locator('.document').evaluate(el => el.scrollTop)).toBe(scroll)
     expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(selection)
+    expect(await page.evaluate(() => ({ anchor: window.getSelection()?.anchorOffset, focus: window.getSelection()?.focusOffset }))).toEqual(range)
+    await expect(body).toHaveText('虚构长篇正文 hello。'.repeat(1000))
     expect(await body.evaluate((el, previous) => el === previous, original)).toBe(true)
     // Accept without remounting; completion of autosave must not move the viewport.
     await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
@@ -198,13 +202,19 @@ for (const width of [1440, 700]) {
 test('continuation at a bare caret and oversized selection use explicit insertion and bounds', async ({ page }) => {
   const body = await start(page, '光标与上限')
   let calls = 0
-  await page.route('**/api/ai/generate', route => { calls++; return route.fulfill({ json: result('插入') }) })
-  await body.press('ControlOrMeta+Home')
+  const inputs: AiInput[] = []
+  await page.route('**/api/ai/generate', route => { calls++; inputs.push(route.request().postDataJSON()); return route.fulfill({ json: result('插入') }) })
+  await body.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home')
   await body.press('ArrowRight')
+  await expect.poll(() => body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor
+    return { from: editor.state.selection.from, to: editor.state.selection.to }
+  })).toEqual({ from: 2, to: 2 })
   await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('button', { name: '生成预览' }).click()
   await dialog.getByRole('button', { name: '接受并插入' }).click()
+  expect(inputs[0]).toMatchObject({ before: '前', selection: '', after: '文目标后文' })
   await expect(body).toHaveText('前插入文目标后文')
   await saved(page)
   await body.fill('字'.repeat(6001))
@@ -329,4 +339,39 @@ test('cancelling regeneration and a quota error both retain the last successful 
   await dialog.getByRole('button', { name: '接受并插入' }).click()
   await expect(body).toContainText('可保留的上一稿')
   await saved(page)
+})
+
+test('AI continuation follows the visible caret for the original platform key chord', async ({ page }) => {
+  const body = await start(page, '原始按键光标同步')
+  let writes = 0
+  const inputs: AiInput[] = []
+  page.on('request', request => { if (request.method() === 'PUT' && /\/api\/chapters\//.test(request.url())) writes++ })
+  await page.route('**/api/ai/generate', route => { inputs.push(route.request().postDataJSON()); return route.fulfill({ json: result('插入') }) })
+  // Keep the original chord: each engine must honor its actual visible caret.
+  await body.press('ControlOrMeta+Home')
+  await body.press('ArrowRight')
+  const visible = await body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor
+    const selection = window.getSelection()!
+    const anchor = editor.view.posAtDOM(selection.anchorNode!, selection.anchorOffset)
+    const head = editor.view.posAtDOM(selection.focusNode!, selection.focusOffset)
+    return { anchor, head, before: editor.state.doc.textBetween(0, anchor), after: editor.state.doc.textBetween(head, editor.state.doc.content.size) }
+  })
+  expect(visible.anchor).toBe(visible.head)
+  expect(visible.before + visible.after).toBe('前文目标后文')
+  await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
+  expect(await body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor
+    return { anchor: editor.state.selection.anchor, head: editor.state.selection.head }
+  })).toEqual({ anchor: visible.anchor, head: visible.head })
+  const dialog = page.getByRole('dialog', { name: 'AI 辅助写作' })
+  await dialog.getByRole('button', { name: '生成预览', exact: true }).click()
+  await expect(dialog.getByLabel('AI 结果预览')).toContainText('插入')
+  expect(inputs[0]).toMatchObject({ before: visible.before, selection: '', after: visible.after })
+  expect(writes).toBe(0)
+  await expect(body).toHaveText('前文目标后文')
+  await dialog.getByRole('button', { name: '接受并插入' }).click()
+  await expect(body).toHaveText(visible.before + '插入' + visible.after)
+  await saved(page)
+  expect(writes).toBe(1)
 })
