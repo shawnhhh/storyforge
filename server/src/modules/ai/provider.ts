@@ -1,5 +1,6 @@
 import type { AiInput, AiResult } from '../../../../shared/contracts/ai.js'
 import { aiLimits } from '../../../../shared/contracts/ai.js'
+import { defaultGeneration } from '../../../../shared/contracts/ai.js'
 import { HttpError } from '../novels/store.js'
 import type { AiConfig } from './config.js'
 
@@ -26,7 +27,7 @@ export class OpenAiProvider implements AiProvider {
       const response = await this.transport(`${this.config.baseUrl}/chat/completions`, {
         method: 'POST', redirect: 'error', signal,
         headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: this.config.model, messages: buildMessages(input, storyContext), max_tokens: 2000, stream: false }),
+        body: JSON.stringify({ model: this.config.model, messages: buildMessages(input, storyContext), max_tokens: (this.config.parameters ?? defaultGeneration).maxOutputTokens, temperature: (this.config.parameters ?? defaultGeneration).temperature, top_p: (this.config.parameters ?? defaultGeneration).topP, stream: false }),
       })
       if (!response.ok) {
         await response.body?.cancel()

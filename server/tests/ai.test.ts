@@ -13,6 +13,7 @@ import { captureAiSnapshot, aiTransaction } from '../../src/features/ai/editor.j
 import { loadAiConfig } from '../src/modules/ai/config.js'
 import { OpenAiProvider, buildMessages } from '../src/modules/ai/provider.js'
 import { validateAiInput } from '../src/modules/ai/routes.js'
+import { loadAiPolicy } from '../src/modules/ai/budget.js'
 import { openDatabase } from '../src/db/database.js'
 import { NovelStore } from '../src/modules/novels/store.js'
 import { PlanningStore } from '../src/modules/planning/store.js'
@@ -115,7 +116,7 @@ test('HTTP proxy uses a local mock, opt-in story context, missing key, timeout, 
   let app: Server | undefined
   try {
     const upstream = await listen(mock)
-    app = createServer(createApp(db, undefined, { config: () => { if (invalid) throw new Error(config.apiKey); return missing ? null : { ...config, baseUrl: upstream + '/v1' } } }))
+    app = createServer(createApp(db, undefined, { policy: loadAiPolicy({}), config: () => { if (invalid) throw new Error(config.apiKey); return missing ? null : { ...config, baseUrl: upstream + '/v1' } } }))
     const base = await listen(app)
     const post = (value: unknown = { ...input, chapterId: chapter.id }, options: RequestInit = {}) => fetch(base + '/api/ai/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value), ...options })
     const before = novels.chapter(chapter.id)
