@@ -68,7 +68,7 @@ test('novel settings, chapter ordering, rich text autosave, reload and confirmed
   await expect(page.getByRole('textbox', { name: '章节标题' })).toHaveValue('远航')
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '删除小说', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('欢迎来到 StoryForge')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('创作工作台')
   await expect(page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '端到端创作流程' })).toHaveCount(0)
 })
 
@@ -113,7 +113,7 @@ test('two pages preserve conflicting drafts, export them and recover from remote
   await expect(other.locator('.save-status')).toHaveText('版本冲突 · 未保存')
   other.once('dialog', dialog => dialog.accept())
   await other.getByRole('button', { name: '重新加载', exact: true }).click()
-  await expect(other.getByRole('heading', { level: 1 })).toHaveText('欢迎来到 StoryForge')
+  await expect(other.getByRole('heading', { level: 1 })).toHaveText('创作工作台')
   await expect(other.getByRole('button', { name: '创建小说', exact: true }).first()).toBeEnabled()
 })
 

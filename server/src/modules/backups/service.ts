@@ -223,11 +223,14 @@ export class BackupService {
       try {
         this.db.exec('BEGIN IMMEDIATE')
         try {
-          // Every application table in schema v2 is restored atomically. No live
+          // Every application table in schema v3 is restored atomically. No live
           // file copying, connection replacement, or WAL/SHM removal is involved.
           this.db.exec(`DELETE FROM planning_workspaces; DELETE FROM planning_migrations; DELETE FROM character_relations; DELETE FROM character_world_links;
             DELETE FROM characters; DELETE FROM world_entries;
             DELETE FROM chapters; DELETE FROM novels; DELETE FROM schema_migrations;
+            DELETE FROM writing_days; DELETE FROM writing_settings;
+            INSERT INTO writing_days SELECT * FROM restore_source.writing_days;
+            INSERT INTO writing_settings SELECT * FROM restore_source.writing_settings;
             INSERT INTO novels SELECT * FROM restore_source.novels;
             INSERT INTO chapters SELECT * FROM restore_source.chapters;
             INSERT INTO characters SELECT * FROM restore_source.characters;
