@@ -2,7 +2,7 @@ import { Dashboard } from '../dashboard/Dashboard'
 import { ChapterReferences } from '../story-bible/ChapterReferences'
 import type { OpenMaterial } from '../story-bible/KnowledgeLinks'
 import { PlanningPanel } from '../planning/PlanningPanel'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Chapter, ChapterResult, ChapterSummary, Novel, NovelDetail } from '../../../shared/contracts/novels'
 import { ApiError, api } from './api'
 import { downloadNovel } from './download'
@@ -15,6 +15,7 @@ import { editorShortcut } from './editor-shortcuts'
 import './workspace.css'
 import '../dashboard/dashboard.css'
 import '../preferences/preferences.css'
+import './focus-writing.css'
 import { usePreferences } from '../preferences/usePreferences'
 import { PreferencesDialog } from '../preferences/PreferencesDialog'
 import { SearchDialog } from '../search/SearchDialog'
@@ -40,6 +41,7 @@ export function Workspace() {
   const [dialogOpener, setDialogOpener] = useState<HTMLElement | null>(null)
   const [loading, setLoading] = useState(true)
   const [focused, setFocused] = useState(false)
+  const [focusTools, setFocusTools] = useState(false)
   const [backups, setBackups] = useState(false)
   const [exportFormat, setExportFormat] = useState<'markdown' | 'txt' | 'json'>('markdown')
   const [notice, setNotice] = useState('')
@@ -48,6 +50,24 @@ export function Workspace() {
   const [referenceBusy, setReferenceBusy] = useState(false)
   const [chapterQuery, setChapterQuery] = useState('')
   const editorControl = useRef<EditorControl | null>(null)
+  const workspaceElement = useRef<HTMLDivElement | null>(null)
+  const focusScroll = useRef<{ element: HTMLElement; top: number } | null>(null)
+  useLayoutEffect(() => {
+    if (focused || !focusScroll.current) return
+    const { element, top } = focusScroll.current
+    // A chapter switch replaces the document; never apply another chapter's scroll.
+    if (element.isConnected) element.scrollTop = top
+    focusScroll.current = null
+  }, [focused])
+  function changeFocus(next: boolean) {
+    if (next) {
+      const element = workspaceElement.current?.querySelector<HTMLElement>('.document')
+      focusScroll.current = element ? { element, top: element.scrollTop } : null
+    }
+    setFocused(next)
+    setFocusTools(false)
+    editorControl.current?.focus()
+  }
   const active = useRef(false)
   const blocked = loading || busy || dirty || referenceBusy
   const updateNovel = useCallback((novel: Novel) => {
@@ -176,15 +196,14 @@ export function Workspace() {
       return true
     } finally { active.current = false; setBusy(false) }
   }
-  return <div data-font={preferences.value.font} data-layout={preferences.value.layout} data-shortcut-hints={preferences.value.shortcutHints} style={{ '--editor-font-size': `${preferences.value.fontSize}px` } as CSSProperties} className={`workspace ${!detail && !backups ? 'is-dashboard' : ''} ${view !== 'writing' && detail ? 'with-story-bible' : ''} ${focused && detail && view === 'writing' ? 'focused' : ''}`} aria-busy={loading || busy} onKeyDownCapture={event => {
+  return <div ref={workspaceElement} data-font={preferences.value.font} data-layout={preferences.value.layout} data-shortcut-hints={preferences.value.shortcutHints} style={{ '--editor-font-size': `${preferences.value.fontSize}px` } as CSSProperties} className={`workspace ${!detail && !backups ? 'is-dashboard' : ''} ${view !== 'writing' && detail ? 'with-story-bible' : ''} ${focused && detail && view === 'writing' ? 'focused' : ''} ${focusTools ? 'focus-tools-visible' : ''}`} aria-busy={loading || busy} onKeyDownCapture={event => {
     if (utility || view !== 'writing' || !chapter || backups || modal || (event.target instanceof Element && event.target.closest('dialog'))) return
     const action = editorShortcut(event.nativeEvent)
     if (!action || (action === 'escape' && !focused)) return
     event.preventDefault()
     if (action === 'save') editorControl.current?.save()
     else if (action === 'focus' || action === 'escape') {
-      setFocused(action === 'escape' ? false : !focused)
-      editorControl.current?.focus()
+      changeFocus(action === 'escape' ? false : !focused)
     } else if (detail) {
       const index = detail.chapters.findIndex(item => item.id === chapter.id)
       const target = detail.chapters[index + (action === 'previous' ? -1 : 1)]
@@ -201,7 +220,7 @@ export function Workspace() {
       <div className="library-bottom"><button disabled={blocked || backups} onClick={() => { setBackups(true); setFocused(false); setChapter(null); setDetail(null) }}>备份与恢复</button><button disabled={blocked || backups} onClick={refresh}>刷新本地数据</button><small>● 本地存储 · 无需登录</small></div>
     </aside>
     <main className="main-workspace">
-      <header className="workspace-heading"><div><span className="eyebrow">创作空间</span><div className="focus-utilities"><button onClick={() => setUtility('search')}>统一搜索</button><button onClick={() => setUtility('preferences')}>偏好设置</button></div><h1>{backups ? '备份与恢复' : detail?.novel.title ?? '创作工作台'}</h1></div>{detail && <div className="button-row"><select aria-label="小说导出格式" disabled={blocked} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="markdown">Markdown</option><option value="txt">TXT</option><option value="json">JSON</option></select><button disabled={blocked} onClick={() => { setNotice('正在导出小说…'); void run(async () => { await downloadNovel(detail.novel.id, detail.novel.title, exportFormat); setNotice('导出文件已交给浏览器下载，请查看下载列表。') }).then(() => setNotice(current => current === '正在导出小说…' ? '' : current)) }}>导出小说</button><button className="focus-toggle" disabled={!chapter || view !== 'writing'} title="Ctrl/⌘ + Alt + Shift + F；Esc 退出" aria-pressed={focused} onClick={() => { setFocused(value => !value); editorControl.current?.focus() }}>{focused ? '退出专注' : '专注写作'}</button><button disabled={blocked || view === 'planning'} onClick={() => openModal('edit')}>小说设置</button><button className="danger" disabled={blocked || view === 'planning'} onClick={() => {
+      <header className="workspace-heading"><div><span className="eyebrow">创作空间</span><div className="focus-utilities"><button className="focus-tools-toggle" aria-expanded={focusTools} onClick={() => setFocusTools(value => !value)}>{focusTools ? '收起工具栏' : '显示工具栏'}</button><button onClick={() => setUtility('search')}>统一搜索</button><button onClick={() => setUtility('preferences')}>偏好设置</button></div><h1>{backups ? '备份与恢复' : detail?.novel.title ?? '创作工作台'}</h1></div>{detail && <div className="button-row"><select aria-label="小说导出格式" disabled={blocked} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="markdown">Markdown</option><option value="txt">TXT</option><option value="json">JSON</option></select><button disabled={blocked} onClick={() => { setNotice('正在导出小说…'); void run(async () => { await downloadNovel(detail.novel.id, detail.novel.title, exportFormat); setNotice('导出文件已交给浏览器下载，请查看下载列表。') }).then(() => setNotice(current => current === '正在导出小说…' ? '' : current)) }}>导出小说</button><button className="focus-toggle" disabled={!chapter || view !== 'writing'} title="Ctrl/⌘ + Alt + Shift + F；Esc 退出" aria-pressed={focused} onClick={() => changeFocus(!focused)}>{focused ? '退出专注' : '专注写作'}</button><button disabled={blocked || view === 'planning'} onClick={() => openModal('edit')}>小说设置</button><button className="danger" disabled={blocked || view === 'planning'} onClick={() => {
         if (!window.confirm(`删除《${detail.novel.title}》及全部章节、人物、世界观和规划？此操作不可撤销。`)) return
         void run(async () => { await api.remove(detail.novel); setNovels(items => items.filter(item => item.id !== detail.novel.id)); setDetail(null); setChapter(null) })
       }}>删除小说</button></div>}</header>
@@ -222,7 +241,7 @@ export function Workspace() {
             else setChapter(null)
           })
         }}>删除当前章节</button>}
-      </aside>{chapter ? <div className="chapter-workspace"><ChapterNavigation chapters={detail.chapters} currentId={chapter.id} disabled={loading || busy || referenceBusy} onSelect={selectChapter} /><Suspense fallback={<div className="empty-state">正在加载编辑器…</div>}><ChapterEditor key={`${chapter.id}:${session}`} chapter={chapter} controlRef={editorControl} onSaved={onSaved} onDirty={setDirty} onReload={reloadEditor} disabled={busy || referenceBusy}><ChapterReferences novelId={detail.novel.id} chapterId={chapter.id} chapters={detail.chapters} disabled={busy || dirty || referenceBusy} onBusy={setReferenceBusy} onOpen={openMaterial} /></ChapterEditor></Suspense></div> : <div className="empty-state"><span className="empty-icon">✎</span><h2>故事，从第一章开始</h2><p>为《{detail.novel.title}》创建一个章节。</p><button className="primary" disabled={blocked} onClick={addChapter}>创建第一章</button></div>}</div> : <Dashboard disabled={blocked} revision={dashboardRevision} onOpen={selectNovel} onCreate={() => openModal('create')} />}
+      </aside>{chapter ? <div className="chapter-workspace"><ChapterNavigation chapters={detail.chapters} currentId={chapter.id} disabled={loading || busy || referenceBusy} onSelect={selectChapter} /><Suspense fallback={<div className="empty-state">正在加载编辑器…</div>}><ChapterEditor key={`${chapter.id}:${session}`} chapter={chapter} focused={focused} controlRef={editorControl} onSaved={onSaved} onDirty={setDirty} onReload={reloadEditor} disabled={busy || referenceBusy}><ChapterReferences novelId={detail.novel.id} chapterId={chapter.id} chapters={detail.chapters} disabled={busy || dirty || referenceBusy} onBusy={setReferenceBusy} onOpen={openMaterial} /></ChapterEditor></Suspense></div> : <div className="empty-state"><span className="empty-icon">✎</span><h2>故事，从第一章开始</h2><p>为《{detail.novel.title}》创建一个章节。</p><button className="primary" disabled={blocked} onClick={addChapter}>创建第一章</button></div>}</div> : <Dashboard disabled={blocked} revision={dashboardRevision} onOpen={selectNovel} onCreate={() => openModal('create')} />}
     </main>
     {utility === 'search' && <SearchDialog novels={novels} blocked={blocked} onSelect={openSearchResult} onClose={() => setUtility(null)} />}
     {utility === 'preferences' && <PreferencesDialog value={preferences.value} error={preferences.error} onChange={preferences.change} onClose={() => setUtility(null)} />}

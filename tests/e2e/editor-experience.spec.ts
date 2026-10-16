@@ -126,7 +126,7 @@ test('focus mode, scoped shortcuts and Escape retain document and browser bindin
   const composing = await body(page).evaluate(element => element.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', code: 'KeyF', ctrlKey: true, altKey: true, shiftKey: true, isComposing: true, bubbles: true, cancelable: true })))
   expect(composing).toBe(true)
   await expect(page.getByRole('button', { name: '专注写作', exact: true })).toBeVisible()
-  await body(page).press('ControlOrMeta+Alt+Shift+s')
+  await body(page).press('Control+Alt+Shift+s')
   await saved(page)
   await body(page).press('ControlOrMeta+Alt+Shift+f')
   await expect(page.getByRole('navigation', { name: '小说列表' })).not.toBeVisible()

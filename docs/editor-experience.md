@@ -17,7 +17,7 @@
 
 | 操作 | 快捷键 |
 | --- | --- |
-| 立即保存 | Ctrl/⌘ + Alt/⌥ + Shift + S |
+| 立即保存 | Control + Alt/⌥ + Shift + S（Mac 也使用 Control，保留 Safari 原生另存为） |
 | 切换专注 | Ctrl/⌘ + Alt/⌥ + Shift + F |
 | 上一章 / 下一章 | Ctrl/⌘ + Alt/⌥ + Shift + ↑ / ↓ |
 | 退出专注 | Esc |

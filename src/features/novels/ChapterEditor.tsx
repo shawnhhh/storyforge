@@ -6,6 +6,7 @@ import { api } from './api'
 import { ChapterSaver, type SaveState } from './autosave'
 import { EditorStatistics, statisticsKey } from './editor-statistics'
 import { AiWriting } from '../ai/AiWriting'
+import { WritingProgress } from './WritingProgress'
 
 export interface EditorControl {
   saveBeforeLeave: () => Promise<boolean>
@@ -13,6 +14,7 @@ export interface EditorControl {
   focus: () => void
 }
 interface Props {
+  focused: boolean
   children?: ReactNode
   controlRef: Ref<EditorControl>
   chapter: Chapter
@@ -21,7 +23,7 @@ interface Props {
   onReload: () => void
   disabled: boolean
 }
-export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children }: Props) {
+export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children, focused }: Props) {
   const [initial] = useState(chapter)
   const saver = useRef<ChapterSaver | null>(null)
   const [state, setState] = useState<SaveState>({ status: 'saved', dirty: false, message: '' })
@@ -43,7 +45,7 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
   useImperativeHandle(controlRef, () => ({
     saveBeforeLeave: () => saver.current?.saveBeforeLeave() ?? Promise.resolve(false),
     save: () => { if (!disabled) void saver.current?.flush() },
-    focus: () => { editor?.commands.focus() },
+    focus: () => { editor?.commands.focus(undefined, { scrollIntoView: false }) },
   }), [editor, disabled])
   useEffect(() => { editor?.setEditable(!disabled, false) }, [editor, disabled])
   useEffect(() => {
@@ -79,10 +81,10 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
     <header className="editor-heading"><span>正文编辑</span><span className={`save-status ${state.status}`} role="status" aria-live="polite">{labels[state.status]}</span></header>
     {(state.status === 'failed' || state.status === 'conflict') && <div className="save-error" role="alert"><p>{state.message}</p><p>当前内容仍保留在编辑器中。可复制正文或导出草稿，再重新加载最新版本。</p><div className="button-row">{state.status !== 'conflict' && <button disabled={disabled} onClick={() => { void saver.current?.flush() }}>重试保存</button>}<button onClick={exportDraft}>导出未保存草稿</button><button disabled={disabled} onClick={onReload}>重新加载</button></div></div>}
     <input id="chapter-title" disabled={disabled} className="chapter-title" aria-label="章节标题" maxLength={200} value={title} placeholder="章节标题" onChange={event => { titleRef.current = event.target.value; setTitle(event.target.value); if (editor) { const doc = editor.state.doc; saver.current?.change(event.target.value, () => doc.toJSON() as RichTextDocument) } }} />
-    <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={disabled} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={disabled || state.status === 'conflict'} />}<button className="save-now" title="Ctrl/⌘ + Alt + Shift + S" disabled={disabled || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
+    <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={disabled} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={disabled || state.status === 'conflict'} />}<button className="save-now" title="Control + Alt/⌥ + Shift + S（Mac 也使用 Control）" disabled={disabled || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
     <DocumentBody editor={editor} />
     {children}
-    <footer className="editor-footer">{editor && <WordStatistics editor={editor} />}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
+    <footer className="editor-footer">{editor && <><WordStatistics editor={editor} /><WritingProgress editor={editor} chapterId={chapter.id} focused={focused} disabled={disabled} /></>}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
   </section>
 })
 
