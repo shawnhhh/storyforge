@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 
 const body = (page: Page) => page.getByRole('textbox', { name: '小说正文' })
-const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存')
+const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存到数据库')
 const browserErrors = new WeakMap<Page, string[]>()
 test.beforeEach(({ page }) => {
   const errors: string[] = []
@@ -94,6 +94,7 @@ test('two pages preserve conflicting drafts, export them and recover from remote
   await expect(body(other)).toHaveText('窗口二未保存草稿')
   other.once('dialog', dialog => dialog.accept())
   await other.getByRole('button', { name: '重新加载', exact: true }).click()
+  await other.getByRole('button', { name: '保留数据库版本', exact: true }).click()
   await expect(body(other)).toHaveText('窗口一正式正文')
   await saved(other)
   page.once('dialog', dialog => dialog.accept())

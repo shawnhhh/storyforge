@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { newCharacter, newWorld } from '../../src/features/story-bible/model.js'
 
 const module = (page: Page, name: string) => page.getByRole('navigation', { name: '小说工作台模块' }).getByRole('button', { name, exact: true }).click()
-const saved = (page: Page) => expect(page.locator('.profile-save-status')).toHaveText('已保存')
+const saved = (page: Page) => expect(page.locator('.profile-save-status')).toHaveText('已保存到数据库')
 const list = (page: Page) => page.getByRole('navigation', { name: '资料列表', exact: true })
 const links = (page: Page) => page.getByRole('region', { name: '资料关联与引用', exact: true })
 async function createNovel(page: Page, title: string) {
@@ -48,7 +48,7 @@ test('unified knowledge CRUD, filters, existing relations, world links and chapt
   await createNovel(page, '创作资料库完整验收')
   await page.getByRole('button', { name: '创建第一章' }).click()
   await page.getByRole('textbox', { name: '小说正文' }).fill('真实小说数据不参与测试。此段 Mock 正文必须保持原样。')
-  await expect(page.locator('.save-status')).toHaveText('已保存')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
   await module(page, '创作资料库')
   await add(page, 'characters', '林月🌕')
   await page.getByLabel('角色分类', { exact: true }).fill('主角')

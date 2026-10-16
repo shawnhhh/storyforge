@@ -4,7 +4,7 @@ import { chapterBody, expectChapterReady } from './editor-helpers.js'
 
 const body = chapterBody
 const title = (page: Page) => page.getByRole('textbox', { name: '章节标题' })
-const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存')
+const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存到数据库')
 async function start(page: Page, name: string, second = false) {
   await page.goto('/')
   await page.getByRole('button', { name: '创建小说', exact: true }).first().click()
@@ -187,7 +187,7 @@ test('writing shortcuts stay in writing while profile drafts keep module navigat
   const modules = page.getByRole('navigation', { name: '小说工作台模块' })
   await modules.getByRole('button', { name: '人物档案', exact: true }).click()
   await page.getByRole('button', { name: '新增人物', exact: true }).first().click()
-  await expect(page.locator('.profile-save-status')).toHaveText('已保存')
+  await expect(page.locator('.profile-save-status')).toHaveText('已保存到数据库')
   await page.route('**/api/novels/*/characters/*', route => route.request().method() === 'PUT' ? route.abort('failed') : route.continue())
   const name = page.getByLabel('姓名', { exact: true })
   await name.fill('联合角色')
@@ -204,7 +204,7 @@ test('writing shortcuts stay in writing while profile drafts keep module navigat
   expect(chapterReads).toBe(0)
   await page.unroute('**/api/novels/*/characters/*')
   await page.getByRole('button', { name: '重试保存', exact: true }).click()
-  await expect(page.locator('.profile-save-status')).toHaveText('已保存')
+  await expect(page.locator('.profile-save-status')).toHaveText('已保存到数据库')
   await modules.getByRole('button', { name: '世界观', exact: true }).click()
   await expect(page.getByText('为故事构建一个世界')).toBeVisible()
   await modules.getByRole('button', { name: '章节写作', exact: true }).click()

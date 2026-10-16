@@ -42,7 +42,7 @@ test('integration: dashboard continuation, AI autosave, references, search and p
   await expect(body).toHaveText('集成基线正文')
   await ai.getByRole('button', { name: '接受并插入' }).click()
   await expect(body).toHaveText('集成基线正文集成生成片段')
-  await expect(page.locator('.save-status')).toHaveText('已保存')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
   const after = await (await request.get('/api/dashboard')).json() as WritingDashboard
   expect(after.totalWords - before.totalWords).toBe(6)
   expect(after.todayWords - before.todayWords).toBe(6)
@@ -85,7 +85,7 @@ test('integration: failed prose save blocks home, module, references and search 
   await expect(body).toHaveText('必须保留的集成草稿')
   await page.unroute('**/api/chapters/*')
   await page.getByRole('button', { name: '重试保存', exact: true }).click()
-  await expect(page.locator('.save-status')).toHaveText('已保存')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
   await page.getByRole('button', { name: '⌂ 创作工作台', exact: true }).click()
   await page.locator('.dashboard-work').filter({ hasText: novel.title }).getByRole('button', { name: '打开作品' }).click()
   await expectChapterReady(page, '集成续写章', '必须保留的集成草稿')

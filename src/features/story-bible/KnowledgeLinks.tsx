@@ -1,3 +1,5 @@
+import { DraftNotice } from '../../shared/drafts/DraftNotice.js'
+import { useDraftProtection } from '../../shared/drafts/useDraftProtection.js'
 import { useEffect, useRef, useState } from 'react'
 import type { KnowledgeLink, KnowledgeSnapshot } from '../../../shared/contracts/knowledge.js'
 import type { StoryBible } from '../../../shared/contracts/story-bible.js'
@@ -24,6 +26,13 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
   const [target, setTarget] = useState('')
   const [label, setLabel] = useState(source.kind === 'chapter' ? '创作参考' : '相关设定')
   const [note, setNote] = useState('')
+  const draft = useDraftProtection(`reference:${novelId}:${source.kind}:${source.id}`, { target: '', label: source.kind === 'chapter' ? '创作参考' : '相关设定', note: '' })
+  const [saved, setSaved] = useState(false)
+  function change(patch: Partial<{ target: string; label: string; note: string }>) {
+    const value = { target, label, note, ...patch }
+    setTarget(value.target); setLabel(value.label); setNote(value.note); setSaved(false)
+    draft.protection.change(value)
+  }
   const active = useRef(false)
   const mounted = useRef(false)
   useEffect(() => {
@@ -47,12 +56,13 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
     catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : '读取关联失败') }
     finally { active.current = false; if (mounted.current) setBusy(false) }
   }
-  async function save(links: KnowledgeLink[]) {
+  async function save(links: KnowledgeLink[], adding = false) {
     if (!snapshot || active.current || disabled || conflict) return
     active.current = true; setBusy(true); setError('')
     try {
       const fresh = await storyApi.saveLinks(novelId, { version: snapshot.version, links })
-      if (mounted.current) { setSnapshot(fresh); setTarget(''); setNote('') }
+      if (adding) { void draft.protection.saved({ target, label, note }) }
+      if (mounted.current) { setSnapshot(fresh); if (adding) { setTarget(''); setNote(''); setSaved(true) } }
     } catch (reason) {
       if (mounted.current) { setError(reason instanceof Error ? reason.message : '保存关联失败，输入已保留，可重试'); if (reason instanceof ApiError && [400, 404, 409].includes(reason.status)) setConflict(true) }
     } finally { active.current = false; if (mounted.current) setBusy(false) }
@@ -62,20 +72,22 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
   const targets = [...(source.kind === 'chapter' ? data.characters.map(item => ({ kind: 'character' as const, id: item.id, title: `${item.name} · 人物` })) : []), ...data.world.filter(item => item.id !== source.id).map(item => ({ kind: 'world' as const, id: item.id, title: `${item.name} · ${worldCategories[item.category]}` }))]
   const chosen = targets.find(item => `${item.kind}:${item.id}` === target)
   const duplicate = outgoing.some(item => item.target.kind === chosen?.kind && item.target.id === chosen?.id && item.label === label.trim())
-  const blocked = disabled || busy || conflict || !snapshot
+  const blocked = draft.blocked || disabled || busy || conflict || !snapshot
   const title = source.kind === 'chapter' ? '章节资料引用' : '资料关联与引用'
   function open(kind: 'world' | 'character' | 'chapter', id: string) { onOpen?.(kind === 'character' ? 'characters' : kind, id) }
   return <section className="knowledge-links" aria-label={title} aria-busy={busy}>
     <div className="knowledge-heading"><h3>{title}</h3><button disabled={busy || disabled} onClick={() => { void refresh() }}>刷新关联</button></div>
     <p className="profile-hint">{source.kind === 'chapter' ? '引用资料供本章创作查阅，记录用途与备注；不会插入或改写正文。' : '建立地点、势力及其他设定之间的有向关联，并查看引用此资料的章节。人物关联沿用人物档案。'}</p>
-    {error && <p role="alert">{error}；输入已保留。{conflict ? '请先刷新关联，核对最新记录。' : '可重试操作。'}</p>}
+    <DraftNotice draft={draft} onRestore={value => change(value)} />
+    {saved && <p role="status">已保存到数据库</p>}
+    {error && <p role="alert">保存失败 · {error}；输入已保留。{conflict ? '请先刷新关联，核对最新记录。' : '可重试操作。'}</p>}
     {!snapshot && !error && <p role="status">正在读取关联…</p>}
     <ul className="profile-associations">{outgoing.map(item => <li key={item.id}><div><button disabled={busy || disabled || !onOpen} onClick={() => open(item.target.kind, item.target.id)}>{name(item.target.kind, item.target.id)}</button><span> · {item.label}</span>{item.note && <p className="knowledge-note">{item.note}</p>}{source.kind === 'chapter' && <details><summary>查阅资料内容</summary><p className="knowledge-note">{item.target.kind === 'world' ? data.world.find(record => record.id === item.target.id)?.description : Object.entries(data.characters.find(record => record.id === item.target.id)?.fields ?? {}).filter(([, value]) => value).map(([, value]) => value).join('\n')}</p></details>}</div><button disabled={blocked} aria-label={`移除引用 ${name(item.target.kind, item.target.id)}`} onClick={() => { void save(snapshot!.links.filter(row => row.id !== item.id)) }}>移除</button></li>)}</ul>
     {source.kind !== 'character' && <fieldset disabled={blocked} className="knowledge-add"><legend>{source.kind === 'chapter' ? '添加资料引用' : '添加设定关联'}</legend>
-      <label>引用资料<select aria-label="引用资料" value={target} onChange={event => setTarget(event.target.value)}><option value="">选择资料</option>{targets.map(item => <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>{item.title}</option>)}</select></label>
-      <label>引用用途<input maxLength={80} value={label} onChange={event => setLabel(event.target.value)} /></label>
-      <label>引用备注<textarea maxLength={2000} rows={2} value={note} onChange={event => setNote(event.target.value)} /></label>
-      <button disabled={!chosen || !label.trim() || duplicate || (snapshot?.links.length ?? 0) >= 1000} onClick={() => { if (chosen && snapshot) void save([...snapshot.links, { id: crypto.randomUUID(), source: { kind: source.kind as 'chapter' | 'world', id: source.id }, target: { kind: chosen.kind, id: chosen.id }, label: label.trim(), note }]) }}>{source.kind === 'chapter' ? '添加引用' : '添加关联'}</button>
+      <label>引用资料<select aria-label="引用资料" value={target} onChange={event => change({ target: event.target.value })}><option value="">选择资料</option>{targets.map(item => <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>{item.title}</option>)}</select></label>
+      <label>引用用途<input maxLength={80} value={label} onChange={event => change({ label: event.target.value })} /></label>
+      <label>引用备注<textarea aria-label="引用备注" maxLength={2000} rows={2} value={note} onChange={event => change({ note: event.target.value })} /></label>
+      <button disabled={!chosen || !label.trim() || duplicate || (snapshot?.links.length ?? 0) >= 1000} onClick={() => { if (chosen && snapshot) void save([...snapshot.links, { id: crypto.randomUUID(), source: { kind: source.kind as 'chapter' | 'world', id: source.id }, target: { kind: chosen.kind, id: chosen.id }, label: label.trim(), note }], true) }}>{source.kind === 'chapter' ? '添加引用' : '添加关联'}</button>
       {duplicate && <p className="profile-hint">此资料与用途已存在。</p>}
     </fieldset>}
     <h4>被引用与反向关联</h4>

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { WritingDashboard } from '../../shared/contracts/dashboard.js'
 import { expectChapterReady } from './editor-helpers.js'
-const waitForSaved = (page: import('@playwright/test').Page) => expect(page.locator('.save-status')).toHaveText('已保存')
+const waitForSaved = (page: import('@playwright/test').Page) => expect(page.locator('.save-status')).toHaveText('已保存到数据库')
 
 // The runner starts fresh services with temporary database/backup directories.
 test('homepage creation, saved statistics, goal persistence and exact chapter continuation', async ({ page }) => {

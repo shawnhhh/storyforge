@@ -135,7 +135,7 @@ export function Workspace() {
     void run(async () => { const loaded = await api.reorder(detail.novel, ids); setDetail(loaded); updateNovel(loaded.novel) })
   }
   function reloadEditor() {
-    if (!chapter || busy || (dirty && !window.confirm('重新加载会放弃当前未保存修改。请先复制正文或导出草稿，确认继续？'))) return
+    if (!chapter || busy || (dirty && !window.confirm('重新加载数据库内容。未保存修改会作为本机草稿保留，随后需选择版本。确认继续？'))) return
     void run(async () => {
       let loaded: NovelDetail
       try { loaded = await api.detail(chapter.novelId) }
@@ -226,12 +226,12 @@ export function Workspace() {
     </main>
     {utility === 'search' && <SearchDialog novels={novels} blocked={blocked} onSelect={openSearchResult} onClose={() => setUtility(null)} />}
     {utility === 'preferences' && <PreferencesDialog value={preferences.value} error={preferences.error} onChange={preferences.change} onClose={() => setUtility(null)} />}
-    {modal && <NovelDialog novel={modal === 'edit' ? detail?.novel ?? null : null} busy={busy} error={error} returnFocusTo={dialogOpener} onClose={() => { setModal(null); setError('') }} onSubmit={(title, description) => {
+    {modal && <NovelDialog novel={modal === 'edit' ? detail?.novel ?? null : null} busy={busy} error={error} returnFocusTo={dialogOpener} onClose={() => { setModal(null); setError('') }} onSubmit={(title, description, saved) => {
       void run(async () => {
         if (modal === 'create') {
           const novel = await api.create(title, description); if (!detail) setView('writing'); updateNovel(novel); setDetail({ novel, chapters: [] }); setChapter(null)
         } else if (detail) { updateNovel(await api.update(detail.novel, title, description)) }
-        setModal(null)
+        saved(); setModal(null)
       })
     }} />}
   </div>

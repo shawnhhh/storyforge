@@ -1,23 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Character, WorldEntry } from '../../../shared/contracts/story-bible.js'
 import { ProfileSaver, type SaveState } from './autosave.js'
+import { useDraftProtection } from '../../shared/drafts/useDraftProtection.js'
 import { validateProfile } from './model.js'
 
 export function useProfileDraft<T extends Character | WorldEntry>(record: T, save: (value: T) => Promise<T>, onSaved: (value: T) => void, onDirty: (dirty: boolean) => void, disabled: boolean) {
   const [initial] = useState(record)
+  const draft = useDraftProtection(`profile:${record.novelId}:${'fields' in record ? 'character' : 'world'}:${record.id}`, initial)
+  const { protection } = draft
   const [value, setValue] = useState(record)
   const current = useRef(record)
   const queue = useRef<ProfileSaver<T> | null>(null)
   const [state, setState] = useState<SaveState>({ status: 'saved', dirty: false, message: '' })
   useEffect(() => {
-    const saver = new ProfileSaver(initial, save, validateProfile)
+    const saver = new ProfileSaver(initial, async value => { const result = await save(value); void protection.saved(value); return result }, validateProfile)
     queue.current = saver
     const unsubscribe = saver.subscribe((next, result) => {
       setState(next); onDirty(next.dirty)
       if (result) onSaved(result)
     })
     return () => { unsubscribe(); saver.dispose(); queue.current = null }
-  }, [initial, save, onSaved, onDirty])
+  }, [initial, save, onSaved, onDirty, protection])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (queue.current?.state.dirty) { event.preventDefault(); event.returnValue = '' }
@@ -30,7 +33,7 @@ export function useProfileDraft<T extends Character | WorldEntry>(record: T, sav
   }, [disabled])
   function change(patch: Partial<T>) {
     const next = { ...current.current, ...patch }
-    current.current = next; setValue(next); queue.current?.change(next)
+    current.current = next; setValue(next); protection.change(next); queue.current?.change(next)
   }
   function exportDraft() {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ ...current.current, exportedAt: new Date().toISOString() }, null, 2)], { type: 'application/json;charset=utf-8' }))
@@ -39,5 +42,5 @@ export function useProfileDraft<T extends Character | WorldEntry>(record: T, sav
     document.body.append(anchor); anchor.click(); anchor.remove()
     setTimeout(() => URL.revokeObjectURL(url), 60000)
   }
-  return { value, state, change, exportDraft, flush: () => { if (!disabled) void queue.current?.flush() }, composition: (active: boolean) => queue.current?.composition(active) }
+  return { value, state, draft, restore: (restored: T) => { const next = { ...restored, id: initial.id, novelId: initial.novelId, version: initial.version }; current.current = next; setValue(next); protection.change(next); queue.current?.change(next) }, change, exportDraft, flush: () => { if (!disabled) void queue.current?.flush() }, composition: (active: boolean) => queue.current?.composition(active) }
 }

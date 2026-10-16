@@ -55,7 +55,7 @@ export function StoryBiblePanel({ novelId, mode, disabled, onDirty, initialId, c
   function resetFilters() { setQuery(''); setTag(''); setCategory(''); setTimeline(false); setMaterialType('') }
   function reload(discard = false) {
     if (active.current || disabled || (dirty && !discard)) return
-    if (dirty && !window.confirm('重新加载会放弃当前未保存的资料修改。请先导出草稿或复制内容，确认继续？')) return
+    if (dirty && !window.confirm('重新加载数据库资料。未保存修改会作为本机草稿保留，随后需选择版本。确认继续？')) return
     void run(async () => {
       const fresh = await storyApi.list(novelId)
       setData(fresh); setSelectedId(profileRecords(fresh, mode).some(item => item.id === selectedId) ? selectedId : profileRecords(fresh, mode)[0]?.id ?? null)
