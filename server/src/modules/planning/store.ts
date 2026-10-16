@@ -1,3 +1,4 @@
+import { archiveRemoved, snapshot } from '../trash/store.js'
 import type { DatabaseSync } from 'node:sqlite'
 import { emptyPlanning, type PlanningData, type PlanningSnapshot } from '../../../../shared/contracts/planning.js'
 import { NovelStore, HttpError } from '../novels/store.js'
@@ -29,6 +30,7 @@ export class PlanningStore {
     this.db.exec('BEGIN IMMEDIATE')
     try {
       const current = this.read(novelId)
+      const before = snapshot(this.db, novelId, ['planning_records', 'planning_chapter_links'])
       if (current.version !== expected) throw new HttpError(409, '规划已变化，请导出草稿后重新加载，避免覆盖其他窗口的修改')
       const chapters = new Set(this.db.prepare('SELECT id FROM chapters WHERE novel_id=?').all(novelId).map(row => row.id))
       for (const record of Object.values(data).flat()) for (const role of chapterRoles) {
@@ -45,6 +47,9 @@ export class PlanningStore {
         }
       })
       this.db.prepare('UPDATE novels SET version=version+1,updated_at=? WHERE id=?').run(new Date().toISOString(), novelId)
+      const removed = Object.values(data).flat().map(row => row.id)
+      const names = Object.values(current).filter(Array.isArray).flat().filter(row => !removed.includes(row.id)).map(row => row.title)
+      archiveRemoved(this.db, before, novelId, 'planning', names.length ? names.join('、') : '规划章节关联', true)
       const result = this.read(novelId)
       this.db.exec('COMMIT'); return result
     } catch (error) { this.db.exec('ROLLBACK'); throw error }

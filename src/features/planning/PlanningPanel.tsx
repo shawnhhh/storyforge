@@ -63,6 +63,12 @@ function PlanningEditor({ initial, restored, paused, chapters, onBack, onReload,
   }, [initial, paused, restored, onDirty])
   function change(next: PlanningSnapshot) { dirty.current = true; onDirty(true); setSnapshot(next); saver.current?.change(next) }
   function update(patch: Partial<Entry>) {
+    const old = snapshot[section].find(row => row.id === selected)
+    if (old) {
+      const before = old as unknown as Record<string, unknown>, after = patch as Record<string, unknown>
+      const removing = Object.entries(after).some(([key, value]) => Array.isArray(before[key]) && Array.isArray(value) ? (before[key] as string[]).some(id => !value.includes(id)) : ['parentId', 'plotlineId'].includes(key) && before[key] && before[key] !== value)
+      if (removing && !window.confirm(`解除规划“${old.title}”的原关联？不删除目标对象，保存后原关联进入回收站保留 30 天。`)) return
+    }
     change({ ...snapshot, [section]: snapshot[section].map(row => row.id === selected ? { ...row, ...patch } : row) })
   }
   function add() {
@@ -74,7 +80,7 @@ function PlanningEditor({ initial, restored, paused, chapters, onBack, onReload,
     change({ ...snapshot, [section]: [...snapshot[section], entry] }); setSelected(entry.id); setSearch(''); setFilterStatus(''); setLine(''); setUnresolved(false)
   }
   function remove() {
-    if (!selected || !window.confirm('删除当前规划？大纲子项将提升一级，其他引用将解除。')) return
+    if (!selected || !window.confirm(`删除规划“${snapshot[section].find(row => row.id === selected)?.title}”？大纲子项将提升一级，其他引用将解除。保存后进入回收站保留 30 天。`)) return
     const outline = snapshot.outlines.find(row => row.id === selected)
     const next = { ...snapshot, [section]: snapshot[section].filter(row => row.id !== selected) }
     next.outlines = next.outlines.map(row => row.parentId === selected ? { ...row, parentId: outline?.parentId ?? null } : row)
@@ -130,7 +136,7 @@ function PlanningEditor({ initial, restored, paused, chapters, onBack, onReload,
       <label>详细内容<textarea className="planning-content" maxLength={100000} value={current.content} onChange={event => update({ content: event.target.value })} /></label>
       {section !== 'plotlines' && <ChapterLinks label="关联章节" chapters={chapters} values={(current as Foreshadow).chapterIds} onChange={values => update({ chapterIds: values })} />}
       {section === 'foreshadows' && <>{<ChapterLinks label="埋设章节" chapters={chapters} values={(current as Foreshadow).plantedChapterIds} onChange={values => update({ plantedChapterIds: values })} />}{<ChapterLinks label="计划回收章节" chapters={chapters} values={(current as Foreshadow).plannedChapterIds} onChange={values => update({ plannedChapterIds: values })} />}{<ChapterLinks label="实际回收章节" chapters={chapters} values={(current as Foreshadow).resolvedChapterIds} onChange={values => update({ resolvedChapterIds: values })} />}<fieldset className="planning-links"><legend>关联剧情卡片</legend>{!snapshot.cards.length && <small>暂无剧情卡片</small>}{snapshot.cards.map(card => <label key={card.id}><input type="checkbox" checked={(current as Foreshadow).cardIds.includes(card.id)} onChange={event => update({ cardIds: event.target.checked ? [...(current as Foreshadow).cardIds, card.id] : (current as Foreshadow).cardIds.filter(id => id !== card.id) })} />{card.title}</label>)}</fieldset>{(current as Foreshadow).status === 'resolved' && !(current as Foreshadow).resolvedChapterIds.length && <p className="planning-warning">已回收，但尚未记录实际回收章节，请补充。</p>}</>}
-      <button className="danger" onClick={remove}>删除当前规划</button>
+      <details className="delete-menu"><summary>···</summary><button className="danger" onClick={remove}>删除当前规划</button></details>
     </> : <div className="planning-empty">选择一个规划进行编辑，修改后会自动保存。</div>}</div></div>
   </section>
 }

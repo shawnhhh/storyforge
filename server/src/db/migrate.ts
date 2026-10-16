@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 
-export const schemaVersion = 4
-const migrations = ['0001_novels.sql', '0002_story_bible.sql', '0003_writing_dashboard.sql', '0004_knowledge.sql']
+export const schemaVersion = 5
+const migrations = ['0001_novels.sql', '0002_story_bible.sql', '0003_writing_dashboard.sql', '0004_knowledge.sql', '0005_trash.sql']
 const migrationSql = (name: string) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8')
 
 // The two unmerged branches both used v3. Recognize their exact module DDL,
@@ -12,7 +12,7 @@ function moduleSignature(database: DatabaseSync) {
     WHERE name NOT LIKE 'sqlite_%' AND (name GLOB 'writing_*' OR name GLOB 'knowledge_*' OR tbl_name GLOB 'writing_*' OR tbl_name GLOB 'knowledge_*')
     ORDER BY type,name`).all())
 }
-const v3Signatures = migrations.slice(2).map(name => {
+const v3Signatures = migrations.slice(2, 4).map(name => {
   const reference = new DatabaseSync(':memory:')
   try { reference.exec(migrationSql(name)); return moduleSignature(reference) }
   finally { reference.close() }

@@ -1,3 +1,4 @@
+import { archiveRemoved, snapshot } from '../trash/store.js'
 import type { DatabaseSync } from 'node:sqlite'
 import type { KnowledgeLink, KnowledgeSnapshot } from '../../../../shared/contracts/knowledge.js'
 import { HttpError } from '../novels/store.js'
@@ -43,6 +44,7 @@ export class KnowledgeStore {
     this.db.exec('BEGIN IMMEDIATE')
     try {
       const current = this.snapshot(novelId)
+      const before = snapshot(this.db, novelId, ['knowledge_links'])
       if (current.version !== expected) throw new HttpError(409, '资料关联已在其他窗口变化，请刷新关联后重试')
       for (const link of links) {
         const sourceTable = link.source.kind === 'world' ? 'world_entries' : 'chapters'
@@ -56,6 +58,7 @@ export class KnowledgeStore {
       const insert = this.db.prepare('INSERT INTO knowledge_links VALUES (?,?,?,?,?,?,?,?)')
       for (const link of links) insert.run(novelId, link.id, link.source.kind === 'world' ? link.source.id : null, link.source.kind === 'chapter' ? link.source.id : null, link.target.kind === 'world' ? link.target.id : null, link.target.kind === 'character' ? link.target.id : null, link.label, link.note)
       this.db.prepare('UPDATE knowledge_workspaces SET version=? WHERE novel_id=?').run(current.version + 1, novelId)
+      archiveRemoved(this.db, before, novelId, 'reference', '资料引用：' + current.links.filter(old => !links.some(row => row.id === old.id)).map(row => row.label).join('、'))
       const result = this.snapshot(novelId)
       this.db.exec('COMMIT')
       return result
