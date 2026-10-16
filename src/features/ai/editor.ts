@@ -1,6 +1,7 @@
 import { Fragment, Slice, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { type EditorState, type Selection } from '@tiptap/pm/state'
 import { aiLimits, type AiAction, type AiInput } from '../../../shared/contracts/ai.js'
+import { closeHistory } from '@tiptap/pm/history'
 
 export interface AiSnapshot { doc: ProseMirrorNode; selection: Selection; input: Pick<AiInput, 'before' | 'selection' | 'after'> }
 export function captureAiSnapshot(state: EditorState): AiSnapshot {
@@ -20,5 +21,5 @@ export function aiTransaction(state: EditorState, snapshot: AiSnapshot, action: 
   // Structured text nodes: generated HTML/Markdown is never interpreted as markup.
   const tr = state.tr.replaceRange(start, to, new Slice(Fragment.fromArray(paragraphs), 1, 1))
   tr.setSelection(snapshot.selection.map(tr.doc, tr.mapping))
-  return tr
+  return closeHistory(tr)
 }

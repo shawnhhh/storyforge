@@ -1,4 +1,5 @@
-export interface AiConfig { apiKey: string; baseUrl: string; model: string; timeoutMs: number }
+import type { GenerationParameters } from '../../../../shared/contracts/ai.js'
+export interface AiConfig { apiKey: string; baseUrl: string; model: string; timeoutMs: number; parameters?: GenerationParameters }
 
 // Server-only environment. Never persist credentials in SQLite or expose them via status.
 export function loadAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig | null {
