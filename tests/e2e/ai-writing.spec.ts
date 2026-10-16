@@ -2,6 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 import type { Editor } from '@tiptap/core'
 import { chapterBody, expectChapterReady } from './editor-helpers.js'
 import type { AiInput } from '../../shared/contracts/ai.js'
+import type { Novel, ChapterResult } from '../../shared/contracts/novels.js'
+import { newWorld } from '../../src/features/story-bible/model.js'
+import { emptyPlanning } from '../../shared/contracts/planning.js'
 
 const result = (text = 'Mock 生成文字') => ({ text, usage: { inputTokens: 48, outputTokens: 9 }, finishReason: 'stop' })
 const browserErrors = new WeakMap<Page, string[]>()
@@ -30,6 +33,10 @@ test.beforeEach(async ({ page }) => {
   const errors: string[] = []; browserErrors.set(page, errors)
   page.on('pageerror', error => errors.push(error.message))
   await page.route('**/api/ai/status', route => route.fulfill({ json: { configured: true, model: 'mock-model', message: 'AI 已就绪' } }))
+  await page.route('**/api/ai/models', route => route.fulfill({ json: {
+    models: [{ id: 'openai-default', label: 'Mock OpenAI', model: 'mock-model', provider: 'openai', configured: true, maxOutputTokens: 4096, inputUsdPerMillion: null, outputUsdPerMillion: null }, { id: 'deepseek-mock', label: 'Mock DeepSeek', model: 'deepseek-mock', provider: 'deepseek', configured: true, maxOutputTokens: 1024, inputUsdPerMillion: 1, outputUsdPerMillion: 2 }],
+    policy: { requestsPerMinute: 20, sessionRequests: 100, sessionTokens: 200000, maxInputTokens: 64000, maxRequestUsd: 1, sessionUsd: 5 }, remaining: { requests: 100, tokens: 200000, usd: 5 },
+  } }))
 })
 test.afterEach(({ page }) => { expect(browserErrors.get(page)).toEqual([]) })
 for (const [action, label] of [['polish', '润色'], ['expand', '扩写'], ['rewrite', '改写']] as const) {
@@ -179,6 +186,12 @@ for (const width of [1440, 700]) {
     await saved(page)
     expect(await page.locator('.document').evaluate(el => el.scrollTop)).toBe(acceptedScroll)
     expect(await body.evaluate((el, previous) => el === previous, original)).toBe(true)
+    await page.getByRole('button', { name: '撤销本次 AI 修改' }).click()
+    await expect(body).toBeFocused()
+    expect(await page.locator('.document').evaluate(el => el.scrollTop)).toBe(scroll)
+    await saved(page)
+    expect(await page.locator('.document').evaluate(el => el.scrollTop)).toBe(scroll)
+    expect(await body.evaluate((el, previous) => el === previous, original)).toBe(true)
   })
 }
 
@@ -224,4 +237,96 @@ test('switching chapter disposes a pending request so its result cannot enter an
   await expect(body).toHaveText('')
   await page.getByRole('button', { name: '上一章', exact: true }).click()
   await expectChapterReady(page, '第 1 章', '前文目标后文')
+})
+
+test('references use real isolated context APIs, show truncation, and transmit only confirmed IDs', async ({ page }) => {
+  const body = await start(page, '逐项引用')
+  const health = await page.request.get('/api/health')
+  const headers = { 'X-StoryForge-Generation': health.headers()['x-storyforge-generation'] }
+  const novels = await (await page.request.get('/api/novels')).json() as Novel[]
+  const novel = novels.find(item => item.title === 'AI 虚构测试-逐项引用')!
+  const world = await (await page.request.post(`/api/novels/${novel.id}/world`, { headers, data: { ...newWorld(), name: '引用云城', description: '此设定只在勾选后发送。'.repeat(700) } })).json() as { id: string }
+  const plan = { ...emptyPlanning(), outlines: [{ id: 'outline', kind: 'overall', title: '引用总纲', content: '寻找旧信', parentId: null, chapterIds: [] }] }
+  expect((await page.request.put(`/api/novels/${novel.id}/planning`, { headers, data: { ...plan, version: 0 } })).ok()).toBe(true)
+  const current = await (await page.request.get(`/api/novels/${novel.id}`)).json() as { novel: Novel }
+  const created = await (await page.request.post(`/api/novels/${novel.id}/chapters`, { headers, data: { version: current.novel.version, title: '引用前章' } })).json() as ChapterResult
+  expect((await page.request.put(`/api/chapters/${created.chapter.id}`, { headers, data: { version: created.chapter.version, title: created.chapter.title, content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '之前发生的虚构情节。'.repeat(600) }] }] } } })).ok()).toBe(true)
+  let sent: AiInput | undefined
+  await page.route('**/api/ai/generate', route => { sent = route.request().postDataJSON(); return route.fulfill({ json: result('仅预览的引用建议') }) })
+  await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('summary').filter({ hasText: '按需引用' }).click()
+  await dialog.getByLabel('引用总长度', { exact: true }).selectOption('1000')
+  await dialog.getByLabel('世界观：引用云城', { exact: true }).check()
+  await dialog.getByLabel('大纲：引用总纲', { exact: true }).check()
+  await dialog.getByLabel('已有章节：引用前章', { exact: true }).check()
+  await expect(dialog.getByLabel('引用内容预览')).toContainText('已截断')
+  await expect(dialog.getByLabel('引用内容预览')).toContainText('寻找旧信')
+  await expect(dialog.getByRole('button', { name: '生成预览', exact: true })).toBeEnabled()
+  await dialog.getByLabel('附近正文总长度').selectOption('0')
+  await dialog.getByRole('button', { name: '生成预览', exact: true }).click()
+  await expect(dialog.getByLabel('AI 结果预览')).toContainText('仅预览的引用建议')
+  expect(sent).toMatchObject({ before: '', after: '', includeStoryContext: false, context: { maxCharacters: 1000, references: [{ kind: 'world', id: world.id }, { kind: 'outline', id: 'outline' }, { kind: 'chapter', id: created.chapter.id }] } })
+  expect(sent!.context!.fingerprint).toMatch(/^[a-f0-9]{64}$/)
+  expect(JSON.stringify(sent)).not.toContain('此设定只在勾选后发送')
+  await dialog.getByRole('button', { name: '放弃', exact: true }).click()
+  await expect(body).toHaveText('前文目标后文')
+})
+
+test('model parameters, diff view and immediate AI undo preserve the prior draft', async ({ page }) => {
+  const body = await start(page, '模型对比撤销')
+  let sent: AiInput | undefined, writes = 0
+  page.on('request', request => { if (request.method() === 'PUT' && /\/api\/chapters\//.test(request.url())) writes++ })
+  await page.route('**/api/ai/generate', route => { sent = route.request().postDataJSON(); return route.fulfill({ json: { ...result('目标变得清晰'), modelId: 'deepseek-mock' } }) })
+  await selectTarget(page)
+  await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('summary').filter({ hasText: '模型配置中心' }).click()
+  await dialog.getByLabel('模型选择').selectOption('deepseek-mock')
+  await dialog.getByLabel('创意程度', { exact: true }).fill('0.3')
+  await dialog.getByLabel('采样范围', { exact: true }).fill('0.8')
+  await dialog.getByLabel('最大输出 tokens', { exact: true }).fill('512')
+  await dialog.getByLabel('写作操作').selectOption('polish')
+  await dialog.getByRole('button', { name: '生成预览', exact: true }).click()
+  await expect(dialog.getByLabel('原文与生成稿对比')).toContainText('目标变得清晰')
+  expect(sent).toMatchObject({ modelId: 'deepseek-mock', parameters: { temperature: 0.3, topP: 0.8, maxOutputTokens: 512 } })
+  expect(writes).toBe(0)
+  await dialog.getByRole('button', { name: '变更概览' }).click()
+  await expect(dialog.locator('ins')).toHaveText('变得清晰')
+  await expect(body).toHaveText('前文目标后文')
+  await dialog.getByRole('button', { name: '接受并替换选文' }).click()
+  await expect(body).toHaveText('前文目标变得清晰后文')
+  await page.getByRole('button', { name: '撤销本次 AI 修改' }).click()
+  await expect(body).toHaveText('前文目标后文')
+  await saved(page)
+  await expect(page.getByRole('button', { name: '撤销本次 AI 修改' })).toHaveCount(0)
+})
+
+test('cancelling regeneration and a quota error both retain the last successful preview', async ({ page }) => {
+  const body = await start(page, '重新生成保护')
+  let count = 0, release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/ai/generate', async route => {
+    count++
+    if (count === 1) return route.fulfill({ json: result('可保留的上一稿') })
+    if (count === 2) { await gate; await route.fulfill({ json: result('取消后不得覆盖') }).catch(() => {}); return }
+    return route.fulfill({ status: 429, json: { message: '本机 AI 会话预算已用完' } })
+  })
+  await page.getByRole('button', { name: 'AI 辅助', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: '生成预览', exact: true }).click()
+  await expect(dialog.getByLabel('AI 结果预览')).toContainText('可保留的上一稿')
+  await dialog.getByRole('button', { name: '重新生成' }).click()
+  await expect.poll(() => count).toBe(2)
+  await expect(dialog.getByRole('button', { name: '接受并插入' })).toBeDisabled()
+  await dialog.getByRole('button', { name: '取消请求' }).click()
+  release()
+  await expect(dialog.getByLabel('AI 结果预览')).toContainText('可保留的上一稿')
+  await dialog.getByRole('button', { name: '重新生成' }).click()
+  await expect(dialog.getByRole('alert')).toContainText('会话预算已用完')
+  await expect(dialog.getByLabel('AI 结果预览')).toContainText('可保留的上一稿')
+  await expect(body).toHaveText('前文目标后文')
+  await dialog.getByRole('button', { name: '接受并插入' }).click()
+  await expect(body).toContainText('可保留的上一稿')
+  await saved(page)
 })

@@ -43,7 +43,8 @@ try {
   const [apiPort, webPort] = await Promise.all([freePort(), freePort()])
   const baseURL = `http://127.0.0.1:${webPort}`
   // Explicit overrides: never use .env or the application's existing data directory.
-  const env = { ...process.env, STORYFORGE_AI_API_KEY: '', SERVER_PORT: String(apiPort), STORYFORGE_DATA_DIR: dir, STORYFORGE_BACKUP_DIR: join(dir, 'backups'), E2E_BASE_URL: baseURL, E2E_OUTPUT_DIR: resolve('work/e2e-results') }
+  const isolatedEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['STORYFORGE_AI_', 'STORYFORGE_OPENAI_', 'STORYFORGE_DEEPSEEK_', 'STORYFORGE_LOCAL_'].some(prefix => key.startsWith(prefix))))
+  const env = { ...isolatedEnv, STORYFORGE_AI_API_KEY: '', SERVER_PORT: String(apiPort), STORYFORGE_DATA_DIR: dir, STORYFORGE_BACKUP_DIR: join(dir, 'backups'), E2E_BASE_URL: baseURL, E2E_OUTPUT_DIR: resolve('work/e2e-results') }
   const api = launch(['--import', 'tsx', 'server/src/index.ts'], env)
   await ready(api, `http://127.0.0.1:${apiPort}/api/health`)
   const web = launch(['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], env)
