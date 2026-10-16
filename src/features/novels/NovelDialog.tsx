@@ -17,7 +17,7 @@ export function NovelDialog({ novel, busy, error, returnFocusTo, onClose, onSubm
   useEffect(() => {
     const element = dialog.current
     element?.showModal()
-    return () => { element?.close(); returnFocusTo?.focus() }
+    return () => { element?.close(); if (returnFocusTo?.isConnected) returnFocusTo.focus({ preventScroll: true }) }
   }, [returnFocusTo])
   return <dialog ref={dialog} className="novel-dialog" aria-labelledby="dialog-title" onCancel={event => {
     event.preventDefault()

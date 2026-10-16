@@ -78,7 +78,8 @@ function AiDialog({ editor, chapterId, disabled, session, onClose, onApplied }: 
     pending.current?.abort(); pending.current = null
     dialog.current?.close()
     if (!editor.isDestroyed) {
-      editor.view.dom.focus({ preventScroll: true })
+      // ProseMirror focus also restores DOM selection synchronously without scrolling.
+      editor.view.focus()
       const container = editor.view.dom.closest('.document')
       if (container) container.scrollTop = session.scroll
     }
