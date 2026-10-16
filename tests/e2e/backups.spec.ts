@@ -36,6 +36,9 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   const other = await context.newPage()
   await other.goto('/')
   await other.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
+  // A chapter list can paint while the lazy editor for the first chapter is
+  // still mounting. Wait for the initial chapter identity before navigating.
+  await expectChapterReady(other, '远航')
   await other.locator('.chapter-select').filter({ hasText: '初见' }).click()
   await expectChapterReady(other, '初见', '备份中的中文正文 <&> 🌕')
   await page.getByRole('button', { name: '备份与恢复', exact: true }).click()
@@ -46,6 +49,7 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await expect(page.getByRole('status')).toContainText('完整性检查通过')
   await page.getByRole('button', { name: '返回写作', exact: true }).click()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
+  await expectChapterReady(page, '远航')
   await page.locator('.chapter-select').filter({ hasText: '初见' }).click()
   await expectChapterReady(page, '初见', '备份中的中文正文 <&> 🌕')
   await body.fill('备份之后的正文')
@@ -67,6 +71,7 @@ test('downloads all formats, verifies backups, confirms restore twice and preser
   await expect(other.getByRole('textbox', { name: '小说正文' })).toHaveText('旧窗口未保存草稿')
   await page.getByRole('button', { name: '重新加载工作台' }).click()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '中文导出/恢复🌕' }).click()
+  await expectChapterReady(page, '远航')
   await page.locator('.chapter-select').filter({ hasText: '初见' }).click()
   await expectChapterReady(page, '初见', '备份中的中文正文 <&> 🌕')
   expect(errors).toEqual([])

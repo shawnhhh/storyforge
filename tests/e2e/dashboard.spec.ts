@@ -1,0 +1,126 @@
+import { expect, test } from '@playwright/test'
+import type { WritingDashboard } from '../../shared/contracts/dashboard.js'
+import { expectChapterReady } from './editor-helpers.js'
+const waitForSaved = (page: import('@playwright/test').Page) => expect(page.locator('.save-status')).toHaveText('已保存')
+
+// The runner starts fresh services with temporary database/backup directories.
+test('homepage creation, saved statistics, goal persistence and exact chapter continuation', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('创作工作台')
+  const before = await page.request.get('/api/dashboard').then(response => response.json()) as WritingDashboard
+  await page.getByRole('button', { name: '新建作品', exact: true }).click()
+  await page.getByRole('dialog').getByLabel('小说名称').fill('工作台测试作品')
+  await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
+  await page.getByRole('button', { name: '创建第一章' }).click()
+  await page.getByRole('textbox', { name: '章节标题' }).fill('起点')
+  await page.getByRole('textbox', { name: '小说正文' }).fill('春天的故事 hello 2026')
+  await waitForSaved(page)
+  await page.getByRole('button', { name: '添加章节' }).click()
+  await expectChapterReady(page, '第 2 章')
+  await page.getByRole('textbox', { name: '章节标题' }).fill('仍待落笔')
+  await waitForSaved(page)
+  await page.locator('.chapter-select').filter({ hasText: '起点' }).click()
+  await expectChapterReady(page, '起点')
+  await page.getByRole('textbox', { name: '小说正文' }).fill('春天的故事 hello 2026 新篇')
+  await waitForSaved(page)
+  await page.getByRole('button', { name: '⌂ 创作工作台', exact: true }).click()
+  const overview = page.getByRole('region', { name: '创作概览' })
+  await expect(overview).toContainText('连续写作')
+  const work = page.locator('.dashboard-work').filter({ hasText: '工作台测试作品' })
+  await expect(work).toContainText('9 字 · 1 / 2 章已有正文')
+  await expect(page.getByRole('region', { name: '继续写作', exact: true })).toContainText('起点')
+  const data = await page.request.get('/api/dashboard').then(response => response.json()) as WritingDashboard
+  expect(data.totalWords - before.totalWords).toBe(9)
+  expect(data.todayWords - before.todayWords).toBe(9)
+  await page.getByLabel('每日目标（字）').fill('0')
+  await page.getByRole('button', { name: '保存目标', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('请输入')
+  await page.getByLabel('每日目标（字）').fill('5')
+  await page.getByRole('button', { name: '保存目标', exact: true }).click()
+  await expect(page.getByRole('status')).toHaveText('每日目标已保存')
+  await expect(page.getByRole('region', { name: '每日写作目标', exact: true })).toContainText('今日目标已达成')
+  await page.reload()
+  await expect(page.getByLabel('每日目标（字）')).toHaveValue('5')
+  await page.getByRole('button', { name: '继续写作 →', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '章节标题' })).toHaveValue('起点')
+  await expect(page.getByRole('textbox', { name: '小说正文' })).toHaveText('春天的故事 hello 2026 新篇')
+  expect(errors).toEqual([])
+})
+
+test('workbench protects unsaved drafts and recovers failed dashboard reads and goal saves', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '新建作品', exact: true }).click()
+  await page.getByRole('dialog').getByLabel('小说名称').fill('工作台错误恢复')
+  await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
+  await page.getByRole('button', { name: '创建第一章' }).click()
+  await expectChapterReady(page, '第 1 章')
+  await page.getByRole('button', { name: '⌂ 创作工作台', exact: true }).click()
+  await page.route('**/api/dashboard/goal', route => route.abort())
+  await page.getByLabel('每日目标（字）').fill('900')
+  await page.getByRole('button', { name: '保存目标', exact: true }).click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.unroute('**/api/dashboard/goal')
+  await page.getByRole('button', { name: '保存目标', exact: true }).click()
+  await expect(page.getByRole('status')).toHaveText('每日目标已保存')
+  await page.route('**/api/dashboard', route => route.abort())
+  await page.reload()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.unroute('**/api/dashboard')
+  await page.getByRole('button', { name: '重试读取工作台' }).click()
+  await page.getByRole('button', { name: '继续写作 →', exact: true }).click()
+  await expectChapterReady(page, '第 1 章')
+  await page.route('**/api/chapters/*', route => route.request().method() === 'PUT' ? route.abort() : route.continue())
+  await page.getByRole('textbox', { name: '小说正文' }).fill('保存失败时仍留在编辑器')
+  await expect(page.locator('.save-status')).toHaveText('保存失败')
+  await expect(page.getByRole('button', { name: '⌂ 创作工作台', exact: true })).toBeDisabled()
+  await page.unroute('**/api/chapters/*')
+  await page.getByRole('button', { name: '重试保存', exact: true }).click()
+  await waitForSaved(page)
+  await page.getByRole('button', { name: '⌂ 创作工作台', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('创作工作台')
+})
+
+test('loading and empty dashboard offer an accessible first-work entry', async ({ page }) => {
+  const source = await page.request.get('/api/dashboard').then(response => response.json()) as WritingDashboard
+  const empty: WritingDashboard = { ...source, novels: [], recent: [], totalWords: 0, totalChapters: 0, writtenChapters: 0, todayWords: 0, streak: 0, longestStreak: 0, days: source.days.map(day => ({ ...day, words: 0 })) }
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  await page.route('**/api/novels', route => route.fulfill({ json: [] }))
+  await page.route('**/api/dashboard', async route => { await gate; await route.fulfill({ json: empty }) })
+  try {
+    await page.goto('/')
+    await expect(page.locator('.dashboard').getByRole('status')).toHaveText('正在整理创作工作台…')
+    release()
+    await expect(page.getByRole('region', { name: '创作概览' })).toBeVisible()
+    await expect(page.getByRole('region', { name: '我的作品', exact: true })).toContainText('还没有作品')
+    await expect(page.getByRole('region', { name: '最近编辑', exact: true })).toContainText('还没有章节')
+    await page.getByRole('button', { name: '创建第一部作品', exact: true }).click()
+    await expect(page.getByRole('dialog').getByLabel('小说名称')).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: '创建第一部作品', exact: true })).toBeFocused()
+  } finally { release() }
+})
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    test(`responsive dashboard ${colorScheme} ${viewport.width}px`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.setViewportSize(viewport)
+      await page.goto('/')
+      await expect(page.getByRole('region', { name: '创作概览' })).toBeVisible()
+      await expect(page.getByRole('button', { name: '新建作品', exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      expect(await page.locator('.dashboard').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+      await expect(page.locator('.writing-day')).toHaveCount(14)
+      const cardColor = await page.locator('.metric').first().evaluate(element => getComputedStyle(element).backgroundColor)
+      expect(cardColor).toBe(colorScheme === 'dark' ? 'rgb(34, 39, 47)' : 'rgb(255, 255, 255)')
+      expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1)).toBe(true)
+      await page.getByRole('heading', { name: '最近编辑', exact: true }).scrollIntoViewIfNeeded()
+      await expect(page.getByRole('heading', { name: '最近编辑', exact: true })).toBeInViewport()
+      await page.locator('.dashboard').evaluate(element => { element.scrollTop = 0 })
+      await page.screenshot({ path: `work/e2e-results/dashboard-${colorScheme}-${viewport.width}.png`, fullPage: true })
+    })
+  }
+}

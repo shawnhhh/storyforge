@@ -1,3 +1,6 @@
+import { DashboardStore } from './modules/dashboard/store.js'
+import { dashboardRoutes } from './modules/dashboard/routes.js'
+import { KnowledgeStore } from './modules/story-bible/knowledge.js'
 import { PlanningStore } from './modules/planning/store.js'
 import { planningRoutes } from './modules/planning/routes.js'
 import express from 'express'
@@ -11,8 +14,10 @@ import { backupRoutes } from './modules/backups/routes.js'
 import { exportNovel } from './modules/novels/export.js'
 import { storyBibleRoutes } from './modules/story-bible/routes.js'
 import { StoryBibleStore } from './modules/story-bible/store.js'
+import { aiRoutes, type AiDependencies } from './modules/ai/routes.js'
+import { searchRoutes } from './modules/search/routes.js'
 
-export function createApp(database: DatabaseSync, backups?: BackupService) {
+export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies) {
   const app = express()
   app.disable('x-powered-by')
   app.use((req, res, next) => {
@@ -40,17 +45,22 @@ export function createApp(database: DatabaseSync, backups?: BackupService) {
   })
   const novels = new NovelStore(database)
   const planning = new PlanningStore(database)
+  const profiles = new StoryBibleStore(database)
+  const knowledge = new KnowledgeStore(database)
+  app.use('/api', aiRoutes(novels, planning, profiles, ai))
   app.get('/api/novels/:id/export', (req, res) => {
-    const exported = exportNovel(novels, req.params.id, req.query.format, planning.read(req.params.id))
+    const exported = exportNovel(novels, req.params.id, req.query.format, planning.read(req.params.id), { profiles: profiles.list(req.params.id), references: knowledge.read(req.params.id) })
     res.setHeader('Content-Type', exported.mime)
     res.setHeader('Content-Disposition', `attachment; filename="novel.${exported.extension}"; filename*=UTF-8''${encodeURIComponent(exported.filename).replace(/['()*]/g, char => '%' + char.charCodeAt(0).toString(16))}`)
     res.setHeader('Cache-Control', 'no-store')
     res.send(exported.body)
   })
   if (backups) app.use('/api', backupRoutes(backups))
+  app.use('/api', searchRoutes(database))
   app.use('/api', planningRoutes(planning))
+  app.use('/api', dashboardRoutes(new DashboardStore(database)))
   app.use('/api', novelRoutes(novels))
-  app.use('/api', storyBibleRoutes(new StoryBibleStore(database)))
+  app.use('/api', storyBibleRoutes(profiles, knowledge))
   app.use('/api', (_req, res) => { res.status(404).json({ message: '接口不存在' }) })
   const errors: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
     void _next

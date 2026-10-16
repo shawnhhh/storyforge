@@ -1,0 +1,83 @@
+{
+  "main": "be049d4545c041f3635f4d8e83517cb1fd16e5a0",
+  "lint": {
+    "command": "npm run lint",
+    "exit": 0
+  },
+  "typecheck": {
+    "command": "tsc -b && tsc -p server/tsconfig.json && tsc -p tests/e2e/tsconfig.json",
+    "via": "npm run build",
+    "exit": 0
+  },
+  "build": {
+    "command": "npm run build",
+    "exit": 0
+  },
+  "unit_api": {
+    "command": "timeout 120s npm test",
+    "exit": 0,
+    "tests": 106,
+    "passed": 106,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "http_real_included": 11,
+    "http_mock_client_included": 1
+  },
+  "e2e": {
+    "command": "timeout 630s env E2E_CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e",
+    "exit": 0,
+    "tests": 57,
+    "passed": 57,
+    "failed": 0,
+    "skipped": 0,
+    "duration": "7.0m",
+    "per_file": {
+      "ai-writing.spec.ts": 14,
+      "autosave-scroll.spec.ts": 4,
+      "backups.spec.ts": 1,
+      "dashboard.spec.ts": 7,
+      "editor-experience.spec.ts": 6,
+      "integration.spec.ts": 3,
+      "knowledge.spec.ts": 3,
+      "planning.spec.ts": 6,
+      "search-preferences.spec.ts": 4,
+      "story-bible.spec.ts": 4,
+      "workspace.spec.ts": 5
+    },
+    "workers": 1,
+    "retries": 0,
+    "per_test_timeout_ms": 45000,
+    "global_timeout_ms": 600000
+  },
+  "history": {
+    "first_unit": {
+      "passed": 100,
+      "failed": 1
+    },
+    "first_e2e": {
+      "passed": 36,
+      "failed": 2,
+      "not_run": 16
+    },
+    "targeted_e2e": {
+      "passed": 5,
+      "failed": 0
+    },
+    "documentation_write_interrupted_e2e": {
+      "passed": 56,
+      "failed": 1
+    },
+    "focus_rerun": {
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "unverified": [
+    "Mac Safari/iPhone Safari",
+    "native IME",
+    "real paid AI provider/quality/billing",
+    "large-library performance",
+    "main push workflow"
+  ]
+}

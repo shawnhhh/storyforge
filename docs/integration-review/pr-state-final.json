@@ -1,0 +1,80 @@
+{
+  "checkedAt": "2026-10-16T06:43:41.574Z",
+  "results": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "number": 7,
+        "state": "open",
+        "draft": false,
+        "merged": false,
+        "base": "main",
+        "base_sha": "be049d4545c041f3635f4d8e83517cb1fd16e5a0",
+        "head": "feat/ai-writing",
+        "head_sha": "8d7790367ecd7518aefb9df9ddba34bfe080e0db",
+        "mergeable": true,
+        "updated_at": "2026-10-15T14:26:06Z"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "number": 8,
+        "state": "open",
+        "draft": true,
+        "merged": false,
+        "base": "feat/ai-writing",
+        "base_sha": "8d7790367ecd7518aefb9df9ddba34bfe080e0db",
+        "head": "feat/ai-writing-workbench",
+        "head_sha": "8b751a33f27588cfb589d6decf38c4fb6585a4ab",
+        "mergeable": true,
+        "updated_at": "2026-10-16T01:53:34Z"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "number": 9,
+        "state": "open",
+        "draft": true,
+        "merged": false,
+        "base": "main",
+        "base_sha": "be049d4545c041f3635f4d8e83517cb1fd16e5a0",
+        "head": "feat/writing-dashboard",
+        "head_sha": "d290f910f795ef5eddac91699653eb4e2e1d8d6d",
+        "mergeable": true,
+        "updated_at": "2026-10-16T01:53:23Z"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "number": 10,
+        "state": "open",
+        "draft": true,
+        "merged": false,
+        "base": "main",
+        "base_sha": "be049d4545c041f3635f4d8e83517cb1fd16e5a0",
+        "head": "feat/creative-knowledge-base",
+        "head_sha": "981a39bfd7e165fd60d1d4c01ae5ae751f19deb6",
+        "mergeable": true,
+        "updated_at": "2026-10-16T02:05:28Z"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "number": 11,
+        "state": "open",
+        "draft": true,
+        "merged": false,
+        "base": "main",
+        "base_sha": "be049d4545c041f3635f4d8e83517cb1fd16e5a0",
+        "head": "feat/search-preferences",
+        "head_sha": "7b3b784a840616720e461f1c3aed05c1d7eacb85",
+        "mergeable": true,
+        "updated_at": "2026-10-16T02:06:51Z"
+      }
+    }
+  ]
+}

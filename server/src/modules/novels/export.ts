@@ -1,3 +1,5 @@
+import type { KnowledgeSnapshot } from '../../../../shared/contracts/knowledge.js'
+import type { StoryBible } from '../../../../shared/contracts/story-bible.js'
 import type { PlanningSnapshot } from '../../../../shared/contracts/planning.js'
 import type { RichTextNode } from '../../../../shared/contracts/novels.js'
 import { HttpError, NovelStore } from './store.js'
@@ -51,12 +53,12 @@ export function renderRichText(node: RichTextNode, markdown: boolean): string {
     default: return children()
   }
 }
-export function exportNovel(store: NovelStore, id: string, format: unknown, planning?: PlanningSnapshot) {
+export function exportNovel(store: NovelStore, id: string, format: unknown, planning?: PlanningSnapshot, knowledge?: { profiles: StoryBible; references: KnowledgeSnapshot }) {
   if (format !== 'markdown' && format !== 'txt' && format !== 'json') throw new HttpError(400, '请选择 Markdown、TXT 或 JSON')
   const { novel, chapters } = store.exportData(id)
   const extension = format === 'markdown' ? 'md' : format
   let body: string
-  if (format === 'json') body = JSON.stringify({ format: 'storyforge-novel', formatVersion: 1, exportedAt: new Date().toISOString(), novel, chapters, ...(planning ? { planning } : {}) }, null, 2) + '\n'
+  if (format === 'json') body = JSON.stringify({ format: 'storyforge-novel', formatVersion: 1, exportedAt: new Date().toISOString(), novel, chapters, ...(planning ? { planning } : {}), ...(knowledge ? { knowledge } : {}) }, null, 2) + '\n'
   else {
     const md = format === 'markdown', title = (value: string) => md ? escapeMarkdown(value) : value
     body = `${md ? '# ' : ''}${title(novel.title)}\n\n`

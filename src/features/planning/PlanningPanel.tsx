@@ -6,13 +6,14 @@ import { planningApi } from './api'
 import { PlanningAutosave, type PlanningSaveStatus } from './autosave'
 import { clearDraft, downloadDraft, readDraft, writeDraft } from './drafts'
 import './planning.css'
+import type { SearchHit } from '../../../shared/contracts/search'
 
 type Section = 'outlines' | 'plotlines' | 'cards' | 'foreshadows'
 type Entry = Outline | Plotline | PlotCard | Foreshadow
 const labels: Record<Section, string> = { outlines: '小说大纲', plotlines: '剧情线', cards: '剧情卡片', foreshadows: '伏笔管理' }
 const statusLabels: Record<PlanningSaveStatus, string> = { saved: '已保存', pending: '等待保存', saving: '保存中…', failed: '保存失败 · 草稿已保留', conflict: '版本冲突 · 草稿已保留' }
 
-export function PlanningPanel({ novelId, chapters, onBack, onDirty }: { novelId: string; chapters: ChapterSummary[]; onBack: () => void; onDirty: (dirty: boolean) => void }) {
+export function PlanningPanel({ novelId, chapters, onBack, onDirty, initialSelection }: { initialSelection?: SearchHit | null; novelId: string; chapters: ChapterSummary[]; onBack: () => void; onDirty: (dirty: boolean) => void }) {
   const [loaded, setLoaded] = useState<{ snapshot: PlanningSnapshot; restored: boolean; paused: boolean } | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -25,12 +26,12 @@ export function PlanningPanel({ novelId, chapters, onBack, onDirty }: { novelId:
     return () => { active = false }
   }, [novelId, attempt])
   if (!loaded) return <section className="planning-panel"><button onClick={onBack}>返回写作</button>{error ? <div role="alert">{error}<button onClick={() => { try { const draft = readDraft(novelId); if (draft) downloadDraft(draft.snapshot); else setError('此作品没有本机草稿') } catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取本机草稿') } }}>导出本机规划草稿</button><button onClick={() => { setError(''); setAttempt(value => value + 1) }}>重试加载</button></div> : <p role="status">正在加载创作规划…</p>}</section>
-  return <PlanningEditor key={`${novelId}:${attempt}`} initial={loaded.snapshot} restored={loaded.restored} paused={loaded.paused} chapters={chapters} onBack={onBack} onDirty={onDirty} onReload={() => { setLoaded(null); setAttempt(value => value + 1) }} />
+  return <PlanningEditor key={`${novelId}:${attempt}`} initial={loaded.snapshot} initialSelection={initialSelection} restored={loaded.restored} paused={loaded.paused} chapters={chapters} onBack={onBack} onDirty={onDirty} onReload={() => { setLoaded(null); setAttempt(value => value + 1) }} />
 }
-function PlanningEditor({ initial, restored, paused, chapters, onBack, onReload, onDirty }: { initial: PlanningSnapshot; restored: boolean; paused: boolean; chapters: ChapterSummary[]; onBack: () => void; onReload: () => void; onDirty: (dirty: boolean) => void }) {
+function PlanningEditor({ initial, restored, paused, chapters, onBack, onReload, onDirty, initialSelection }: { initialSelection?: SearchHit | null; initial: PlanningSnapshot; restored: boolean; paused: boolean; chapters: ChapterSummary[]; onBack: () => void; onReload: () => void; onDirty: (dirty: boolean) => void }) {
   const [snapshot, setSnapshot] = useState(initial)
-  const [section, setSection] = useState<Section>('outlines')
-  const [selected, setSelected] = useState<string | null>(null)
+  const [section, setSection] = useState<Section>(initialSelection && ['outlines', 'plotlines', 'cards', 'foreshadows'].includes(initialSelection.kind) ? initialSelection.kind as Section : 'outlines')
+  const [selected, setSelected] = useState<string | null>(initialSelection?.id ?? null)
   const [status, setStatus] = useState<PlanningSaveStatus>(paused ? 'conflict' : restored ? 'pending' : 'saved')
   const [error, setError] = useState(paused ? '已恢复本机草稿，但服务端版本或服务会话已变化。请先导出草稿，再重新加载并核对。' : '')
   const [storageError, setStorageError] = useState('')

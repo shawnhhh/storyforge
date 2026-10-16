@@ -1,3 +1,4 @@
+import { schemaVersion } from '../src/db/migrate.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -27,7 +28,7 @@ test('migration preserves pre-existing data and runs once', () => {
   db.close()
   db = openDatabase(dir)
   assert.equal(new NovelStore(db).novel(novel.id).title, '保留的小说')
-  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()!.count, 2)
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()!.count, schemaVersion)
   assert.equal(db.prepare('SELECT body FROM legacy_notes').get()!.body, '不要删除')
   db.close(); rmSync(dir, { recursive: true, force: true })
 })
@@ -131,9 +132,9 @@ test('a newer schema is refused without changing existing data or migrations', (
   const f = fixture()
   try {
     const novel = f.store.create('未来版本数据', '')
-    f.db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)').run(3, new Date().toISOString())
+    f.db.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)').run(schemaVersion + 1, new Date().toISOString())
     assert.throws(() => openDatabase(f.dir), /newer/)
     assert.equal(f.store.novel(novel.id).title, novel.title)
-    assert.equal(f.db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()!.count, 3)
+    assert.equal(f.db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()!.count, schemaVersion + 1)
   } finally { f.cleanup() }
 })

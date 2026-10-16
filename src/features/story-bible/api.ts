@@ -1,8 +1,11 @@
+import type { KnowledgeSnapshot } from '../../../shared/contracts/knowledge.js'
 import type { Character, CharacterInput, WorldEntry, WorldInput, StoryBible, RecordMeta } from '../../../shared/contracts/story-bible.js'
 import { request } from '../../shared/api/client.js'
 
 const base = (novelId: string) => `/novels/${encodeURIComponent(novelId)}`
 export const storyApi = {
+  links: (novelId: string) => request<KnowledgeSnapshot>(`${base(novelId)}/knowledge-links`),
+  saveLinks: (novelId: string, snapshot: KnowledgeSnapshot) => request<KnowledgeSnapshot>(`${base(novelId)}/knowledge-links`, 'PUT', snapshot),
   list: (novelId: string) => request<StoryBible>(`${base(novelId)}/story-bible`),
   createCharacter: (novelId: string, input: CharacterInput) => request<Character>(`${base(novelId)}/characters`, 'POST', input),
   createWorld: (novelId: string, input: WorldInput) => request<WorldEntry>(`${base(novelId)}/world`, 'POST', input),
