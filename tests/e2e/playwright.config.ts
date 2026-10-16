@@ -6,7 +6,7 @@ export default defineConfig({
   testMatch: '*.spec.ts',
   workers: 1,
   timeout: 45000,
-  // The expanded sequential suite includes full knowledge-library round trips.
+  // Include the unified search/preferences suite in the serial browser regression budget.
   globalTimeout: 360000,
   expect: { timeout: 7000 },
   reporter: 'list',

@@ -15,6 +15,7 @@ import { exportNovel } from './modules/novels/export.js'
 import { storyBibleRoutes } from './modules/story-bible/routes.js'
 import { StoryBibleStore } from './modules/story-bible/store.js'
 import { aiRoutes, type AiDependencies } from './modules/ai/routes.js'
+import { searchRoutes } from './modules/search/routes.js'
 
 export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies) {
   const app = express()
@@ -55,6 +56,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     res.send(exported.body)
   })
   if (backups) app.use('/api', backupRoutes(backups))
+  app.use('/api', searchRoutes(database))
   app.use('/api', planningRoutes(planning))
   app.use('/api', dashboardRoutes(new DashboardStore(database)))
   app.use('/api', novelRoutes(novels))
