@@ -6,8 +6,8 @@ export default defineConfig({
   testMatch: '*.spec.ts',
   workers: 1,
   timeout: 45000,
-  // Include the unified search/preferences suite in the serial browser regression budget.
-  globalTimeout: 360000,
+  // All five feature suites plus integration flows run serially. Retain 45s per test.
+  globalTimeout: 600000,
   expect: { timeout: 7000 },
   reporter: 'list',
   outputDir: process.env.E2E_OUTPUT_DIR,

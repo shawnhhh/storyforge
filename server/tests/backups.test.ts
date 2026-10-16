@@ -98,7 +98,7 @@ test('restore rejects corrupt files, SQLite impostors, incompatible schema, trav
     assert.throws(() => f.service.verify(corrupt.id), /SQLite/)
     const newer = await f.service.create()
     const newerDb = new DatabaseSync(join(f.service.directory, newer.id))
-    newerDb.exec("INSERT INTO schema_migrations VALUES (4,'future')"); newerDb.close(); changeMetadata(newer.id)
+    newerDb.prepare('INSERT INTO schema_migrations VALUES (?,?)').run(schemaVersion + 1, 'future'); newerDb.close(); changeMetadata(newer.id)
     assert.throws(() => f.service.verify(newer.id), /数据库版本/)
     const broken = await f.service.create()
     const brokenDb = new DatabaseSync(join(f.service.directory, broken.id))

@@ -44,3 +44,7 @@ E2E_CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e
 Mac Safari 人工验收：分别在宽窗和窄窗创建地点/势力/人物、输入中文及标签、建立关联并从章节查阅；确认所有保存状态恢复正常，重开页面后引用仍在，正文内容与光标行为正常。云环境 Chromium 测试不等同于真实 Mac Safari 验收。
 
 本次自动化结果与隔离说明见 [验证报告](creative-knowledge-base-validation.md)。
+
+## 多分支集成版本
+
+独立 PR #10 最初使用资料库 v3；与 PR #9 集成后，工作台占用 v3、资料库使用 `0004_knowledge.sql`，当前基础版本为 v4。迁移执行器精确识别历史工作台 v3 / 资料库 v3 后补齐缺失模块，备份恢复保留两类历史签名。请以 [集成审查报告](multi-branch-integration-review.md) 和 [迁移说明](../server/src/db/migrations/README.md) 为当前集成版本依据。

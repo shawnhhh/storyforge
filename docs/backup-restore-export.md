@@ -61,3 +61,7 @@ npm run dev:all
 所有写入须携带读取响应中的 `X-StoryForge-Generation`，恢复/重启后失效。备份或恢复期间写入返回 423，会话不一致返回 409；正文并发版本保护继续生效。
 
 自动化测试覆盖 WAL、故障回滚、安全备份、校验和版本拒绝、路径/链接拒绝、会话失效、自动备份计时/保留、中文富文本和排序、浏览器下载及两步恢复。所有测试数据库及备份目录均为独立临时目录。`npm run typecheck`、`npm run lint`、`npm run build`、`npm test`、`npm run test:e2e` 是完整检查命令。Safari 实际下载和恢复仍需在 Mac 按上述步骤验收。
+
+## 多分支集成补充
+
+本文前述 v2 表述描述第二/三阶段历史实现。PR #7–#11 集成版本使用基础 v4 + planning/001，原子恢复还包括规划、写作目标/活动和资料库引用；兼容 v1/v2、工作台 v3、资料库 v3 的精确历史结构。单本 JSON 导出新增 planning、knowledge；Markdown/TXT 仍仅导出正文，全部应用数据请使用 SQLite 官方备份。浏览器偏好及规划 localStorage 草稿不在数据库备份内。详见 [多分支集成审查报告](multi-branch-integration-review.md)。

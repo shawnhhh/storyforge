@@ -1,0 +1,185 @@
+[
+  {
+    "pair": [
+      7,
+      8
+    ],
+    "overlap": [
+      ".env.example",
+      "README.md",
+      "docs/ai-writing.md",
+      "server/src/modules/ai/config.ts",
+      "server/src/modules/ai/provider.ts",
+      "server/src/modules/ai/routes.ts",
+      "server/tests/ai.test.ts",
+      "shared/contracts/ai.ts",
+      "src/features/ai/AiWriting.tsx",
+      "src/features/ai/ai.css",
+      "src/features/ai/editor.ts",
+      "tests/e2e/ai-writing.spec.ts",
+      "tests/e2e/run.ts"
+    ],
+    "merge_exit": 0,
+    "conflicts": []
+  },
+  {
+    "pair": [
+      7,
+      9
+    ],
+    "overlap": [
+      "README.md",
+      "server/src/app.ts",
+      "server/tests/story-bible.test.ts"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in README.md"
+    ]
+  },
+  {
+    "pair": [
+      7,
+      10
+    ],
+    "overlap": [
+      "README.md",
+      "server/src/app.ts",
+      "server/tests/story-bible.test.ts",
+      "src/features/novels/ChapterEditor.tsx",
+      "tests/e2e/playwright.config.ts"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in server/src/app.ts",
+      "CONFLICT (content): Merge conflict in tests/e2e/playwright.config.ts"
+    ]
+  },
+  {
+    "pair": [
+      7,
+      11
+    ],
+    "overlap": [
+      "README.md",
+      "server/src/app.ts",
+      "server/tests/story-bible.test.ts",
+      "tests/e2e/playwright.config.ts"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in server/src/app.ts",
+      "CONFLICT (content): Merge conflict in server/tests/story-bible.test.ts",
+      "CONFLICT (content): Merge conflict in tests/e2e/playwright.config.ts"
+    ]
+  },
+  {
+    "pair": [
+      8,
+      9
+    ],
+    "overlap": [
+      "README.md"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in README.md"
+    ]
+  },
+  {
+    "pair": [
+      8,
+      10
+    ],
+    "overlap": [
+      "README.md"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in server/src/app.ts",
+      "CONFLICT (content): Merge conflict in tests/e2e/playwright.config.ts"
+    ]
+  },
+  {
+    "pair": [
+      8,
+      11
+    ],
+    "overlap": [
+      "README.md"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in server/src/app.ts",
+      "CONFLICT (content): Merge conflict in server/tests/story-bible.test.ts",
+      "CONFLICT (content): Merge conflict in tests/e2e/playwright.config.ts"
+    ]
+  },
+  {
+    "pair": [
+      9,
+      10
+    ],
+    "overlap": [
+      "README.md",
+      "server/src/app.ts",
+      "server/src/db/migrate.ts",
+      "server/src/db/migrations/README.md",
+      "server/src/modules/backups/service.ts",
+      "server/tests/backups.test.ts",
+      "server/tests/novels.test.ts",
+      "server/tests/planning-migrations.test.ts",
+      "server/tests/story-bible.test.ts",
+      "src/features/novels/Workspace.tsx"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in server/src/app.ts",
+      "CONFLICT (content): Merge conflict in server/src/db/migrate.ts",
+      "CONFLICT (content): Merge conflict in server/src/db/migrations/README.md",
+      "CONFLICT (content): Merge conflict in server/src/modules/backups/service.ts",
+      "CONFLICT (content): Merge conflict in server/tests/backups.test.ts",
+      "CONFLICT (content): Merge conflict in server/tests/novels.test.ts",
+      "CONFLICT (content): Merge conflict in server/tests/planning-migrations.test.ts",
+      "CONFLICT (content): Merge conflict in server/tests/story-bible.test.ts",
+      "CONFLICT (content): Merge conflict in src/features/novels/Workspace.tsx"
+    ]
+  },
+  {
+    "pair": [
+      9,
+      11
+    ],
+    "overlap": [
+      "README.md",
+      "server/src/app.ts",
+      "server/tests/story-bible.test.ts",
+      "src/features/novels/Workspace.tsx"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in src/features/novels/Workspace.tsx"
+    ]
+  },
+  {
+    "pair": [
+      10,
+      11
+    ],
+    "overlap": [
+      "README.md",
+      "server/src/app.ts",
+      "server/tests/story-bible.test.ts",
+      "src/features/novels/Workspace.tsx",
+      "src/features/story-bible/StoryBiblePanel.tsx",
+      "tests/e2e/playwright.config.ts"
+    ],
+    "merge_exit": 1,
+    "conflicts": [
+      "CONFLICT (content): Merge conflict in README.md",
+      "CONFLICT (content): Merge conflict in src/features/novels/Workspace.tsx",
+      "CONFLICT (content): Merge conflict in src/features/story-bible/StoryBiblePanel.tsx",
+      "CONFLICT (content): Merge conflict in tests/e2e/playwright.config.ts"
+    ]
+  }
+]

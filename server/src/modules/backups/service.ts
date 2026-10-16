@@ -22,16 +22,27 @@ function schemaSignature(db: DatabaseSync) {
 }
 // Accept only exact, supported combinations of base and module schemas.
 const schemaKey = (base: number, planning: number) => `${base}:${planning}`
-const expectedSchemas = new Map<string, string>()
+const expectedSchemas = new Map<string, Set<string>>()
 for (let version = 1; version <= schemaVersion; version++) {
   for (const planning of [0, 1]) {
     const reference = new DatabaseSync(':memory:')
     try {
       migrate(reference, version)
       if (planning) migratePlanning(reference)
-      expectedSchemas.set(schemaKey(version, planning), schemaSignature(reference))
+      expectedSchemas.set(schemaKey(version, planning), new Set([schemaSignature(reference)]))
     } finally { reference.close() }
   }
+}
+// Also accept exact knowledge-only v3 snapshots produced by PR #10. Their
+// version number alone cannot distinguish them from PR #9 dashboard snapshots.
+for (const planning of [0, 1]) {
+  const reference = new DatabaseSync(':memory:')
+  try {
+    migrate(reference, 2)
+    reference.exec(readFileSync(new URL('../../db/migrations/0004_knowledge.sql', import.meta.url), 'utf8'))
+    if (planning) migratePlanning(reference)
+    expectedSchemas.get(schemaKey(3, planning))!.add(schemaSignature(reference))
+  } finally { reference.close() }
 }
 
 // Persist metadata atomically with restrictive permissions. SQLite backup files are
@@ -125,7 +136,7 @@ export class BackupService {
       const current = versions.length
       const hasPlanning = !!candidate.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='planning_migrations'").get()
       const planningVersion = hasPlanning ? 1 : 0
-      if ((expectedVersion !== undefined && current !== expectedVersion) || (expectedPlanning !== undefined && planningVersion !== expectedPlanning) || versions.some((row, index) => row.version !== index + 1) || schemaSignature(candidate) !== expectedSchemas.get(schemaKey(current, planningVersion)) || candidate.prepare('PRAGMA user_version').get()?.user_version !== 0 || candidate.prepare('PRAGMA application_id').get()?.application_id !== 0) throw new Error('Incompatible schema')
+      if ((expectedVersion !== undefined && current !== expectedVersion) || (expectedPlanning !== undefined && planningVersion !== expectedPlanning) || versions.some((row, index) => row.version !== index + 1) || !expectedSchemas.get(schemaKey(current, planningVersion))?.has(schemaSignature(candidate)) || candidate.prepare('PRAGMA user_version').get()?.user_version !== 0 || candidate.prepare('PRAGMA application_id').get()?.application_id !== 0) throw new Error('Incompatible schema')
       if (hasPlanning) {
         const modules = candidate.prepare('SELECT name FROM planning_migrations').all()
         if (modules.length !== 1 || modules[0].name !== 'planning/001') throw new Error('Incompatible planning schema')
@@ -133,7 +144,7 @@ export class BackupService {
         const store = new PlanningStore(candidate)
         for (const row of candidate.prepare('SELECT id FROM novels').all()) planningInput(store.read(String(row.id)))
       }
-      if (current >= 4) {
+      if (candidate.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='knowledge_workspaces'").get()) {
         const knowledge = new KnowledgeStore(candidate)
         for (const row of candidate.prepare('SELECT id FROM novels').all()) knowledgeInput(knowledge.read(String(row.id)).links)
         if (candidate.prepare('SELECT 1 FROM knowledge_links l JOIN chapters c ON c.id=l.source_chapter_id WHERE l.novel_id<>c.novel_id LIMIT 1').get()) throw new Error('Invalid reference scope')

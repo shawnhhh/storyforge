@@ -11,7 +11,7 @@ const browserErrors = new WeakMap<Page, string[]>()
 const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存')
 async function start(page: Page, name: string) {
   await page.goto('/')
-  await page.getByRole('button', { name: '创建小说', exact: true }).first().click()
+  await page.getByRole('button', { name: '新建作品', exact: true }).click()
   await page.getByRole('dialog').getByLabel('小说名称').fill('AI 虚构测试-' + name)
   await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
   await page.getByRole('button', { name: '创建第一章' }).click()

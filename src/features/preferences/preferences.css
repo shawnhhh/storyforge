@@ -19,3 +19,6 @@
 [data-theme=dark] .tiptap pre{background:#2c2c30}[data-theme=dark] .danger{color:#ffb1b1}[data-theme=dark] button.primary{background:#416da7;color:#fff}
 @media(max-width:720px){.local-dialog{padding:18px}.search-filters{flex-wrap:wrap}.preferences-dialog select{max-width:55%}}
 @media(max-width:720px){.workspace:has(.planning-panel) .library-utilities{margin:0 0 6px}.workspace:has(.planning-panel) .library-bottom{flex-direction:row;gap:8px}.with-story-bible .library-utilities{flex-wrap:wrap;gap:4px}.with-story-bible .library-utilities button{padding:6px}}
+
+/* Dashboard and utilities add rows above the mobile planning novel list. */
+@media(max-width:720px){.workspace:has(.planning-panel) .library-pane{max-height:240px;flex-shrink:0;gap:6px;overflow:hidden}.workspace:has(.planning-panel) .dashboard-home{margin:0;padding:6px 10px}.workspace:has(.planning-panel) .library-pane nav{min-height:38px}.is-dashboard .library-utilities{grid-column:1/-1;margin:0}.workspace.is-dashboard[data-layout=compact] .library-pane{width:100%}}
