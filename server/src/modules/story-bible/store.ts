@@ -1,3 +1,4 @@
+import { archiveRemoved, snapshot } from '../trash/store.js'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { Character, CharacterInput, WorldEntry, WorldInput, StoryBible } from '../../../../shared/contracts/story-bible.js'
@@ -56,11 +57,13 @@ export class StoryBibleStore {
     const recordId = id ?? randomUUID(), now = new Date().toISOString()
     this.transaction(() => {
       this.novel(novelId)
+      const before = snapshot(this.db, novelId, ['character_relations', 'character_world_links'])
       if (id) {
         this.check('characters', novelId, id, expected)
         this.db.prepare('UPDATE characters SET name=?,category=?,tags=?,fields=?,version=version+1,updated_at=? WHERE novel_id=? AND id=?').run(data.name, data.category, JSON.stringify(data.tags), JSON.stringify(data.fields), now, novelId, id)
       } else this.db.prepare('INSERT INTO characters(id,novel_id,name,category,tags,fields,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(recordId, novelId, data.name, data.category, JSON.stringify(data.tags), JSON.stringify(data.fields), now, now)
       this.links(novelId, recordId, data)
+      archiveRemoved(this.db, before, novelId, 'relation', data.name + '的关系与关联')
     })
     return this.list(novelId).characters.find(row => row.id === recordId)!
   }
@@ -79,7 +82,9 @@ export class StoryBibleStore {
   }
   remove(kind: Kind, novelId: string, id: string, expected: unknown) {
     this.transaction(() => {
+      this.novel(novelId)
       this.check(kind, novelId, id, expected)
+      const name = String(this.row(kind, novelId, id).name), before = snapshot(this.db, novelId, [tables[kind], 'character_relations', 'character_world_links', 'knowledge_links'])
       // Invalidate editors whose outgoing associations will be removed by CASCADE.
       // Otherwise a stale editor could silently recreate a deleted association.
       const sources = kind === 'characters'
@@ -87,6 +92,7 @@ export class StoryBibleStore {
         : this.db.prepare('SELECT character_id AS id FROM character_world_links WHERE novel_id=? AND world_id=?').all(novelId, id)
       for (const sourceId of new Set(sources.map(row => String(row.id)))) this.db.prepare('UPDATE characters SET version=version+1,updated_at=? WHERE novel_id=? AND id=?').run(new Date().toISOString(), novelId, sourceId)
       this.db.prepare(`DELETE FROM ${tables[kind]} WHERE novel_id=? AND id=?`).run(novelId, id)
+      archiveRemoved(this.db, before, novelId, kind, name)
     })
   }
 }
