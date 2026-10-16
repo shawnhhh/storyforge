@@ -6,8 +6,8 @@ import { WorldEditor } from './WorldEditor.js'
 import { matchesProfile, newCharacter, newWorld, timelineEntries } from './model.js'
 import './story-bible.css'
 
-interface Props { novelId: string; mode: 'characters' | 'world'; disabled: boolean; onDirty: (dirty: boolean) => void }
-export function StoryBiblePanel({ novelId, mode, disabled, onDirty }: Props) {
+interface Props { initialId?: string; novelId: string; mode: 'characters' | 'world'; disabled: boolean; onDirty: (dirty: boolean) => void }
+export function StoryBiblePanel({ novelId, mode, disabled, onDirty, initialId }: Props) {
   const [data, setData] = useState<StoryBible | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [session, setSession] = useState(0)
@@ -27,11 +27,11 @@ export function StoryBiblePanel({ novelId, mode, disabled, onDirty }: Props) {
     let mounted = true
     storyApi.list(novelId).then(result => {
       if (!mounted) return
-      setData(result); setSelectedId(result[mode][0]?.id ?? null)
+      setData(result); setSelectedId(result[mode].find(item => item.id === initialId)?.id ?? result[mode][0]?.id ?? null)
     }).catch(reason => { if (mounted) setError(reason instanceof Error ? reason.message : '读取资料失败') })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
-  }, [novelId, mode])
+  }, [novelId, mode, initialId])
   useEffect(() => { onDirty(blocked); return () => onDirty(false) }, [onDirty, blocked])
   const onCharacterSaved = useCallback((record: Character) => {
     setData(current => current ? { ...current, characters: current.characters.map(item => item.id === record.id ? record : item) } : current)

@@ -65,7 +65,7 @@ test('profile CRUD persists Unicode, custom categories, tags, directed relations
     const mentor = f.store.saveCharacter(novel.id, { ...newCharacter(), name: '师父' })
     hero = f.store.saveCharacter(novel.id, { ...hero, relations: [{ targetId: mentor.id, kind: '师徒🌕' }], worldIds: [setting.id] }, hero.id, hero.version)
     const saved = f.store.list(novel.id)
-    assert.equal(saved.characters[0].name, hero.name)
+    // Equal-millisecond creation times are ordered by UUID, not insertion order.
     assert.deepEqual(saved.characters.find(row => row.id === hero.id), hero)
     assert.deepEqual(saved.world, [setting])
     assert.deepEqual(saved.characters.find(row => row.id === mentor.id)!.relations, [])
