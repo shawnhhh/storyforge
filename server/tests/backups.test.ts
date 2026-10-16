@@ -1,3 +1,4 @@
+import { schemaVersion } from '../src/db/migrate.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -40,7 +41,7 @@ test('official backup includes uncheckpointed WAL, all tables, size, SHA-256 and
     try {
       assert.deepEqual(new NovelStore(db).chapter(first.chapter.id).content, rich)
       assert.equal(db.prepare('PRAGMA integrity_check').get()?.integrity_check, 'ok')
-      assert.equal(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()?.version, 3)
+      assert.equal(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()?.version, schemaVersion)
     } finally { db.close() }
     assert.deepEqual(new BackupService(f.db, f.service.directory).history().entries, [entry])
   } finally { await f.close() }

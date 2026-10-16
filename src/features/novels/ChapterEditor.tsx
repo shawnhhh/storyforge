@@ -1,4 +1,4 @@
-import { memo, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { memo, useEffect, useImperativeHandle, useRef, useState, type Ref, type ReactNode } from 'react'
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react'
 import type { Chapter, ChapterResult, RichTextDocument } from '../../../shared/contracts/novels'
 import { createEditorExtensions } from '../../shared/editor/extensions'
@@ -13,6 +13,7 @@ export interface EditorControl {
   focus: () => void
 }
 interface Props {
+  children?: ReactNode
   controlRef: Ref<EditorControl>
   chapter: Chapter
   onSaved: (result: ChapterResult) => void
@@ -20,7 +21,7 @@ interface Props {
   onReload: () => void
   disabled: boolean
 }
-export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef }: Props) {
+export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children }: Props) {
   const [initial] = useState(chapter)
   const saver = useRef<ChapterSaver | null>(null)
   const [state, setState] = useState<SaveState>({ status: 'saved', dirty: false, message: '' })
@@ -80,6 +81,7 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
     <input id="chapter-title" disabled={disabled} className="chapter-title" aria-label="章节标题" maxLength={200} value={title} placeholder="章节标题" onChange={event => { titleRef.current = event.target.value; setTitle(event.target.value); if (editor) { const doc = editor.state.doc; saver.current?.change(event.target.value, () => doc.toJSON() as RichTextDocument) } }} />
     <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={disabled} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={disabled || state.status === 'conflict'} />}<button className="save-now" title="Ctrl/⌘ + Alt + Shift + S" disabled={disabled || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
     <DocumentBody editor={editor} />
+    {children}
     <footer className="editor-footer">{editor && <WordStatistics editor={editor} />}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
   </section>
 })

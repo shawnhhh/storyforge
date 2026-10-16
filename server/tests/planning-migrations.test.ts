@@ -1,3 +1,4 @@
+import { KnowledgeStore } from '../src/modules/story-bible/knowledge.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
@@ -5,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { migrate } from '../src/db/migrate.js'
+import { migrate, schemaVersion } from '../src/db/migrate.js'
 import { migratePlanning } from '../src/db/planning-migrate.js'
 import { NovelStore } from '../src/modules/novels/store.js'
 import { PlanningStore } from '../src/modules/planning/store.js'
@@ -83,6 +84,9 @@ for (const baseVersion of [1, 2]) for (const withPlanning of [false, true]) {
       writeFileSync(`${path}.json`, JSON.stringify(entry))
       const novels = new NovelStore(db), live = novels.create('恢复前小说', ''), planning = new PlanningStore(db)
       const liveBible = populateBible(db, live.id)
+      const knowledge = new KnowledgeStore(db)
+      const liveKnowledge = knowledge.save(live.id, 0, [{ id: 'legacy-safety-reference', source: { kind: 'world', id: liveBible.world[0].id }, target: { kind: 'world', id: new StoryBibleStore(db).saveWorld(live.id, newWorld()).id }, label: '恢复前关联', note: '旧备份恢复前应保留在安全快照' }])
+      const liveProfiles = new StoryBibleStore(db).list(live.id)
       planning.save(live.id, 0, { ...value, outlines: value.outlines.map(row => ({ ...row, chapterIds: [] })) })
       assert.deepEqual(service.verify(id), entry)
       const prepared = service.prepare(id)
@@ -92,13 +96,15 @@ for (const baseVersion of [1, 2]) for (const withPlanning of [false, true]) {
       assert.deepEqual(new StoryBibleStore(db).list(oldNovel.id), oldBible)
       if (oldPlanning) assert.deepEqual(planning.read(oldNovel.id), oldPlanning)
       else assert.deepEqual(planning.read(oldNovel.id).outlines, [])
-      assert.equal(db.prepare('SELECT MAX(version) AS n FROM schema_migrations').get()!.n, 3)
+      assert.deepEqual(knowledge.read(oldNovel.id), { version: 0, links: [] })
+      assert.equal(db.prepare('SELECT MAX(version) AS n FROM schema_migrations').get()!.n, schemaVersion)
       assert.equal(db.prepare('SELECT name FROM planning_migrations').get()!.name, 'planning/001')
       assert.deepEqual(readFileSync(path), bytes)
       const safetyDb = new DatabaseSync(join(service.directory, safety.id), { readOnly: true })
       try {
         assert.equal(new PlanningStore(safetyDb).read(live.id).outlines[0].title, '旧快照大纲')
-        assert.deepEqual(new StoryBibleStore(safetyDb).list(live.id), liveBible)
+        assert.deepEqual(new StoryBibleStore(safetyDb).list(live.id), liveProfiles)
+        assert.deepEqual(new KnowledgeStore(safetyDb).read(live.id), liveKnowledge)
       } finally { safetyDb.close() }
     } finally { await service.stop(); db.close(); rmSync(dir, { recursive: true, force: true }) }
   })
