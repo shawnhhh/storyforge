@@ -1,4 +1,4 @@
-import { characterFields, worldCategories, type CharacterInput, type WorldInput, type Character, type WorldEntry, type WorldCategory } from '../../../shared/contracts/story-bible.js'
+import { characterFields, worldCategories, type CharacterInput, type WorldInput, type Character, type WorldEntry, type WorldCategory, type StoryBible } from '../../../shared/contracts/story-bible.js'
 
 export function newCharacter(): CharacterInput {
   return { name: '新人物', category: '', tags: [], fields: Object.fromEntries(Object.keys(characterFields).map(key => [key, ''])) as CharacterInput['fields'], relations: [], worldIds: [] }
@@ -19,4 +19,15 @@ export function matchesProfile(value: Character | WorldEntry, query: string, tag
 }
 export function timelineEntries(entries: WorldEntry[]) {
   return entries.filter(item => item.onTimeline).sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+}
+
+export function profileRecords(data: StoryBible, mode: 'characters' | 'world' | 'library'): (Character | WorldEntry)[] {
+  return mode === 'library' ? [...data.characters, ...data.world] : data[mode]
+}
+export function matchesKnowledge(value: Character | WorldEntry, query: string, tag: string, category: string, type: string) {
+  const character = 'fields' in value
+  if (type === 'characters' && !character) return false
+  if (type === 'world' && character) return false
+  if (type && !['characters', 'world'].includes(type) && (character || value.category !== type)) return false
+  return matchesProfile(value, query, tag, category)
 }

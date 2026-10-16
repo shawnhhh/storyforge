@@ -6,7 +6,8 @@ export default defineConfig({
   testMatch: '*.spec.ts',
   workers: 1,
   timeout: 45000,
-  globalTimeout: 240000,
+  // The expanded sequential suite includes full knowledge-library round trips.
+  globalTimeout: 360000,
   expect: { timeout: 7000 },
   reporter: 'list',
   outputDir: process.env.E2E_OUTPUT_DIR,

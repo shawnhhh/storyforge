@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
 
-export const schemaVersion = 2
-const migrations = ['0001_novels.sql', '0002_story_bible.sql']
+export const schemaVersion = 3
+const migrations = ['0001_novels.sql', '0002_story_bible.sql', '0003_knowledge.sql']
 export function migrate(database: DatabaseSync, target = schemaVersion) {
   if (!Number.isInteger(target) || target < 1 || target > schemaVersion) throw new Error('Invalid migration target')
   database.exec('BEGIN IMMEDIATE')

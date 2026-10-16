@@ -1,3 +1,4 @@
+import { KnowledgeStore, knowledgeInput } from '../story-bible/knowledge.js'
 import { migratePlanning } from '../../db/planning-migrate.js'
 import { PlanningStore } from '../planning/store.js'
 import { planningInput } from '../planning/validation.js'
@@ -132,6 +133,11 @@ export class BackupService {
         const store = new PlanningStore(candidate)
         for (const row of candidate.prepare('SELECT id FROM novels').all()) planningInput(store.read(String(row.id)))
       }
+      if (current >= 3) {
+        const knowledge = new KnowledgeStore(candidate)
+        for (const row of candidate.prepare('SELECT id FROM novels').all()) knowledgeInput(knowledge.read(String(row.id)).links)
+        if (candidate.prepare('SELECT 1 FROM knowledge_links l JOIN chapters c ON c.id=l.source_chapter_id WHERE l.novel_id<>c.novel_id LIMIT 1').get()) throw new Error('Invalid reference scope')
+      }
       for (const row of candidate.prepare('SELECT content,content_schema_version FROM chapters').iterate()) {
         if (row.content_schema_version !== 1) throw new Error('Incompatible content schema')
         const doc = JSON.parse(String(row.content))
@@ -223,9 +229,9 @@ export class BackupService {
       try {
         this.db.exec('BEGIN IMMEDIATE')
         try {
-          // Every application table in schema v2 is restored atomically. No live
+          // Every application table in the current schema is restored atomically. No live
           // file copying, connection replacement, or WAL/SHM removal is involved.
-          this.db.exec(`DELETE FROM planning_workspaces; DELETE FROM planning_migrations; DELETE FROM character_relations; DELETE FROM character_world_links;
+          this.db.exec(`DELETE FROM knowledge_workspaces; DELETE FROM planning_workspaces; DELETE FROM planning_migrations; DELETE FROM character_relations; DELETE FROM character_world_links;
             DELETE FROM characters; DELETE FROM world_entries;
             DELETE FROM chapters; DELETE FROM novels; DELETE FROM schema_migrations;
             INSERT INTO novels SELECT * FROM restore_source.novels;
@@ -238,7 +244,9 @@ export class BackupService {
             INSERT INTO planning_migrations SELECT * FROM restore_source.planning_migrations;
             INSERT INTO planning_workspaces SELECT * FROM restore_source.planning_workspaces;
             INSERT INTO planning_records SELECT * FROM restore_source.planning_records;
-            INSERT INTO planning_chapter_links SELECT * FROM restore_source.planning_chapter_links;`)
+            INSERT INTO planning_chapter_links SELECT * FROM restore_source.planning_chapter_links;
+            INSERT INTO knowledge_workspaces SELECT * FROM restore_source.knowledge_workspaces;
+            INSERT INTO knowledge_links SELECT * FROM restore_source.knowledge_links;`)
           if (this.db.prepare('PRAGMA main.foreign_key_check').all().length) throw new Error('Restore foreign keys invalid')
           beforeCommit?.() // Fault injection is available to unit tests, never HTTP.
           this.db.exec('COMMIT')
