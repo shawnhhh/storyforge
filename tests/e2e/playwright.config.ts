@@ -6,7 +6,8 @@ export default defineConfig({
   testMatch: '*.spec.ts',
   workers: 1,
   timeout: 45000,
-  globalTimeout: 240000,
+  // The AI suite adds eleven browser flows; retain the per-test limit.
+  globalTimeout: 360000,
   expect: { timeout: 7000 },
   reporter: 'list',
   outputDir: process.env.E2E_OUTPUT_DIR,

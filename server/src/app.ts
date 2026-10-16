@@ -11,8 +11,9 @@ import { backupRoutes } from './modules/backups/routes.js'
 import { exportNovel } from './modules/novels/export.js'
 import { storyBibleRoutes } from './modules/story-bible/routes.js'
 import { StoryBibleStore } from './modules/story-bible/store.js'
+import { aiRoutes, type AiDependencies } from './modules/ai/routes.js'
 
-export function createApp(database: DatabaseSync, backups?: BackupService) {
+export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies) {
   const app = express()
   app.disable('x-powered-by')
   app.use((req, res, next) => {
@@ -40,6 +41,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService) {
   })
   const novels = new NovelStore(database)
   const planning = new PlanningStore(database)
+  app.use('/api', aiRoutes(novels, planning, new StoryBibleStore(database), ai))
   app.get('/api/novels/:id/export', (req, res) => {
     const exported = exportNovel(novels, req.params.id, req.query.format, planning.read(req.params.id))
     res.setHeader('Content-Type', exported.mime)

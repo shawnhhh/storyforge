@@ -53,7 +53,10 @@ test('failed v2 migration rolls back all new tables and keeps v1 data intact', (
   } finally { db.close() }
 })
 
-test('profile CRUD persists Unicode, custom categories, tags, directed relationships and world links without touching prose', () => {
+test('profile CRUD persists Unicode, custom categories, tags, directed relationships and world links without touching prose', t => {
+  // Exercise timestamp collisions on every run instead of depending on CI speed.
+  // Date mocking is scoped to this test and restored by the test runner.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 15) })
   const f = fixture()
   try {
     const novel = f.novels.create('故事🌕', '')
@@ -65,7 +68,10 @@ test('profile CRUD persists Unicode, custom categories, tags, directed relations
     const mentor = f.store.saveCharacter(novel.id, { ...newCharacter(), name: '师父' })
     hero = f.store.saveCharacter(novel.id, { ...hero, relations: [{ targetId: mentor.id, kind: '师徒🌕' }], worldIds: [setting.id] }, hero.id, hero.version)
     const saved = f.store.list(novel.id)
-    assert.equal(saved.characters[0].name, hero.name)
+    assert.equal(hero.createdAt, mentor.createdAt)
+    // Character order is created_at,id, so equal timestamps use the UUID tie-break.
+    // Assert both complete records rather than assuming the hero is always first.
+    assert.deepEqual(saved.characters, hero.id < mentor.id ? [hero, mentor] : [mentor, hero])
     assert.deepEqual(saved.characters.find(row => row.id === hero.id), hero)
     assert.deepEqual(saved.world, [setting])
     assert.deepEqual(saved.characters.find(row => row.id === mentor.id)!.relations, [])
@@ -86,6 +92,32 @@ test('profile CRUD persists Unicode, custom categories, tags, directed relations
     f.novels.remove(novel.id, before.novel.version)
     for (const table of ['characters', 'world_entries', 'character_relations', 'character_world_links']) assert.equal(f.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()!.n, 0)
     assert.deepEqual(f.db.prepare('PRAGMA foreign_key_check').all(), [])
+  } finally { f.cleanup() }
+})
+
+test('character order uses creation time then ID, including same-millisecond records inserted in reverse ID order', () => {
+  const f = fixture()
+  try {
+    const novel = f.novels.create('虚构排序回归', '')
+    const stamp = '2026-10-15T00:00:00.000Z'
+    const rows = [
+      { id: '00000000-0000-4000-8000-000000000002', name: '林月🌕', createdAt: stamp },
+      { id: '00000000-0000-4000-8000-000000000001', name: '师父', createdAt: stamp },
+      { id: '00000000-0000-4000-8000-000000000003', name: '更早的人物', createdAt: '2026-10-14T23:59:59.999Z' },
+    ]
+    // Explicit IDs/timestamps belong only to this disposable fixture database.
+    const insert = f.db.prepare('INSERT INTO characters(id,novel_id,name,fields,created_at,updated_at) VALUES (?,?,?,?,?,?)')
+    for (const row of rows) insert.run(row.id, novel.id, row.name, JSON.stringify(newCharacter().fields), row.createdAt, row.createdAt)
+    const expected = [rows[2], rows[1], rows[0]]
+    const identity = (store: StoryBibleStore) => store.list(novel.id).characters.map(({ id, name, createdAt }) => ({ id, name, createdAt }))
+    assert.deepEqual(identity(f.store), expected)
+    const mentor = f.store.list(novel.id).characters.find(row => row.id === rows[1].id)!
+    const updated = f.store.saveCharacter(novel.id, { ...mentor, fields: { ...mentor.fields, notes: '更新不应改变创建时间或排序' } }, mentor.id, mentor.version)
+    assert.equal(updated.version, 2)
+    assert.equal(updated.fields.notes, '更新不应改变创建时间或排序')
+    assert.deepEqual(identity(f.store), expected)
+    const other = openDatabase(join(f.dir, 'data'))
+    try { assert.deepEqual(identity(new StoryBibleStore(other)), expected) } finally { other.close() }
   } finally { f.cleanup() }
 })
 
