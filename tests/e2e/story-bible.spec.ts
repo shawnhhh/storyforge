@@ -4,7 +4,7 @@ import { characterFields } from '../../shared/contracts/story-bible.js'
 
 async function novel(page: Page, name: string) {
   await page.goto('/')
-  await page.getByRole('button', { name: '创建小说', exact: true }).first().click()
+  await page.getByRole('button', { name: '新建作品', exact: true }).click()
   await page.getByRole('dialog').getByLabel('小说名称').fill(name)
   await page.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click()
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()

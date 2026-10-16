@@ -1,3 +1,4 @@
+import { countDocument } from '../../../../shared/domain/word-count.js'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { Chapter, ChapterResult, ChapterSummary, Novel, NovelDetail, RichTextDocument } from '../../../../shared/contracts/novels.js'
@@ -9,7 +10,11 @@ const novelColumns = 'id, title, description, version, created_at AS createdAt, 
 const chapterColumns = 'id, novel_id AS novelId, title, position, version, created_at AS createdAt, updated_at AS updatedAt, content, content_schema_version AS contentSchemaVersion'
 
 export class NovelStore {
-  constructor(private db: DatabaseSync) {}
+  private tracksWriting: boolean
+  constructor(private db: DatabaseSync) {
+    // Legacy backup fixtures can still use this store before their v3 upgrade.
+    this.tracksWriting = !!db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='writing_days'").get()
+  }
   private transaction<T>(operation: () => T): T {
     this.db.exec('BEGIN IMMEDIATE')
     try { const result = operation(); this.db.exec('COMMIT'); return result }
@@ -78,6 +83,10 @@ export class NovelStore {
       const chapter = this.chapter(id)
       this.check(chapter.version, expected)
       this.db.prepare('UPDATE chapters SET title=?, content=?, version=version+1, updated_at=? WHERE id=? AND version=?').run(title, JSON.stringify(content), new Date().toISOString(), id, expected)
+      const added = Math.max(0, countDocument(content) - countDocument(chapter.content))
+      if (this.tracksWriting && added > 0) {
+        this.db.prepare('INSERT INTO writing_days(day, words) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET words=words+excluded.words').run(new Date().toISOString().slice(0, 10), added)
+      }
       this.touch(chapter.novelId)
       return { chapter: this.chapter(id), novel: this.novel(chapter.novelId) }
     })

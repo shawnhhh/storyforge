@@ -1,3 +1,5 @@
+import { DashboardStore } from './modules/dashboard/store.js'
+import { dashboardRoutes } from './modules/dashboard/routes.js'
 import { PlanningStore } from './modules/planning/store.js'
 import { planningRoutes } from './modules/planning/routes.js'
 import express from 'express'
@@ -51,6 +53,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
   })
   if (backups) app.use('/api', backupRoutes(backups))
   app.use('/api', planningRoutes(planning))
+  app.use('/api', dashboardRoutes(new DashboardStore(database)))
   app.use('/api', novelRoutes(novels))
   app.use('/api', storyBibleRoutes(new StoryBibleStore(database)))
   app.use('/api', (_req, res) => { res.status(404).json({ message: '接口不存在' }) })

@@ -210,3 +210,7 @@ export default defineConfig([
 后续工作台分支以 PR #7 为基础，增加逐项上下文、模型配置中心、预算保护及对比/独立撤销。详见 [工作台说明及 Mac 回归步骤](docs/ai-workbench.md) 和 [本轮开发报告](docs/ai-workbench-report.md)；此分支不代表已合并进 main。
 
 章节编辑器已支持 AI 续写、润色、扩写、改写及灵感建议。结果先预览，明确接受后才通过原有机制自动保存；API Key 只在本地服务端配置，未配置时其他功能正常使用。详见 [中文使用与配置说明](docs/ai-writing.md) 和 [测试报告](docs/ai-writing-test-report.md)。
+
+### 创作工作台
+
+首页提供作品概览、章节正文进度、字数统计、最近编辑、每日目标、连续写作与快捷继续写作，支持系统深色模式和移动端布局。每日新增字数按 UTC 自然日统计，仅记录功能启用后的成功保存。[功能说明与隔离测试](docs/writing-dashboard.md)。
