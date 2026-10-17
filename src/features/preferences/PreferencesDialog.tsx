@@ -1,9 +1,9 @@
 import { LocalDialog } from '../../shared/ui/LocalDialog'
 import { defaultPreferences, type Preferences } from './model'
 
-export function PreferencesDialog({ value, onChange, onClose, error }: { value: Preferences; onChange: (value: Preferences) => void; onClose: () => void; error: string }) {
+export function PreferencesDialog({ value, onChange, onClose, error, returnFocusTo }: { value: Preferences; onChange: (value: Preferences) => void; onClose: () => void; error: string; returnFocusTo: HTMLElement | null }) {
   const change = (patch: Partial<Preferences>) => onChange({ ...value, ...patch })
-  return <LocalDialog title="偏好设置" onClose={onClose} className="preferences-dialog">
+  return <LocalDialog title="偏好设置" returnFocusTo={returnFocusTo} onClose={onClose} className="preferences-dialog">
     <p className="local-note">即时应用 · 保存在当前浏览器，不修改作品内容。</p>
     {error && <p role="alert">{error}</p>}
     <label>外观主题<select value={value.theme} onChange={event => change({ theme: event.target.value as Preferences['theme'] })}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>

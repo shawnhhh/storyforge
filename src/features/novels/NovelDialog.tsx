@@ -21,7 +21,7 @@ export function NovelDialog({ novel, busy, error, returnFocusTo, onClose, onSubm
   useEffect(() => {
     const element = dialog.current
     element?.showModal()
-    return () => { element?.close(); returnFocusTo?.focus() }
+    return () => { element?.close(); if (returnFocusTo?.isConnected) returnFocusTo.focus({ preventScroll: true }) }
   }, [returnFocusTo])
   useEffect(() => {
     // autofocus cannot focus a disabled control while the local draft check runs.

@@ -14,7 +14,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   }
   return <>{parts}{text.slice(from)}</>
 }
-export function SearchDialog({ novels, blocked, onSelect, onClose }: { novels: Novel[]; blocked: boolean; onSelect: (hit: SearchHit) => Promise<boolean>; onClose: () => void }) {
+export function SearchDialog({ novels, blocked, onSelect, onClose, returnFocusTo }: { novels: Novel[]; blocked: boolean; onSelect: (hit: SearchHit) => Promise<boolean>; onClose: () => void; returnFocusTo: HTMLElement | null }) {
   const [query, setQuery] = useState(''), [kind, setKind] = useState<SearchKind | ''>(''), [novelId, setNovelId] = useState('')
   const [offset, setOffset] = useState(0), [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<SearchResults | null>(null), [loading, setLoading] = useState(false), [opening, setOpening] = useState(false), [error, setError] = useState('')
@@ -32,7 +32,7 @@ export function SearchDialog({ novels, blocked, onSelect, onClose }: { novels: N
     return () => { clearTimeout(timer); controller.abort() }
   }, [query, kind, novelId, offset, attempt])
   function reset() { setOffset(0); setResult(null); setLoading(true); setError('') }
-  return <LocalDialog title="统一搜索" onClose={onClose} className="search-dialog">
+  return <LocalDialog title="统一搜索" returnFocusTo={returnFocusTo} onClose={onClose} className="search-dialog">
     <p className="local-note">搜索本机已保存的作品与资料 · 标题和内容均可检索</p>
     <input autoFocus type="search" aria-label="统一搜索关键词" placeholder="搜索小说、正文、人物、世界观与规划…" maxLength={200} value={query} onChange={event => { reset(); setQuery(event.target.value) }} />
     <div className="search-filters"><select aria-label="搜索类型" value={kind} onChange={event => { reset(); setKind(event.target.value as SearchKind | '') }}><option value="">全部类型</option>{Object.entries(searchKinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
