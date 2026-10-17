@@ -53,7 +53,8 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
   useImperativeHandle(controlRef, () => ({
     saveBeforeLeave: () => saver.current?.saveBeforeLeave() ?? Promise.resolve(false),
     save: () => { if (!blocked) void saver.current?.flush() },
-    focus: () => { editor?.commands.focus(undefined, { scrollIntoView: false }) },
+    // Restore selection now; a deferred Tiptap focus can race with the next input.
+    focus: () => { if (editor && !editor.isDestroyed) editor.view.focus() },
   }), [editor, blocked])
   useEffect(() => { editor?.setEditable(!blocked, false) }, [editor, blocked])
   useEffect(() => {
