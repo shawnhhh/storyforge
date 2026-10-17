@@ -116,14 +116,15 @@ test('persistent browser profile restores after the browser process closes and r
     await chapterBody(first).fill('浏览器进程重启后的虚构草稿')
     await expect(first.getByText('临时草稿已保护 · 此浏览器', { exact: true })).toBeVisible()
     if (browserName === 'chromium') {
-      const crashed = first.waitForEvent('crash')
-      const protocol = await context.newCDPSession(first)
-      const crash = protocol.send('Page.crash').catch(error => {
-        if (!/crash|closed/i.test(String(error))) throw error
+      await test.step('observe a real renderer crash and close the persistent browser', async () => {
+        const crashed = first.waitForEvent('crash', { timeout: 7000 })
+        const protocol = await context.newCDPSession(first)
+        // A crashed renderer cannot reliably acknowledge Page.crash, even after
+        // context.close(). Assert its crash event instead of awaiting that reply.
+        void protocol.send('Page.crash').catch(() => {})
+        await crashed
+        await context.close()
       })
-      await crashed
-      // Closing the browser also settles the crashed renderer's protocol call.
-      await context.close(); await crash
     } else { await context.close() }
     context = await launch()
     const second = await context.newPage(); await open(second, novel.title)
