@@ -19,7 +19,7 @@ jobs:
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - name: Verify isolated browser crash recovery three times
-        run: npm run test:e2e -- draft-recovery.spec.ts --grep '^persistent browser profile' --repeat-each=3
+        run: npm run test:e2e -- draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
       - run: npm run test:e2e
       - name: Upload browser failure diagnostics
         if: failure()
