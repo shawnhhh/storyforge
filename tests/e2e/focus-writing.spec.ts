@@ -297,32 +297,6 @@ test('narrow focus layout stays within the viewport and leaves native and IME sh
 test('focus toggles retain the in-flight queue and newer protected revision until both writes finish', async ({ page }) => {
   const { body } = await start(page)
   const original = await body.elementHandle()
-  await body.evaluate(element => {
-    const editor = (element as HTMLElement & { editor: Editor }).editor
-    const records: unknown[] = []
-    const snapshot = (event: string) => {
-      const dom = window.getSelection()
-      return { event, time: performance.now(), selected: dom?.toString(), anchor: dom?.anchorOffset, head: dom?.focusOffset, model: [editor.state.selection.from, editor.state.selection.to], text: editor.getText() }
-    }
-    const record = (event: string) => { if (records.length < 250) records.push(snapshot(event)) }
-    const setOptions = editor.setOptions.bind(editor)
-    editor.setOptions = options => { record('before setOptions'); setOptions(options); record('after setOptions') }
-    const updateState = editor.view.updateState.bind(editor.view)
-    editor.view.updateState = state => { record('before updateState'); updateState(state); record('after updateState') }
-    const docView = (editor.view as unknown as { docView: { setSelection: (...args: unknown[]) => unknown } }).docView
-    const setSelection = docView.setSelection.bind(docView)
-    docView.setSelection = (...args) => {
-      const before = snapshot('before DOM selection write')
-      const result = setSelection(...args)
-      const after = snapshot('after DOM selection write')
-      if (before.selected && before.selected !== after.selected) records.push({ before, after, stack: new Error('DOM selection overwrite').stack })
-      return result
-    }
-    for (const event of ['selectionchange', 'focusin', 'beforeinput', 'input']) {
-      document.addEventListener(event, () => record(event), true)
-    }
-    Object.assign(window, { focusSelectionDiagnostic: records })
-  })
   const readDrafts = () => page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('storyforge-protected-drafts', 1)
@@ -355,7 +329,17 @@ test('focus toggles retain the in-flight queue and newer protected revision unti
     await expect.poll(async () => (await readDrafts()).length).toBe(1)
     const first = (await readDrafts())[0]
     await page.getByRole('button', { name: '专注写作', exact: true }).click()
-    await body.fill('第二份不能被旧回执清除的专注修订')
+    // fill() selects a DOM Range and sends input in separate browser calls.
+    // Use the writer's select-all key so ProseMirror's model and visible range
+    // agree before input, including while its focus correction is pending.
+    await body.press('ControlOrMeta+a')
+    await expect.poll(() => body.evaluate(element => {
+      const editor = (element as HTMLElement & { editor: Editor }).editor
+      const { from, to, empty } = editor.state.selection
+      return { visible: window.getSelection()?.toString(), model: editor.state.doc.textBetween(from, to, '\n'), empty }
+    })).toEqual({ visible: '第一份等待回执的专注修订', model: '第一份等待回执的专注修订', empty: false })
+    await page.keyboard.insertText('第二份不能被旧回执清除的专注修订')
+    await expect(body).toHaveText('第二份不能被旧回执清除的专注修订')
     await expect.poll(async () => (await readDrafts())[0]?.revision).toBeGreaterThan(first.revision)
     expect((await readDrafts())[0].token).not.toBe(first.token)
     await page.getByRole('button', { name: '退出专注', exact: true }).click()
@@ -368,12 +352,7 @@ test('focus toggles retain the in-flight queue and newer protected revision unti
     const stored = await (await page.request.get(chapterUrl)).json()
     expect(stored.version).toBe(writes[1].version + 1)
     expect(stored.content.content[0].content[0].text).toBe('第二份不能被旧回执清除的专注修订')
-  } finally {
-    release()
-    const records = await page.evaluate(() => (window as unknown as { focusSelectionDiagnostic: unknown[] }).focusSelectionDiagnostic)
-    console.log('FOCUS_SELECTION_DIAGNOSTIC', JSON.stringify(records))
-    await test.info().attach('focus-selection-timeline', { body: JSON.stringify(records, null, 2), contentType: 'application/json' })
-  }
+  } finally { release() }
 })
 
 test('focus keeps recovery choices visible, pauses the timer until choice and restores preference trigger focus', async ({ page }) => {
