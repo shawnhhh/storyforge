@@ -309,6 +309,15 @@ test('focus toggles retain the in-flight queue and newer protected revision unti
     editor.setOptions = options => { record('before setOptions'); setOptions(options); record('after setOptions') }
     const updateState = editor.view.updateState.bind(editor.view)
     editor.view.updateState = state => { record('before updateState'); updateState(state); record('after updateState') }
+    const docView = (editor.view as unknown as { docView: { setSelection: (...args: unknown[]) => unknown } }).docView
+    const setSelection = docView.setSelection.bind(docView)
+    docView.setSelection = (...args) => {
+      const before = snapshot('before DOM selection write')
+      const result = setSelection(...args)
+      const after = snapshot('after DOM selection write')
+      if (before.selected && before.selected !== after.selected) records.push({ before, after, stack: new Error('DOM selection overwrite').stack })
+      return result
+    }
     for (const event of ['selectionchange', 'focusin', 'beforeinput', 'input']) {
       document.addEventListener(event, () => record(event), true)
     }
