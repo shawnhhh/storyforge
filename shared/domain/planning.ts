@@ -28,12 +28,16 @@ export function validatePlanning(value: unknown, allowIncompleteTitles = false):
     return entries.map(object)
   }
   const base = (row: Record<string, unknown>) => ({ id: id(row.id), title: text(row.title, 200, !allowIncompleteTitles), content: text(row.content) })
+  const materials = (row: Record<string, unknown>) => ({
+    ...(row.characterIds === undefined ? {} : { characterIds: ids(row.characterIds) }),
+    ...(row.worldIds === undefined ? {} : { worldIds: ids(row.worldIds) }),
+  })
   const data: PlanningData = {
-    outlines: list('outlines').map(row => ({ ...base(row), kind: option(row.kind, Object.keys(outlineKinds) as (keyof typeof outlineKinds)[]), parentId: row.parentId === null ? null : id(row.parentId), chapterIds: ids(row.chapterIds) })),
+    outlines: list('outlines').map(row => ({ ...base(row), ...materials(row), kind: option(row.kind, Object.keys(outlineKinds) as (keyof typeof outlineKinds)[]), parentId: row.parentId === null ? null : id(row.parentId), chapterIds: ids(row.chapterIds) })),
     plotlines: list('plotlines').map(row => ({ ...base(row), kind: option(row.kind, ['main', 'subplot', 'custom']) })),
     cards: list('cards').map(row => {
       if (row.timeOrder !== null && (typeof row.timeOrder !== 'number' || !Number.isSafeInteger(row.timeOrder) || Math.abs(row.timeOrder) > 1e9)) return fail('故事时间序号必须为 ±10亿以内整数')
-      return { ...base(row), summary: text(row.summary, 4000), status: option(row.status, Object.keys(cardStatuses) as (keyof typeof cardStatuses)[]), plotlineId: row.plotlineId === null ? null : id(row.plotlineId), storyTime: text(row.storyTime, 200), timeOrder: row.timeOrder as number | null, chapterIds: ids(row.chapterIds) }
+      return { ...base(row), ...materials(row), summary: text(row.summary, 4000), status: option(row.status, Object.keys(cardStatuses) as (keyof typeof cardStatuses)[]), plotlineId: row.plotlineId === null ? null : id(row.plotlineId), storyTime: text(row.storyTime, 200), timeOrder: row.timeOrder as number | null, chapterIds: ids(row.chapterIds) }
     }),
     foreshadows: list('foreshadows').map(row => ({ ...base(row), status: option(row.status, Object.keys(foreshadowStatuses) as (keyof typeof foreshadowStatuses)[]), chapterIds: ids(row.chapterIds), plantedChapterIds: ids(row.plantedChapterIds), plannedChapterIds: ids(row.plannedChapterIds), resolvedChapterIds: ids(row.resolvedChapterIds), cardIds: ids(row.cardIds) })),
   }
