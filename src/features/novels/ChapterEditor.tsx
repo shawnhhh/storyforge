@@ -8,6 +8,7 @@ import { EditorStatistics, statisticsKey } from './editor-statistics'
 import { DraftNotice } from '../../shared/drafts/DraftNotice'
 import { useDraftProtection } from '../../shared/drafts/useDraftProtection'
 import { AiWriting } from '../ai/AiWriting'
+import { WritingProgress } from './WritingProgress'
 
 export interface EditorControl {
   saveBeforeLeave: () => Promise<boolean>
@@ -15,6 +16,7 @@ export interface EditorControl {
   focus: () => void
 }
 interface Props {
+  focused: boolean
   children?: ReactNode
   controlRef: Ref<EditorControl>
   chapter: Chapter
@@ -23,7 +25,7 @@ interface Props {
   onReload: () => void
   disabled: boolean
 }
-export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children }: Props) {
+export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children, focused }: Props) {
   const [initial] = useState(chapter)
   const draft = useDraftProtection(`chapter:${chapter.novelId}:${chapter.id}`, { title: initial.title, content: initial.content })
   const { protection } = draft
@@ -49,7 +51,7 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
   useImperativeHandle(controlRef, () => ({
     saveBeforeLeave: () => saver.current?.saveBeforeLeave() ?? Promise.resolve(false),
     save: () => { if (!blocked) void saver.current?.flush() },
-    focus: () => { editor?.commands.focus() },
+    focus: () => { editor?.commands.focus(undefined, { scrollIntoView: false }) },
   }), [editor, blocked])
   useEffect(() => { editor?.setEditable(!blocked, false) }, [editor, blocked])
   useEffect(() => {
@@ -94,10 +96,10 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
       protection.change(value); saver.current?.change(value.title, value.content)
     }} />
     <input id="chapter-title" disabled={blocked} className="chapter-title" aria-label="章节标题" maxLength={200} value={title} placeholder="章节标题" onChange={event => { titleRef.current = event.target.value; setTitle(event.target.value); if (editor) { const doc = editor.state.doc; protection.change({ title: event.target.value, content: doc.toJSON() as RichTextDocument }); saver.current?.change(event.target.value, () => doc.toJSON() as RichTextDocument) } }} />
-    <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={blocked} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={blocked || state.status === 'conflict'} />}<button className="save-now" title="Ctrl/⌘ + Alt + Shift + S" disabled={blocked || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
+    <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={blocked} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={blocked || state.status === 'conflict'} />}<button className="save-now" title="Control + Alt/⌥ + Shift + S（Mac 也使用 Control）" disabled={blocked || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
     <DocumentBody editor={editor} />
     {children}
-    <footer className="editor-footer">{editor && <WordStatistics editor={editor} />}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
+    <footer className="editor-footer">{editor && <><WordStatistics editor={editor} /><WritingProgress editor={editor} chapterId={chapter.id} focused={focused} disabled={blocked} /></>}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
   </section>
 })
 
