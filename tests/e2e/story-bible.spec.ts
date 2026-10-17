@@ -116,6 +116,10 @@ test('profile conflicts retain exportable drafts, guard navigation and require e
   await other.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '双窗口人物冲突' }).click()
   await module(other, '人物档案')
   await expect(other.getByLabel('姓名', { exact: true })).toHaveValue('初始人物')
+  // Loading the form value precedes its asynchronous protected-draft check.
+  // Finish that check before the other window creates the conflicting revision.
+  await expect(other.getByLabel('姓名', { exact: true })).toBeEditable()
+  await expect(other.locator('.draft-recovery')).toHaveCount(0)
   await page.getByLabel('姓名', { exact: true }).fill('远端已保存')
   await saved(page)
   await other.getByLabel('姓名', { exact: true }).fill('本地冲突草稿🌕')

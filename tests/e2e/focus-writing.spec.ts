@@ -336,8 +336,13 @@ test('focus toggles retain the in-flight queue and newer protected revision unti
     await expect.poll(() => body.evaluate(element => {
       const editor = (element as HTMLElement & { editor: Editor }).editor
       const { from, to, empty } = editor.state.selection
-      return { visible: window.getSelection()?.toString(), model: editor.state.doc.textBetween(from, to, '\n'), empty }
-    })).toEqual({ visible: '第一份等待回执的专注修订', model: '第一份等待回执的专注修订', empty: false })
+      const dom = window.getSelection()
+      // WebKit Selection.toString() adds rendered paragraph separators. Read
+      // the selected DOM fragment without trimming any actual text characters.
+      const visible = dom?.rangeCount === 1 ? dom.getRangeAt(0).cloneContents().textContent : null
+      const confined = !!dom?.anchorNode && !!dom.focusNode && element.contains(dom.anchorNode) && element.contains(dom.focusNode)
+      return { visible, model: editor.state.doc.textBetween(from, to, '\n'), empty, confined, wholeDocument: from === 0 && to === editor.state.doc.content.size }
+    })).toEqual({ visible: '第一份等待回执的专注修订', model: '第一份等待回执的专注修订', empty: false, confined: true, wholeDocument: true })
     await page.keyboard.insertText('第二份不能被旧回执清除的专注修订')
     await expect(body).toHaveText('第二份不能被旧回执清除的专注修订')
     await expect.poll(async () => (await readDrafts())[0]?.revision).toBeGreaterThan(first.revision)
