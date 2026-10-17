@@ -37,6 +37,8 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
   const editor = useEditor({
     // Create after commit: a suspended/StrictMode render may be abandoned.
     immediatelyRender: false,
+    // Read-only loading states still need scoped navigation/Escape keyboard focus.
+    coreExtensionOptions: { tabindex: { value: '0' } },
     shouldRerenderOnTransaction: false,
     extensions: [...createEditorExtensions(), EditorStatistics],
     content: initial.content,

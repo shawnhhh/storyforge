@@ -5,8 +5,9 @@
 .draft-recovery pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
 .draft-recovery .button-row { flex-wrap: wrap; }
 .draft-editing-scope { border: 0; padding: 0; margin: 0; min-width: 0; }
-/* Reserve the status line so autosave never moves the writing viewport. */
-.draft-protection-state { min-height: 1.4em; }
+/* A full line box keeps macOS fallback glyph metrics from resizing this row
+   when the protected message is replaced by a non-breaking space. */
+.draft-protection-state { display: flex; align-items: center; min-height: 24px; line-height: 24px; }
 .editor-pane > .draft-protection { margin: 0 32px; }
 [data-theme=dark] .draft-protection { color: #a5a5b0; }
 [data-theme=dark] .draft-recovery { background: #28282c; color: #e5e5ea; border-color: #48484e; }
