@@ -116,14 +116,18 @@ test('persistent browser profile restores after the browser process closes and r
     await chapterBody(first).fill('浏览器进程重启后的虚构草稿')
     await expect(first.getByText('临时草稿已保护 · 此浏览器', { exact: true })).toBeVisible()
     if (browserName === 'chromium') {
-      await test.step('observe a real renderer crash and close the persistent browser', async () => {
-        const crashed = first.waitForEvent('crash', { timeout: 7000 })
-        const protocol = await context.newCDPSession(first)
-        // A crashed renderer cannot reliably acknowledge Page.crash, even after
-        // context.close(). Assert its crash event instead of awaiting that reply.
-        void protocol.send('Page.crash').catch(() => {})
-        await crashed
-        await context.close()
+      await test.step('terminate only the isolated browser process and observe disconnection', async () => {
+        await expect.poll(async () => JSON.stringify(await drafts(first))).toContain('浏览器进程重启后的虚构草稿')
+        const owner = context.browser()
+        if (!owner || owner === page.context().browser()) throw new Error('Expected a separately launched test browser')
+        const protocol = await owner.newBrowserCDPSession()
+        const { processInfo } = await protocol.send('SystemInfo.getProcessInfo')
+        const pid = processInfo.find(item => item.type === 'browser')?.id
+        if (!pid || !Number.isInteger(pid) || pid <= 1 || pid === process.pid) throw new Error('Invalid isolated browser PID')
+        // The PID comes from this context's own browser, never a process-name
+        // search. Kill without unload/close so recovery exercises a real crash.
+        process.kill(pid, 'SIGKILL')
+        await expect.poll(() => owner.isConnected()).toBe(false)
       })
     } else { await context.close() }
     context = await launch()
