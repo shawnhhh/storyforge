@@ -297,6 +297,23 @@ test('narrow focus layout stays within the viewport and leaves native and IME sh
 test('focus toggles retain the in-flight queue and newer protected revision until both writes finish', async ({ page }) => {
   const { body } = await start(page)
   const original = await body.elementHandle()
+  await body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor
+    const records: unknown[] = []
+    const snapshot = (event: string) => {
+      const dom = window.getSelection()
+      return { event, time: performance.now(), selected: dom?.toString(), anchor: dom?.anchorOffset, head: dom?.focusOffset, model: [editor.state.selection.from, editor.state.selection.to], text: editor.getText() }
+    }
+    const record = (event: string) => { if (records.length < 250) records.push(snapshot(event)) }
+    const setOptions = editor.setOptions.bind(editor)
+    editor.setOptions = options => { record('before setOptions'); setOptions(options); record('after setOptions') }
+    const updateState = editor.view.updateState.bind(editor.view)
+    editor.view.updateState = state => { record('before updateState'); updateState(state); record('after updateState') }
+    for (const event of ['selectionchange', 'focusin', 'beforeinput', 'input']) {
+      document.addEventListener(event, () => record(event), true)
+    }
+    Object.assign(window, { focusSelectionDiagnostic: records })
+  })
   const readDrafts = () => page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('storyforge-protected-drafts', 1)
@@ -342,7 +359,12 @@ test('focus toggles retain the in-flight queue and newer protected revision unti
     const stored = await (await page.request.get(chapterUrl)).json()
     expect(stored.version).toBe(writes[1].version + 1)
     expect(stored.content.content[0].content[0].text).toBe('第二份不能被旧回执清除的专注修订')
-  } finally { release() }
+  } finally {
+    release()
+    const records = await page.evaluate(() => (window as unknown as { focusSelectionDiagnostic: unknown[] }).focusSelectionDiagnostic)
+    console.log('FOCUS_SELECTION_DIAGNOSTIC', JSON.stringify(records))
+    await test.info().attach('focus-selection-timeline', { body: JSON.stringify(records, null, 2), contentType: 'application/json' })
+  }
 })
 
 test('focus keeps recovery choices visible, pauses the timer until choice and restores preference trigger focus', async ({ page }) => {

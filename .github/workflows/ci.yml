@@ -53,6 +53,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install ${{ matrix.browser }}
+      - name: Capture focus selection race with five isolated executions
+        run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue' --repeat-each=5
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       # Real Google Chrome channel and Playwright WebKit on macOS. WebKit is not
       # the installed Safari app; retain the real Safari manual checklist.
       - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing search-preferences
