@@ -21,6 +21,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Verify isolated browser crash recovery three times
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
+      - name: Planning, timeline and draft recovery regression
+        run: npm run test:e2e -- --project=chromium planning timeline draft-recovery
       - name: Focus, AI selection and dialog focus regression
         run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing search-preferences
       - run: npm run test:e2e -- --project=chromium
@@ -52,6 +54,10 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
       - run: npx playwright install ${{ matrix.browser }}
       - name: Verify queued revision replacement five times
         run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue' --repeat-each=5
@@ -60,6 +66,14 @@ jobs:
       # Real Google Chrome channel and Playwright WebKit on macOS. WebKit is not
       # the installed Safari app; retain the real Safari manual checklist.
       - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing search-preferences
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Planning, timeline and draft recovery regression
+        run: npm run test:e2e -- --project=${{ matrix.project }} planning timeline draft-recovery
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Complete browser regression
+        run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Upload macOS browser diagnostics
