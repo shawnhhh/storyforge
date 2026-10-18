@@ -318,7 +318,13 @@ test('trash: a newly created planning object with the archived ID blocks restora
     const original = f.planning.read(f.novel.id)
     f.planning.save(f.novel.id, original.version, { ...original, outlines: [{ ...original.outlines[1], parentId: null }] })
     const entry = f.trash.list()[0], after = f.planning.read(f.novel.id)
-    const current = f.planning.save(f.novel.id, after.version, { ...after, outlines: [...after.outlines, { ...original.outlines[0], content: '另一次新建内容必须保留', chapterIds: [] }] })
+    const collision = { ...original.outlines[0], content: '另一次新建内容必须保留', chapterIds: [] }
+    assert.throws(() => f.planning.save(f.novel.id, after.version, { ...after, outlines: [...after.outlines, collision] }), error => error instanceof Error && 'status' in error && error.status === 409)
+    assert.deepEqual(f.planning.read(f.novel.id), after)
+    // The application now blocks ID reuse before insertion. Simulate a legacy
+    // writer/manual collision to retain the independent restore safety assertion.
+    f.db.prepare('INSERT INTO planning_records VALUES (?,?,?,?,?)').run(f.novel.id, collision.id, 'outlines', after.outlines.length, JSON.stringify(collision))
+    const current = f.planning.read(f.novel.id)
     assert.throws(() => f.trash.restore(entry.id, true), /对象已存在/)
     assert.deepEqual(f.planning.read(f.novel.id), current)
     assert.equal(f.trash.list().length, 1)
