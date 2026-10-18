@@ -155,7 +155,7 @@ test('planning/002: conflicting tables and invalid migration history fail withou
   }
 })
 
-for (const [base, module, variant] of [[2, 2, 'base'], [3, 2, 'base'], [3, 2, 'knowledge'], [4, 0, 'base'], [4, 1, 'base'], [4, 2, 'base']] as const) {
+for (const [base, module, variant] of [[2, 2, 'base'], [3, 2, 'base'], [3, 2, 'knowledge'], [4, 0, 'base'], [4, 1, 'base'], [4, 2, 'base'], [5, 0, 'base'], [5, 1, 'base'], [5, 2, 'base'], [6, 0, 'base'], [6, 1, 'base'], [6, 2, 'base']] as const) {
   test(`backup: ${variant} v${base} + planning v${module} restores and upgrades privately with source bytes unchanged`, async () => {
     const f = fixture(), service = new BackupService(f.db, join(f.dir, 'backups'))
     try {

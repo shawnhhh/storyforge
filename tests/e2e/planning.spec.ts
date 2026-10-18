@@ -1,3 +1,4 @@
+import { openDeleteMenu } from './trash-helpers.js'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { expectChapterReady, chapterBody } from './editor-helpers.js'
@@ -57,6 +58,7 @@ test('outline tree CRUD, ordering and chapter links survive reload without chang
   await panel(page).getByRole('button', { name: /第二卷：归来/ }).first().click()
   await expect(panel(page).getByRole('group', { name: '关联章节', exact: true }).getByLabel('第一章', { exact: true })).toBeChecked()
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除当前规划')
   await panel(page).getByRole('button', { name: '删除当前规划', exact: true }).click()
   await saved(page)
   await expect(page.locator('.planning-items article')).toHaveCount(2)

@@ -90,6 +90,7 @@ test('outlines link people, locations and other material independently and offer
   await panel(page).getByRole('group', { name: '关联地点', exact: true }).getByLabel('北境', { exact: true }).check()
   await panel(page).getByRole('group', { name: '其他关联资料', exact: true }).getByLabel('观星会', { exact: true }).check()
   await saved(page)
+  page.once('dialog', dialog => dialog.accept())
   await panel(page).getByRole('group', { name: '关联地点', exact: true }).getByLabel('北境', { exact: true }).uncheck()
   await saved(page)
   const snapshot = await (await page.request.get(f.root + '/planning')).json()
@@ -124,7 +125,7 @@ test('event reference drafts survive offline reload and target deletion causes c
   // Wait for the resumed draft's aborted save before removing the route; otherwise
   // the pending request can correctly reach 409 before the retry button is clicked.
   await expect(page.locator('.planning-status')).toHaveText('保存失败 · 草稿已保留')
-  const deletion = await page.request.delete(`${f.root}/characters/${f.hero.id}`, { headers: f.headers, data: { version: f.hero.version } }); expect(deletion.ok()).toBeTruthy()
+  const deletion = await page.request.delete(`${f.root}/characters/${f.hero.id}`, { headers: f.headers, data: { version: f.hero.version, confirmed: true } }); expect(deletion.ok()).toBeTruthy()
   await page.unroute('**/planning')
   await panel(page).getByRole('button', { name: '重试保存规划', exact: true }).click()
   await expect(page.locator('.planning-status')).toHaveText('版本冲突 · 草稿已保留')

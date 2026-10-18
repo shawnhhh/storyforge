@@ -1,3 +1,4 @@
+import { archiveRemoved, snapshot } from '../trash/store.js'
 import type { DatabaseSync } from 'node:sqlite'
 import { emptyPlanning, type PlanningData, type PlanningSnapshot } from '../../../../shared/contracts/planning.js'
 import { NovelStore, HttpError } from '../novels/store.js'
@@ -36,7 +37,12 @@ export class PlanningStore {
     this.db.exec('BEGIN IMMEDIATE')
     try {
       const current = this.read(novelId)
+      const before = snapshot(this.db, novelId, ['planning_records', 'planning_chapter_links', 'planning_character_links', 'planning_world_links'])
       if (current.version !== expected) throw new HttpError(409, '规划已变化，请导出草稿后重新加载，避免覆盖其他窗口的修改')
+      const existing = new Set(Object.values(current).filter(Array.isArray).flat().map(row => row.id))
+      if (this.db.prepare("SELECT 1 FROM sqlite_schema WHERE name='deleted_planning_records'").get()) {
+        for (const record of Object.values(data).flat()) if (!existing.has(record.id) && this.db.prepare('SELECT 1 FROM deleted_planning_records WHERE novel_id=? AND id=?').get(novelId, record.id)) throw new HttpError(409, '草稿包含已删除规划，请先从回收站恢复或导出草稿，不能通过保存重新创建')
+      }
       const chapters = new Set(this.db.prepare('SELECT id FROM chapters WHERE novel_id=?').all(novelId).map(row => row.id))
       for (const record of Object.values(data).flat()) for (const role of chapterRoles) {
         if (role in record && (record[role as keyof typeof record] as unknown as string[]).some(id => !chapters.has(id))) throw new HttpError(400, '关联章节不存在或属于其他作品，请核对草稿中的章节关联')
@@ -63,6 +69,9 @@ export class PlanningStore {
         }
       })
       this.db.prepare('UPDATE novels SET version=version+1,updated_at=? WHERE id=?').run(new Date().toISOString(), novelId)
+      const removed = Object.values(data).flat().map(row => row.id)
+      const names = Object.values(current).filter(Array.isArray).flat().filter(row => !removed.includes(row.id)).map(row => row.title)
+      archiveRemoved(this.db, before, novelId, 'planning', names.length ? names.join('、') : '规划章节关联', true)
       const result = this.read(novelId)
       this.db.exec('COMMIT'); return result
     } catch (error) { this.db.exec('ROLLBACK'); throw error }

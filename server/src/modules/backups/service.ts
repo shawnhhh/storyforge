@@ -1,3 +1,4 @@
+import { TrashStore } from '../trash/store.js'
 import { KnowledgeStore, knowledgeInput } from '../story-bible/knowledge.js'
 import { migratePlanning, planningSchemaVersion } from '../../db/planning-migrate.js'
 import { PlanningStore } from '../planning/store.js'
@@ -160,6 +161,7 @@ export class BackupService {
         if (doc.type !== 'doc') throw new Error('Invalid content')
         textSchema.nodeFromJSON(doc).check()
       }
+      if (current >= 5) { for (const row of candidate.prepare('SELECT novel_id,payload FROM trash_entries').iterate()) new TrashStore(candidate).validatePayload(String(row.payload), String(row.novel_id)) }
       if (current >= 2) {
         for (const row of candidate.prepare('SELECT * FROM characters').iterate()) {
           characterInput({ ...row, tags: JSON.parse(String(row.tags)), fields: JSON.parse(String(row.fields)), relations: [], worldIds: [] })
@@ -250,7 +252,9 @@ export class BackupService {
           this.db.exec(`DELETE FROM knowledge_workspaces; DELETE FROM planning_workspaces; DELETE FROM planning_migrations; DELETE FROM character_relations; DELETE FROM character_world_links;
             DELETE FROM characters; DELETE FROM world_entries;
             DELETE FROM chapters; DELETE FROM novels; DELETE FROM schema_migrations;
-            DELETE FROM writing_days; DELETE FROM writing_settings;
+            DELETE FROM writing_days; DELETE FROM writing_settings; DELETE FROM trash_entries; DELETE FROM deleted_planning_records;
+            INSERT INTO deleted_planning_records SELECT * FROM restore_source.deleted_planning_records;
+            INSERT INTO trash_entries SELECT * FROM restore_source.trash_entries;
             INSERT INTO writing_days SELECT * FROM restore_source.writing_days;
             INSERT INTO writing_settings SELECT * FROM restore_source.writing_settings;
             INSERT INTO novels SELECT * FROM restore_source.novels;
