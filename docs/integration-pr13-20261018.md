@@ -31,4 +31,5 @@
 - lint、TypeScript typecheck、build 均已通过。
 - 完整 `npm test` 在默认沙箱返回 10 个测试文件通过、11 个文件失败、0 跳过；这是文件级汇总，不能当作全部单元用例数。涉及本地服务的测试受网络沙箱限制，最终以 CI 用例结果为准。
 - E2E 专项启动在分配本地端口时报 `listen EPERM 127.0.0.1`，没有浏览器用例执行。停止本地服务重试；没有删除断言、跳过测试或放宽超时。
-- GitHub Actions 在 Linux、macOS Google Chrome 和 macOS WebKit 执行 lint/typecheck/build、完整单元/API、规划/时间线/草稿专项及完整 E2E；具体运行链接和最终数量将在验证后记录。WebKit 自动化不等同于手动 Safari 中文输入验收。
+- 初次 GitHub Actions 受免费额度阻塞，在执行步骤前失败，无日志与 trace。用户随后将仓库改为 Public 并解除额度问题；[工作流 #79 第 2 次运行](https://github.com/shawnhhh/storyforge/actions/runs/39092699668/attempts/2) 已正常执行，三个平台的 lint/typecheck/build、完整单元/API、写作专项与规划/时间线/草稿专项通过，完整 E2E 在执行中。
+- 配置核对发现独立持久化草稿测试未继承 Chrome channel；已补齐该参数，使 macOS Chrome 的独立崩溃恢复测试也使用 Google Chrome，并保留自定义 executablePath。后续提交继续由完整三平台 CI 验证，最终结果记录在 Draft PR #19 和中文验收报告。WebKit 自动化不等同于手动 Safari 中文输入验收。
