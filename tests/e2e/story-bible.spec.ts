@@ -12,7 +12,7 @@ async function novel(page: Page, name: string) {
 async function module(page: Page, name: string) {
   await page.getByRole('navigation', { name: '小说工作台模块' }).getByRole('button', { name, exact: true }).click()
 }
-async function saved(page: Page) { await expect(page.locator('.profile-save-status')).toHaveText('已保存') }
+async function saved(page: Page) { await expect(page.locator('.profile-save-status')).toHaveText('已保存到数据库') }
 async function tag(page: Page, value: string) {
   await page.getByLabel('新标签', { exact: true }).fill(value)
   await page.getByRole('button', { name: '添加标签', exact: true }).click()
@@ -25,7 +25,7 @@ test('profiles CRUD, search, tags, relationships, world links and timeline persi
   await novel(page, '人物世界观验收 🌕')
   await page.getByRole('button', { name: '创建第一章', exact: true }).click()
   await page.getByRole('textbox', { name: '小说正文' }).fill('不可修改的原有正文 <&> 中文🌕')
-  await expect(page.locator('.save-status')).toHaveText('已保存')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
   await module(page, '世界观')
   await expect(page.getByText('为故事构建一个世界')).toBeVisible()
   await page.getByRole('button', { name: '新增设定', exact: true }).first().click()
@@ -116,6 +116,10 @@ test('profile conflicts retain exportable drafts, guard navigation and require e
   await other.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '双窗口人物冲突' }).click()
   await module(other, '人物档案')
   await expect(other.getByLabel('姓名', { exact: true })).toHaveValue('初始人物')
+  // Loading the form value precedes its asynchronous protected-draft check.
+  // Finish that check before the other window creates the conflicting revision.
+  await expect(other.getByLabel('姓名', { exact: true })).toBeEditable()
+  await expect(other.locator('.draft-recovery')).toHaveCount(0)
   await page.getByLabel('姓名', { exact: true }).fill('远端已保存')
   await saved(page)
   await other.getByLabel('姓名', { exact: true }).fill('本地冲突草稿🌕')
@@ -132,6 +136,7 @@ test('profile conflicts retain exportable drafts, guard navigation and require e
   await expect(other.getByLabel('姓名', { exact: true })).toHaveValue('本地冲突草稿🌕')
   other.once('dialog', dialog => dialog.accept())
   await other.getByRole('button', { name: '重新加载资料', exact: true }).click()
+  await other.getByRole('button', { name: '保留数据库版本', exact: true }).click()
   await expect(other.getByLabel('姓名', { exact: true })).toHaveValue('远端已保存')
   await saved(other)
   // A remote deletion must preserve, rather than recreate, the stale editor's draft.

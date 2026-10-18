@@ -3,7 +3,9 @@ import type { PlanningSnapshot } from '../../../shared/contracts/planning'
 export interface PlanningDraft { snapshot: PlanningSnapshot; generation: string | null }
 const key = (id: string) => `storyforge:planning:draft:${id}`
 export function readDraft(id: string): PlanningDraft | null {
-  const raw = localStorage.getItem(key(id))
+  let raw: string | null
+  try { raw = localStorage.getItem(key(id)) }
+  catch (error) { if (error instanceof DOMException && error.name === 'SecurityError') return null; throw error }
   if (!raw) return null
   const value = JSON.parse(raw) as PlanningDraft
   if (value.snapshot?.novelId !== id || !Number.isSafeInteger(value.snapshot.version) || !['outlines', 'plotlines', 'cards', 'foreshadows'].every(name => Array.isArray(value.snapshot[name as keyof PlanningSnapshot]))) throw new Error('本地草稿格式无效，请先导出浏览器存储中的草稿')

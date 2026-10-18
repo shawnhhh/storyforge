@@ -15,15 +15,58 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm run build
       - run: npm test
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Verify isolated browser crash recovery three times
+        run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
+      - name: Focus, AI selection and dialog focus regression
+        run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing search-preferences
+      - run: npm run test:e2e -- --project=chromium
       - name: Upload browser failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-${{ github.event_name }}-${{ github.run_id }}
+          path: work/e2e-results/
+          if-no-files-found: ignore
+          retention-days: 7
+  macos-writing:
+    name: macOS writing (${{ matrix.browser }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chrome
+            project: chromium
+            channel: chrome
+          - browser: webkit
+            project: webkit
+            channel: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install ${{ matrix.browser }}
+      - name: Verify queued revision replacement five times
+        run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue' --repeat-each=5
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      # Real Google Chrome channel and Playwright WebKit on macOS. WebKit is not
+      # the installed Safari app; retain the real Safari manual checklist.
+      - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing search-preferences
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Upload macOS browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-writing-${{ matrix.browser }}-${{ github.run_id }}
           path: work/e2e-results/
           if-no-files-found: ignore
           retention-days: 7

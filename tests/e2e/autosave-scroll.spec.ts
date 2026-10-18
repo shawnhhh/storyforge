@@ -22,7 +22,7 @@ async function viewport(page: Page) {
   })
 }
 const text = '长篇正文 hello world 123。'.repeat(1500)
-const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存')
+const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存到数据库')
 async function create(page: Page, title: string) {
   await page.goto('/')
   await page.getByRole('button', { name: '新建作品', exact: true }).click()

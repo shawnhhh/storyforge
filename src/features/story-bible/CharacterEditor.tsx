@@ -1,3 +1,4 @@
+import { DraftNotice } from '../../shared/drafts/DraftNotice.js'
 import type { ReactNode } from 'react'
 import type { OpenMaterial } from './KnowledgeLinks.js'
 import { useState } from 'react'
@@ -25,8 +26,9 @@ export function CharacterEditor({ record, characters, world, disabled, onSaved, 
   const canAdd = targetId && kind.trim() && value.relations.length < 200 && !value.relations.some(item => item.targetId === targetId && item.kind === kind.trim())
   const incoming = characters.flatMap(item => item.relations.filter(relation => relation.targetId === record.id).map(relation => ({ name: item.name, kind: relation.kind, id: item.id })))
   return <section className="profile-detail" aria-label="人物详情">
+    <DraftNotice draft={draft.draft} onRestore={draft.restore} />
     <ProfileControls state={draft.state} disabled={disabled} onSave={draft.flush} onExport={draft.exportDraft} onReload={onReload} />
-    <fieldset disabled={disabled} className="profile-form" onCompositionStart={() => draft.composition(true)} onCompositionEnd={() => draft.composition(false)}>
+    <fieldset disabled={disabled || draft.draft.blocked} className="profile-form" onCompositionStart={() => draft.composition(true)} onCompositionEnd={() => draft.composition(false)}>
       <legend className="sr-only">编辑人物档案</legend>
       <div className="profile-form-grid">
         <label>姓名<input autoComplete="off" maxLength={200} value={value.name} onChange={event => change({ name: event.target.value })} /></label>

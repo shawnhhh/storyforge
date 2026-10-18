@@ -1,3 +1,4 @@
+import { DraftNotice } from '../../shared/drafts/DraftNotice.js'
 import type { ReactNode } from 'react'
 import type { OpenMaterial } from './KnowledgeLinks.js'
 import { worldCategories, type Character, type WorldEntry, type WorldCategory } from '../../../shared/contracts/story-bible.js'
@@ -20,8 +21,9 @@ export function WorldEditor({ record, characters, disabled, onSaved, onDirty, on
   const { value, change } = draft
   const related = characters.filter(item => item.worldIds.includes(record.id))
   return <section className="profile-detail" aria-label="设定详情">
+    <DraftNotice draft={draft.draft} onRestore={draft.restore} />
     <ProfileControls state={draft.state} disabled={disabled} onSave={draft.flush} onExport={draft.exportDraft} onReload={onReload} />
-    <fieldset disabled={disabled} className="profile-form" onCompositionStart={() => draft.composition(true)} onCompositionEnd={() => draft.composition(false)}>
+    <fieldset disabled={disabled || draft.draft.blocked} className="profile-form" onCompositionStart={() => draft.composition(true)} onCompositionEnd={() => draft.composition(false)}>
       <legend className="sr-only">编辑世界观设定</legend>
       <div className="profile-form-grid">
         <label>设定名称<input maxLength={200} value={value.name} onChange={event => change({ name: event.target.value })} /></label>

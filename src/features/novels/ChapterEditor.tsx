@@ -5,7 +5,10 @@ import { createEditorExtensions } from '../../shared/editor/extensions'
 import { api } from './api'
 import { ChapterSaver, type SaveState } from './autosave'
 import { EditorStatistics, statisticsKey } from './editor-statistics'
+import { DraftNotice } from '../../shared/drafts/DraftNotice'
+import { useDraftProtection } from '../../shared/drafts/useDraftProtection'
 import { AiWriting } from '../ai/AiWriting'
+import { WritingProgress } from './WritingProgress'
 
 export interface EditorControl {
   saveBeforeLeave: () => Promise<boolean>
@@ -13,6 +16,7 @@ export interface EditorControl {
   focus: () => void
 }
 interface Props {
+  focused: boolean
   children?: ReactNode
   controlRef: Ref<EditorControl>
   chapter: Chapter
@@ -21,8 +25,11 @@ interface Props {
   onReload: () => void
   disabled: boolean
 }
-export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children }: Props) {
+export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onDirty, onReload, disabled, controlRef, children, focused }: Props) {
   const [initial] = useState(chapter)
+  const draft = useDraftProtection(`chapter:${chapter.novelId}:${chapter.id}`, { title: initial.title, content: initial.content })
+  const { protection } = draft
+  const blocked = disabled || draft.blocked
   const saver = useRef<ChapterSaver | null>(null)
   const [state, setState] = useState<SaveState>({ status: 'saved', dirty: false, message: '' })
   const [title, setTitle] = useState(chapter.title)
@@ -30,25 +37,33 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
   const editor = useEditor({
     // Create after commit: a suspended/StrictMode render may be abandoned.
     immediatelyRender: false,
+    // Read-only loading states still need scoped navigation/Escape keyboard focus.
+    coreExtensionOptions: { tabindex: { value: '0' } },
     shouldRerenderOnTransaction: false,
     extensions: [...createEditorExtensions(), EditorStatistics],
     content: initial.content,
     onUpdate: ({ editor: instance }) => {
       const doc = instance.state.doc
-      // Capture an immutable document now; serialize only when the debounced write runs.
+      // Protect this immutable snapshot immediately; the server queue keeps its debounce.
+      protection.change({ title: titleRef.current, content: doc.toJSON() as RichTextDocument })
       saver.current?.change(titleRef.current, () => doc.toJSON() as RichTextDocument)
     },
     editorProps: { attributes: { 'aria-label': '小说正文', role: 'textbox', 'aria-multiline': 'true' } },
   })
   useImperativeHandle(controlRef, () => ({
     saveBeforeLeave: () => saver.current?.saveBeforeLeave() ?? Promise.resolve(false),
-    save: () => { if (!disabled) void saver.current?.flush() },
-    focus: () => { editor?.commands.focus() },
-  }), [editor, disabled])
-  useEffect(() => { editor?.setEditable(!disabled, false) }, [editor, disabled])
+    save: () => { if (!blocked) void saver.current?.flush() },
+    // Restore selection now; a deferred Tiptap focus can race with the next input.
+    focus: () => { if (editor && !editor.isDestroyed) editor.view.focus() },
+  }), [editor, blocked])
+  useEffect(() => { editor?.setEditable(!blocked, false) }, [editor, blocked])
   useEffect(() => {
     // Create the queue within the effect so StrictMode can clean up and recreate it.
-    const queue = new ChapterSaver(initial, api.save)
+    const queue = new ChapterSaver(initial, async (id, version, title, content) => {
+      const result = await api.save(id, version, title, content)
+      void protection.saved({ title, content })
+      return result
+    })
     saver.current = queue
     const unsubscribe = queue.subscribe((next, result) => {
       setState(next)
@@ -56,7 +71,7 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
       if (result) onSaved(result)
     })
     return () => { unsubscribe(); queue.dispose(); saver.current = null }
-  }, [initial, onDirty, onSaved])
+  }, [initial, onDirty, onSaved, protection])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (saver.current?.state.dirty) { event.preventDefault(); event.returnValue = '' }
@@ -65,7 +80,7 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
     return () => { window.removeEventListener('beforeunload', warn) }
   }, [])
   // Only document edits enter the queue; changing editability must not emit an update.
-  const labels = { saved: '已保存', pending: '未保存 · 等待自动保存', saving: '保存中…', failed: '保存失败', conflict: '版本冲突 · 未保存' }
+  const labels = { saved: '已保存到数据库', pending: '未保存 · 等待自动保存', saving: '保存中…', failed: '保存失败', conflict: '版本冲突 · 未保存' }
   function exportDraft() {
     const blob = new Blob([JSON.stringify({ title, content: editor?.getJSON(), exportedAt: new Date().toISOString() }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -77,12 +92,17 @@ export const ChapterEditor = memo(function ChapterEditor({ chapter, onSaved, onD
   // retains its initial null snapshot until a transaction, hiding loaded counts.
   return <section className="editor-pane">
     <header className="editor-heading"><span>正文编辑</span><span className={`save-status ${state.status}`} role="status" aria-live="polite">{labels[state.status]}</span></header>
-    {(state.status === 'failed' || state.status === 'conflict') && <div className="save-error" role="alert"><p>{state.message}</p><p>当前内容仍保留在编辑器中。可复制正文或导出草稿，再重新加载最新版本。</p><div className="button-row">{state.status !== 'conflict' && <button disabled={disabled} onClick={() => { void saver.current?.flush() }}>重试保存</button>}<button onClick={exportDraft}>导出未保存草稿</button><button disabled={disabled} onClick={onReload}>重新加载</button></div></div>}
-    <input id="chapter-title" disabled={disabled} className="chapter-title" aria-label="章节标题" maxLength={200} value={title} placeholder="章节标题" onChange={event => { titleRef.current = event.target.value; setTitle(event.target.value); if (editor) { const doc = editor.state.doc; saver.current?.change(event.target.value, () => doc.toJSON() as RichTextDocument) } }} />
-    <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={disabled} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={disabled || state.status === 'conflict'} />}<button className="save-now" title="Ctrl/⌘ + Alt + Shift + S" disabled={disabled || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
+    {(state.status === 'failed' || state.status === 'conflict') && <div className="save-error" role="alert"><p>{state.message}</p><p>当前内容仍保留在编辑器中。可复制正文或导出草稿，再重新加载最新版本。</p><div className="button-row">{state.status !== 'conflict' && <button disabled={blocked} onClick={() => { void saver.current?.flush() }}>重试保存</button>}<button onClick={exportDraft}>导出未保存草稿</button><button disabled={blocked} onClick={onReload}>重新加载</button></div></div>}
+    <DraftNotice draft={draft} onRestore={value => {
+      titleRef.current = value.title; setTitle(value.title)
+      editor?.commands.setContent(value.content, { emitUpdate: false })
+      protection.change(value); saver.current?.change(value.title, value.content)
+    }} />
+    <input id="chapter-title" disabled={blocked} className="chapter-title" aria-label="章节标题" maxLength={200} value={title} placeholder="章节标题" onChange={event => { titleRef.current = event.target.value; setTitle(event.target.value); if (editor) { const doc = editor.state.doc; protection.change({ title: event.target.value, content: doc.toJSON() as RichTextDocument }); saver.current?.change(event.target.value, () => doc.toJSON() as RichTextDocument) } }} />
+    <div className="editor-tools">{editor && <FormattingToolbar editor={editor} disabled={blocked} />}{editor && <AiWriting editor={editor} chapterId={chapter.id} disabled={blocked || state.status === 'conflict'} />}<button className="save-now" title="Control + Alt/⌥ + Shift + S（Mac 也使用 Control）" disabled={blocked || !state.dirty || state.status === 'saving' || state.status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
     <DocumentBody editor={editor} />
     {children}
-    <footer className="editor-footer">{editor && <WordStatistics editor={editor} />}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
+    <footer className="editor-footer">{editor && <><WordStatistics editor={editor} /><WritingProgress editor={editor} chapterId={chapter.id} focused={focused} disabled={blocked} /></>}<span title={`SQLite · 版本 ${chapter.version}`}>自动保存至本机</span></footer>
   </section>
 })
 

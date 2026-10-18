@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { SaveState } from './autosave.js'
 
-const statusLabels = { saved: '已保存', pending: '等待保存…', saving: '保存中…', failed: '保存失败', conflict: '版本冲突 · 未保存' }
+const statusLabels = { saved: '已保存到数据库', pending: '等待保存…', saving: '保存中…', failed: '保存失败', conflict: '版本冲突 · 未保存' }
 export function ProfileControls({ state, disabled, onSave, onExport, onReload }: { state: SaveState; disabled: boolean; onSave: () => void; onExport: () => void; onReload: () => void }) {
   return <>
     <div className="profile-save-bar">

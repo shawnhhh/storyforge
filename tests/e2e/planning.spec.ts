@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { expectChapterReady, chapterBody } from './editor-helpers.js'
 const panel = (page: Page) => page.getByRole('region', { name: '创作规划', exact: true })
-const saved = (page: Page) => expect(page.locator('.planning-status')).toHaveText('已保存')
+const saved = (page: Page) => expect(page.locator('.planning-status')).toHaveText('已保存到数据库')
 async function seed(page: Page, title: string) {
   const health = await page.request.get('/api/health')
   const headers = { 'X-StoryForge-Generation': health.headers()['x-storyforge-generation'] }
@@ -132,6 +132,7 @@ test('failed network drafts restore after refresh, composition defers saves and 
   await page.reload()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: novel.title }).click()
   await page.getByRole('button', { name: '创作规划', exact: true }).click()
+  await page.getByRole('button', { name: '恢复此草稿', exact: true }).click()
   await expect(page.locator('.planning-items')).toContainText('中文组合草稿')
   await expect(page.locator('.planning-status')).toHaveText('保存失败 · 草稿已保留')
   await page.unroute('**/api/novels/*/planning')
@@ -181,6 +182,7 @@ test('temporarily empty required titles remain recoverable in local drafts', asy
   await page.reload()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: novel.title }).click()
   await page.getByRole('button', { name: '创作规划', exact: true }).click()
+  await page.getByRole('button', { name: '恢复此草稿', exact: true }).click()
   await panel(page).getByRole('button', { name: /未命名/ }).first().click()
   await expect(panel(page).getByRole('textbox', { name: '详细内容', exact: true })).toHaveValue('尚未命名但必须保留的内容')
   await panel(page).getByLabel('规划标题', { exact: true }).fill('补全标题')

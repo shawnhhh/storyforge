@@ -8,7 +8,7 @@ import { emptyPlanning } from '../../shared/contracts/planning.js'
 
 const result = (text = 'Mock 生成文字') => ({ text, usage: { inputTokens: 48, outputTokens: 9 }, finishReason: 'stop' })
 const browserErrors = new WeakMap<Page, string[]>()
-const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存')
+const saved = (page: Page) => expect(page.locator('.save-status')).toHaveText('已保存到数据库')
 async function start(page: Page, name: string) {
   await page.goto('/')
   await page.getByRole('button', { name: '新建作品', exact: true }).click()
@@ -133,7 +133,7 @@ test('errors, cancellation and closing before a late result preserve original co
   await page.keyboard.press('Escape')
   release()
   await expect(body).toHaveText('前文目标后文')
-  await expect(page.locator('.save-status')).toHaveText('已保存')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
   await expect(dialog).not.toBeVisible()
 })
 test('stale preview cannot overwrite edits made since the snapshot', async ({ page }) => {
