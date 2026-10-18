@@ -59,8 +59,8 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npx playwright install ${{ matrix.browser }}
-      - name: Verify queued revision replacement five times
-        run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue' --repeat-each=5
+      - name: Verify queued revisions and failed-save drafts five times
+        run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue|focus autosave failures retain drafts' --repeat-each=5
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       # Real Google Chrome channel and Playwright WebKit on macOS. WebKit is not

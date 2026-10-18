@@ -33,3 +33,9 @@
 - E2E 专项启动在分配本地端口时报 `listen EPERM 127.0.0.1`，没有浏览器用例执行。停止本地服务重试；没有删除断言、跳过测试或放宽超时。
 - 初次 GitHub Actions 受免费额度阻塞，在执行步骤前失败，无日志与 trace。用户随后将仓库改为 Public 并解除额度问题；[工作流 #79 第 2 次运行](https://github.com/shawnhhh/storyforge/actions/runs/39092699668/attempts/2) 已正常执行，三个平台的 lint/typecheck/build、完整单元/API、写作专项与规划/时间线/草稿专项通过，完整 E2E 在执行中。
 - 配置核对发现独立持久化草稿测试未继承 Chrome channel；已补齐该参数，使 macOS Chrome 的独立崩溃恢复测试也使用 Google Chrome，并保留自定义 executablePath。后续提交继续由完整三平台 CI 验证，最终结果记录在 Draft PR #19 和中文验收报告。WebKit 自动化不等同于手动 Safari 中文输入验收。
+
+## WebKit 专注草稿失败回归
+
+后续 `7eb4c7b` 的 macOS WebKit 写作专项出现 40 通过、1 失败。已读取[失败日志和 trace](https://github.com/shawnhhh/storyforge/actions/runs/39094433137/artifacts/12124357046)，并通过[临时诊断运行](https://github.com/shawnhhh/storyforge/actions/runs/39094916748)提取动作与 DOM 快照：`fill` 在 116473ms 开始，116488ms 快照已包含原文与新文拼接，早于 116490ms 章节切换及 116523ms Escape。失败发生在自动化替换输入阶段。
+
+该用例复用 PR #18 已采用的原生全选方式，先严格核对 DOM 与 ProseMirror 的完整选区，再通过键盘输入替换；增加输入后的完整正文断言，保留失败保存、章节阻塞、退出专注、重试和回读全部断言。macOS 两种浏览器各对失败草稿与在途队列两项用例重复五次；没有放宽超时或跳过测试。临时诊断工作流已从最终文件树移除，诊断证据仍保留在历史 Actions。
