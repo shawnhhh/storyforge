@@ -30,6 +30,12 @@
 - CI 保留完整断言及完整套件，并在 Linux Chromium、macOS Chrome、macOS WebKit 增加迁移/回收站/备份/草稿专项。未删除测试、降低断言、放宽超时或清空数据库。
 - 所有测试仅使用临时 SQLite、临时备份及 Mock AI；未读取真实数据库、备份或 `.env`，未调用付费 AI。
 
+### 首轮实际 CI 发现与修复
+
+- `a33815c` 首轮完整单元/API 为 167/168。旧测试用正常保存重用已删除 ID 来构造冲突，现被新增保护提前拒绝。保留并增强原断言：先断言正常保存被拒绝，再由测试内部直接插入模拟旧代码/手工碰撞的行，继续验证恢复冲突、内容和归档不被覆盖。修复提交 `d1f9323`；新一轮三平台完整单元/API 168/168、数据安全专项 71/71。
+- [PR 运行 39177838400](https://github.com/shawnhhh/storyforge/actions/runs/39177838400) 的 macOS Chrome 在浏览器用例启动前失败，日志为 Node v24.21.0 内置 Undici 异步 `Socket.setTypeOfService EINVAL`，没有产生浏览器 trace。启动健康轮询改用原生 `node:http` 本地请求并消费响应、保留 1 秒请求期限和原启动预算，避免 Undici 的平台 QoS 路径；没有修改业务断言或增加自动重试。
+- 后续以固定最终提交的完整 PR/push CI 结果为准；最终验收结果与 SHA 同步记录在 PR #19 描述。
+
 ## 历史诊断与遗留补丁
 
 - 删除一次性 `browser-trace-diagnostics.yml`；证据保留在 Git 历史及已完成的 Actions：[WebKit 失败产物](https://github.com/shawnhhh/storyforge/actions/runs/39094433137/artifacts/12124357046)、[trace 诊断](https://github.com/shawnhhh/storyforge/actions/runs/39094916748)、[Chrome 诊断](https://github.com/shawnhhh/storyforge/actions/runs/39095879146)。

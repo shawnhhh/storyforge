@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
+import { get } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -31,7 +32,14 @@ function launch(args: string[], env: NodeJS.ProcessEnv, inherit = false) {
 async function ready(service: ReturnType<typeof launch>, url: string) {
   for (let attempt = 0; attempt < 100; attempt++) {
     if (service.child.exitCode !== null) throw new Error(service.log())
-    try { if ((await fetch(url, { signal: AbortSignal.timeout(1000) })).ok) return } catch { /* wait for local startup */ }
+    // Use the local HTTP transport directly. Node 24.21's Undici can throw an
+    // asynchronous setTypeOfService EINVAL on macOS before a fetch is settled.
+    const available = await new Promise<boolean>(resolve => {
+      const request = get(url, response => { response.resume(); resolve(response.statusCode === 200) })
+      request.setTimeout(1000, () => { resolve(false); request.destroy() })
+      request.once('error', () => resolve(false))
+    })
+    if (available) return
     await delay(100)
   }
   throw new Error(`Test service failed to start: ${service.log()}`)
