@@ -24,7 +24,7 @@ async function measure(page: Page) {
     const documentElement = document.querySelector<HTMLElement>('.document')!, title = document.querySelector<HTMLElement>('.chapter-title')!, body = document.querySelector<HTMLElement>('.tiptap')!
     const paragraph = body.querySelector('p')!.getBoundingClientRect()
     const titleRect = title.getBoundingClientRect(), titleStyle = getComputedStyle(title)
-    return { viewport: innerWidth, paneLeft: pane.left, paneWidth: pane.width, documentLeft: documentElement.getBoundingClientRect().left, documentWidth: documentElement.getBoundingClientRect().width, bodyLeft: paragraph.left, titleTextLeft: titleRect.left + parseFloat(titleStyle.paddingLeft) + parseFloat(titleStyle.borderLeftWidth), titleWidth: titleRect.width, textWidth: body.getBoundingClientRect().width, inset: paragraph.left - pane.left, documentPadding: getComputedStyle(documentElement).paddingLeft, documentAlign: getComputedStyle(documentElement).alignSelf, horizontalOverflow: document.documentElement.scrollWidth > innerWidth }
+    return { novelNavigationHeight: document.querySelector('nav[aria-label="小说列表"]')!.getBoundingClientRect().height, viewport: innerWidth, paneLeft: pane.left, paneWidth: pane.width, documentLeft: documentElement.getBoundingClientRect().left, documentWidth: documentElement.getBoundingClientRect().width, bodyLeft: paragraph.left, titleTextLeft: titleRect.left + parseFloat(titleStyle.paddingLeft) + parseFloat(titleStyle.borderLeftWidth), titleWidth: titleRect.width, textWidth: body.getBoundingClientRect().width, inset: paragraph.left - pane.left, documentPadding: getComputedStyle(documentElement).paddingLeft, documentAlign: getComputedStyle(documentElement).alignSelf, horizontalOverflow: document.documentElement.scrollWidth > innerWidth }
   })
 }
 
@@ -48,6 +48,7 @@ for (const width of [2560, 1440, 1024, 390]) for (const layout of ['standard', '
       expect(Math.abs(after.documentLeft - (width - after.documentWidth) / 2)).toBeLessThanOrEqual(1)
       expect(after.textWidth).toBeLessThanOrEqual(754)
     } else {
+      if (width === 390) expect(after.novelNavigationHeight).toBeGreaterThanOrEqual(32)
       expect(after.inset).toBeGreaterThanOrEqual(24)
       expect(after.inset).toBeLessThanOrEqual(32)
       expect(after.documentAlign).toBe('stretch')

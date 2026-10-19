@@ -16,6 +16,8 @@
 
 一致性审阅首版 `62a4717` 已通过 [Actions 39211758962](https://github.com/shawnhhh/storyforge/actions/runs/39211758962)：Linux 单元/API 133 项、草稿恢复重复 3 项、写作回归 50 项、完整 Chromium E2E 91 项；macOS Chrome 和 WebKit 均通过重复队列及 50 项写作回归。最终包含 UI 修复的最新提交检查与逐作业统计见 PR 检查和最终交付报告，不能以首版结果替代 UI 修复验收。
 
+UI 回归曾发现两类问题并针对性修复：新测试将 innerText 的段落换行与 textContent 断言混用，现改为同一文本表示和完整 Tiptap JSON 双重严格比较；macOS WebKit 在 390px 下出现侧栏网格内容越界遮挡专注按钮，依据失败截图、trace 与指针拦截日志，现明确网格行高与滚动边界，并断言小说导航至少 32px 可用高度。没有使用强制点击或放宽断言。
+
 最终 CI 执行 Linux 静态检查、build、完整单元/API、重复恢复、写作与审阅及 UI 专项、完整 Chromium；macOS 真 Chrome 通道和 WebKit 保留重复队列测试与专项回归，并执行完整 E2E。没有删除测试、降低断言或增加超时。
 
 UI 专项覆盖 2560/1440/1024/390px、3 种布局、普通/专注，以及 AI 写作和审阅的浅色/深色/系统、实时切换。断言实际坐标、计算颜色、文字对比度、焦点轮廓、横向溢出和正文/选区/滚动/编辑器实例保持。截图与布局/主题 JSON 在每个最新 Actions run 的 artifacts 中，“before”为注明范围的历史 CSS 复现，“after”为当前实际页面。最终真实测量值见交付报告。
