@@ -1,0 +1,6 @@
+/* Previous AI writing surfaces stayed light under the global dark theme. */
+.ai-dialog{background:#fff;color:#303b49;border-color:#dce1e9}
+.ai-dialog .ai-settings{background:#fbfcfe;border-color:#dce1e9}
+.ai-dialog .ai-options :is(input[type=search],input[type=number],select,textarea){background:#fcfdff;color:#303b49;border-color:#dce1e9}
+.ai-dialog :is(.ai-preview,.ai-context){background:#f7f9fc;border-color:#dce1e9}
+.ai-dialog .ai-note{color:#657081}
