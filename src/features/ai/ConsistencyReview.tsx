@@ -80,7 +80,7 @@ function ReviewDialog({ editor, chapterId, disabled, snapshot, onClose }: { edit
       }
     } catch (reason) {
       if (!controller.signal.aborted && pending.current === controller) {
-        if (reason instanceof ApiError && [404, 409].includes(reason.status)) { setPreview(null); setConfirmed('') }
+        if (reason instanceof ApiError && [404, 409].includes(reason.status)) { setPreview(null); setConfirmed(''); setResult(null) }
         setError(reason instanceof Error && reason.name === 'TimeoutError' ? '等待审阅超时，请重新预览后重试' : reason instanceof Error ? reason.message : '审阅请求失败')
       }
     } finally {

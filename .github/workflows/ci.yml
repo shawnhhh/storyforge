@@ -22,10 +22,10 @@ jobs:
       - name: Verify isolated browser crash recovery three times
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
       - name: Focus, AI selection and dialog focus regression
-        run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review search-preferences
+        run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
       - run: npm run test:e2e -- --project=chromium
-      - name: Upload browser failure diagnostics
-        if: failure()
+      - name: Upload browser diagnostics and UI evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-${{ github.event_name }}-${{ github.run_id }}
@@ -59,7 +59,11 @@ jobs:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       # Real Google Chrome channel and Playwright WebKit on macOS. WebKit is not
       # the installed Safari app; retain the real Safari manual checklist.
-      - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review search-preferences
+      - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Complete macOS browser regression
+        run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Upload macOS browser diagnostics
