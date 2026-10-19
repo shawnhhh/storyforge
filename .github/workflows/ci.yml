@@ -17,8 +17,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test
       - run: npx playwright install --with-deps chromium
+      - name: Verify live AI theme idle and hover colors first
+        run: npm run test:e2e -- --project=chromium writing-ui.spec.ts --grep 'AI writing and review follow explicit and live system themes'
+      - run: npm test
       - name: Verify isolated browser crash recovery three times
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
       - name: Focus, AI selection and dialog focus regression
@@ -53,6 +55,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install ${{ matrix.browser }}
+      - name: Verify live AI theme idle and hover colors first
+        run: npm run test:e2e -- --project=${{ matrix.project }} writing-ui.spec.ts --grep 'AI writing and review follow explicit and live system themes'
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - run: npm test
       - name: Verify queued revision replacement five times
         run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue' --repeat-each=5
         env:

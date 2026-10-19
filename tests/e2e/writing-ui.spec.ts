@@ -97,7 +97,7 @@ async function colors(page: Page) {
     }
     return pairs.flatMap(([selector, token]) => {
       const item = selector === '.ai-dialog' ? element : element.querySelector(selector)
-      return item ? [{ selector, actual: getComputedStyle(item).backgroundColor, expected: rgb(root.getPropertyValue(token)), text: getComputedStyle(item).color, border: getComputedStyle(item).borderColor, expectedBorder: rgb(root.getPropertyValue(selector.includes('button.primary') ? '--sf-accent-hover' : '--sf-border')) }] : []
+      return item ? [{ selector, actual: getComputedStyle(item).backgroundColor, expected: rgb(root.getPropertyValue(token)), text: getComputedStyle(item).color, border: getComputedStyle(item).borderColor, expectedBorder: rgb(root.getPropertyValue(selector.includes('button.primary') ? '--sf-accent-hover' : '--sf-border')), expectedHover: rgb(root.getPropertyValue('--sf-selected')), hovered: item.matches(':hover'), focused: item.matches(':focus'), disabled: item instanceof HTMLButtonElement ? item.disabled : null, transition: getComputedStyle(item).transitionDuration }] : []
     })
   })
 }
@@ -145,14 +145,38 @@ for (const width of [1440, 390]) test(`AI writing and review follow explicit and
         await page.emulateMedia({ colorScheme: scheme })
         await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
         await expect(panel).toHaveCSS('background-color', scheme === 'dark' ? 'rgb(32, 32, 36)' : 'rgb(255, 255, 255)')
+        // The dialog changes immediately; buttons retain the global 150ms
+        // background transition. Sample the settled idle palette, with no hover.
+        const ordinaryButton = panel.locator('.button-row button:not(.primary)').first()
+        await page.mouse.move(0, 0)
+        await expect.poll(() => ordinaryButton.evaluate(element => element.matches(':hover'))).toBe(false)
+        await expect(ordinaryButton).toBeEnabled()
+        const expected = await colors(page)
+        for (const value of expected) {
+          const target = value.selector === '.ai-dialog' ? panel : panel.locator(value.selector).first()
+          await expect(target, value.selector).toHaveCSS('background-color', value.expected)
+          await expect(target, value.selector).toHaveCSS('border-color', value.expectedBorder)
+        }
         const actual = await colors(page)
         for (const value of actual) { expect(value.actual, value.selector).toBe(value.expected); expect(value.border, value.selector).toBe(value.expectedBorder); expect(contrast(value.text, value.actual), value.selector).toBeGreaterThanOrEqual(4.5) }
+        const idle = actual.find(value => value.selector === '.button-row button:not(.primary)')!
+        expect(idle.hovered).toBe(false); expect(idle.disabled).toBe(false)
+        // Test hover separately, including both ends of the real transition.
+        await ordinaryButton.hover()
+        await expect.poll(() => ordinaryButton.evaluate(element => element.matches(':hover'))).toBe(true)
+        await expect(ordinaryButton).toHaveCSS('background-color', idle.expectedHover)
+        await expect(ordinaryButton).toHaveCSS('border-color', idle.expectedBorder)
+        const hover = await ordinaryButton.evaluate(element => ({ background: getComputedStyle(element).backgroundColor, text: getComputedStyle(element).color, focused: element.matches(':focus'), disabled: (element as HTMLButtonElement).disabled, transition: getComputedStyle(element).transitionDuration }))
+        expect(contrast(hover.text, hover.background)).toBeGreaterThanOrEqual(4.5)
+        await page.mouse.move(0, 0)
+        await expect.poll(() => ordinaryButton.evaluate(element => element.matches(':hover'))).toBe(false)
+        await expect(ordinaryButton).toHaveCSS('background-color', idle.expected)
         const note = await panel.locator('.ai-note').first().evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element.closest('.ai-dialog')!).backgroundColor }))
         expect(contrast(note.foreground, note.background)).toBeGreaterThanOrEqual(4.5)
         await panel.getByLabel('搜索引用', { exact: true }).focus()
         await expect(panel.getByLabel('搜索引用', { exact: true })).toHaveCSS('outline-style', 'solid')
         await expect(panel.getByLabel('搜索引用', { exact: true })).toHaveCSS('outline-width', '2px')
-        samples.push({ review, theme, scheme, colors: actual })
+        samples.push({ review, theme, scheme, colors: actual, hover })
         await panel.evaluate(element => { element.scrollTop = 0 })
         if (!review && theme === 'dark') {
           const legacy = await page.addStyleTag({ content: beforeTheme })
