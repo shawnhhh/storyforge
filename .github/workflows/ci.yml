@@ -60,6 +60,10 @@ jobs:
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - run: npm test
+      - name: Verify isolated browser profile with the selected channel
+        run: npm run test:e2e -- --project=${{ matrix.project }} draft-recovery.spec.ts --grep 'persistent browser profile'
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Verify queued revision replacement five times
         run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue' --repeat-each=5
         env:
