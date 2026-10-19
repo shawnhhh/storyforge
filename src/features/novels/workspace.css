@@ -57,6 +57,7 @@ select{font:inherit;color:#454a54;border:1px solid #dce0e6;background:#fff;borde
   .workspace:has(.chapter-workspace):not(.focused){min-width:0;flex-direction:column}
   .workspace:has(.chapter-workspace):not(.focused) .library-pane{width:100%;max-height:150px;flex-shrink:0;padding:8px 12px;border-right:0;border-bottom:1px solid #dfe3ea;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
   .workspace:has(.chapter-workspace):not(.focused) .library-pane .brand,.workspace:has(.chapter-workspace):not(.focused) .sidebar-note,.workspace:has(.chapter-workspace):not(.focused) .library-bottom small{display:none}
+  .workspace:has(.chapter-workspace):not(.focused) :is(.dashboard-home,.library-bottom button){margin:0;padding:4px 7px;font-size:12px}
   .workspace:has(.chapter-workspace):not(.focused) .library-heading{margin:0;padding:0}
   .workspace:has(.chapter-workspace):not(.focused) .library-pane nav{display:flex;overflow-x:auto;min-width:0;grid-column:1/-1}
   .workspace:has(.chapter-workspace):not(.focused) .novel-item{width:auto;min-width:140px;padding:6px;margin:0}

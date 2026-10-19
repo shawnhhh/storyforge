@@ -85,7 +85,7 @@ async function colors(page: Page) {
   return page.locator('.ai-dialog[open]').evaluate(element => {
     const root = getComputedStyle(document.documentElement)
     const pairs = [
-      ['.ai-dialog', '--sf-surface'], ['.ai-settings', '--sf-panel'], ['select', '--sf-field'], ['input[type=number]', '--sf-field'], ['input[type=search]', '--sf-field'], ['.ai-context', '--sf-preview'], ['.ai-preview', '--sf-preview'], ['.review-finding', '--sf-panel'],
+      ['.ai-dialog', '--sf-surface'], ['.ai-settings', '--sf-panel'], ['select', '--sf-field'], ['input[type=number]', '--sf-field'], ['input[type=search]', '--sf-field'], ['textarea', '--sf-field'], ['.button-row button:not(.primary)', '--sf-field'], ['.button-row button.primary', '--sf-accent-hover'], ['.ai-context', '--sf-preview'], ['.ai-preview', '--sf-preview'], ['.review-finding', '--sf-panel'],
     ]
     const rgb = (value: string) => {
       const probe = document.createElement('span'); probe.style.color = value; document.body.append(probe)
@@ -93,7 +93,7 @@ async function colors(page: Page) {
     }
     return pairs.flatMap(([selector, token]) => {
       const item = selector === '.ai-dialog' ? element : element.querySelector(selector)
-      return item ? [{ selector, actual: getComputedStyle(item).backgroundColor, expected: rgb(root.getPropertyValue(token)), text: getComputedStyle(item).color, border: getComputedStyle(item).borderColor }] : []
+      return item ? [{ selector, actual: getComputedStyle(item).backgroundColor, expected: rgb(root.getPropertyValue(token)), text: getComputedStyle(item).color, border: getComputedStyle(item).borderColor, expectedBorder: rgb(root.getPropertyValue(selector.includes('button.primary') ? '--sf-accent-hover' : '--sf-border')) }] : []
     })
   })
 }
@@ -141,7 +141,7 @@ for (const width of [1440, 390]) test(`AI writing and review follow explicit and
         await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
         await expect(panel).toHaveCSS('background-color', scheme === 'dark' ? 'rgb(32, 32, 36)' : 'rgb(255, 255, 255)')
         const actual = await colors(page)
-        for (const value of actual) { expect(value.actual, value.selector).toBe(value.expected); expect(contrast(value.text, value.actual), value.selector).toBeGreaterThanOrEqual(4.5) }
+        for (const value of actual) { expect(value.actual, value.selector).toBe(value.expected); expect(value.border, value.selector).toBe(value.expectedBorder); expect(contrast(value.text, value.actual), value.selector).toBeGreaterThanOrEqual(4.5) }
         const note = await panel.locator('.ai-note').first().evaluate(element => ({ foreground: getComputedStyle(element).color, background: getComputedStyle(element.closest('.ai-dialog')!).backgroundColor }))
         expect(contrast(note.foreground, note.background)).toBeGreaterThanOrEqual(4.5)
         await panel.getByLabel('搜索引用', { exact: true }).focus()

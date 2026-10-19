@@ -35,7 +35,7 @@
 [data-theme=dark] .focused .editor-pane{background:#202023}
 [data-theme=dark] .focused .editor-heading,[data-theme=dark] .editor-footer{color:#b3b6c2}
 [data-theme=dark] .goal-settings{background:#28282c;color:#e5e5ea;border-color:#48484e}
-[data-theme=dark] .focused .ai-applied{background:#28282c;color:#e5e5ea;border-color:#48484e}
+.focused .ai-applied{background:var(--sf-surface);color:var(--sf-text);border-color:var(--sf-border)}
 [data-theme=dark] .focused .tiptap blockquote{color:#b8c5d8;border-color:#647998}
 [data-theme=dark] .focused .tiptap a{color:#9cbff0}
 [data-theme=dark] .save-status.saved{color:#9ac7ac}

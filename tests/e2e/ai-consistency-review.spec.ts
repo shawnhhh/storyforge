@@ -114,12 +114,17 @@ test('changed references require a fresh preview and deleted references cannot b
   await panel.getByLabel('世界观：云城规则', { exact: true }).check()
   await expect(panel.getByLabel('引用内容预览')).toBeVisible()
   await preview(panel)
+  await page.route('**/api/ai/review', route => route.fulfill({ json: result(route.request().postDataJSON().fingerprint, '基于旧引用的结果') }))
+  await panel.getByRole('button', { name: '确认并开始审阅' }).click()
+  await expect(panel.getByLabel('一致性审阅结果')).toContainText('基于旧引用的结果')
+  await page.unroute('**/api/ai/review')
   const changed = await page.request.put(`/api/novels/${novel.id}/world/${world.id}`, { headers, data: { ...world, description: '规则更新：允许飞行' } })
   expect(changed.ok()).toBe(true)
   const updated = await changed.json() as WorldEntry
   // The real isolated backend rejects stale confirmation before checking its absent key.
-  await panel.getByRole('button', { name: '确认并开始审阅' }).click()
+  await panel.getByRole('button', { name: '确认并重新审阅' }).click()
   await expect(panel.getByRole('alert')).toContainText('重新预览并确认')
+  await expect(panel.getByLabel('一致性审阅结果')).toHaveCount(0)
   await expect(panel.getByLabel('实际发送的上下文')).toHaveCount(0)
   await preview(panel)
   await expect(panel.getByLabel('实际发送的上下文')).toContainText('规则更新')

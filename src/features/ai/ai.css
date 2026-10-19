@@ -31,7 +31,7 @@
 .ai-dialog>.button-row{justify-content:flex-end;flex-wrap:wrap;margin-top:20px}
 .ai-dialog button:not(.primary),.ai-applied button{color:var(--sf-text);background:var(--sf-field);border-color:var(--sf-border)}
 .ai-dialog button:not(.primary):hover:not(:disabled),.ai-applied button:hover:not(:disabled){background:var(--sf-selected)}
-.ai-dialog button.primary{background:var(--sf-accent-hover);border-color:var(--sf-accent-hover);color:var(--sf-accent-text)}
+.ai-dialog button.primary,.ai-dialog button.primary:hover:not(:disabled){background:var(--sf-accent-hover);border-color:var(--sf-accent-hover);color:var(--sf-accent-text)}
 .ai-dialog :is(button,input,textarea,select,summary):focus-visible{outline:2px solid var(--sf-focus);outline-offset:2px}
 .review-send,.review-finding{border:1px solid var(--sf-border);border-radius:12px;padding:14px;margin:14px 0;background:var(--sf-panel)}
 .review-send>.ai-check{display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-top:16px}
