@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { defaultGeneration, type AiCatalog, type ContextSelection } from '../../../shared/contracts/ai'
@@ -33,6 +33,7 @@ function ReviewDialog({ editor, chapterId, disabled, snapshot, onClose }: { edit
   const [loading, setLoading] = useState<'preview' | 'review' | null>(null)
   const [stale, setStale] = useState(false)
   const [error, setError] = useState('')
+  const changeContext = useCallback((next: ContextSelection | undefined) => { setContext(next); setPreview(null); setConfirmed('') }, [])
   useEffect(() => {
     const element = dialog.current!
     element.showModal()
@@ -93,8 +94,8 @@ function ReviewDialog({ editor, chapterId, disabled, snapshot, onClose }: { edit
     <h2 id="review-title">AI 章节一致性审阅</h2>
     <p className="ai-note">检查人物身份、性格、关系，世界观与规则，章节逻辑与剧情衔接。只发送当前章节快照和你勾选的本作品资料。结果只读，建议需作者核实；未选择的章节与设定不会发送。</p>
     <p role="status">{!catalog ? '正在读取模型目录…' : !model?.configured ? '未配置 AI API Key。请在本地服务端配置后重启；仍可预览上下文，其他功能可正常使用。' : '模型已就绪 · 预览不会调用模型或消耗 AI 预算'}</p>
-    <ModelCenter catalog={catalog} modelId={model?.id ?? ''} parameters={effectiveParameters} disabled={!!loading} onModel={setModelId} onParameters={setParameters} />
-    <ContextPicker chapterId={chapterId} disabled={!!loading} onChange={setContext} />
+    <ModelCenter catalog={catalog} modelId={model?.id ?? ''} parameters={effectiveParameters} disabled={!!loading} onModel={next => { setModelId(next); setPreview(null); setConfirmed('') }} onParameters={next => { setParameters(next); setPreview(null); setConfirmed('') }} />
+    <ContextPicker chapterId={chapterId} disabled={!!loading} onChange={changeContext} />
     <p className="ai-note">当前章节 {snapshot.text.length}/{reviewChapterLimit} 字符，完整发送，不自动截断。其他章节仅在逐项勾选后发送；截断资料无法代表完整背景。</p>
     {!snapshot.text.trim() && <p role="alert">当前章节为空，请先填写正文。</p>}
     {snapshot.text.length > reviewChapterLimit && <p role="alert">章节过长，无法完整审阅；不会自动截断正文。</p>}
@@ -113,7 +114,7 @@ function ReviewDialog({ editor, chapterId, disabled, snapshot, onClose }: { edit
     {loading && <p role="status">{loading === 'preview' ? '正在核对上下文…' : '正在审阅… 取消或失败仍计入保守预算，模型服务可能继续计费。'}</p>}
     {result && <section aria-label="一致性审阅结果" className="review-results">
       <h3>只读审阅结果</h3>
-      {(stale || result.key !== key || (ready && result.data.fingerprint !== ready.fingerprint)) && <p role="alert">这份旧结果基于先前的正文或引用，不能代表当前内容。</p>}
+      {(stale || result.key !== key || !ready || result.data.fingerprint !== ready.fingerprint) && <p role="alert">这份旧结果基于先前的正文或引用，不能代表当前内容。</p>}
       <p className="ai-note">引用校验仅确认原文存在，不证明模型判断正确。所有结论均需作者核实；审阅范围仅限已发送内容。</p>
       {(['conflict', 'suggestion'] as const).map(certainty => <section key={certainty} aria-label={certainty === 'conflict' ? '有引用依据的疑似冲突' : '不确定建议'}>
         <h4>{certainty === 'conflict' ? '有引用依据的疑似冲突' : '不确定建议'}</h4>

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import type { Editor } from '@tiptap/core'
 import { expectChapterReady } from './editor-helpers.js'
 import { preferencesKey, defaultPreferences } from '../../src/features/preferences/model.js'
 
@@ -71,7 +72,9 @@ for (const width of [2560, 1440, 1024, 390]) for (const layout of ['standard', '
     expect(await page.locator('.document').evaluate(element => element.scrollTop)).toBe(scroll)
     expect(await body.evaluate((element, previous) => element === previous, original)).toBe(true)
   }
-  await test.info().attach('layout-measurements.json', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' })
+  const measurements = test.info().outputPath('layout-measurements.json')
+  writeFileSync(measurements, JSON.stringify(samples, null, 2))
+  await test.info().attach('layout-measurements.json', { path: measurements, contentType: 'application/json' })
   expect(browserErrors).toEqual([])
 })
 
@@ -108,7 +111,8 @@ function contrast(foreground: string, background: string) {
 
 for (const width of [1440, 390]) test(`AI writing and review follow explicit and live system themes with computed colors ${width}`, async ({ page, context }) => {
   await page.setViewportSize({ width, height: 1000 }); await page.emulateMedia({ colorScheme: 'light' })
-  const body = await start(page), originalText = await body.innerText()
+  const body = await start(page), originalText = await body.textContent()
+  const originalDocument = await body.evaluate(element => (element as HTMLElement & { editor: Editor }).editor.getJSON())
   await mockModels(page)
   let calls = 0, writes = 0
   page.on('request', request => { if (request.method() === 'PUT' && /\/api\/chapters\//.test(request.url())) writes++ })
@@ -148,6 +152,7 @@ for (const width of [1440, 390]) test(`AI writing and review follow explicit and
         await expect(panel.getByLabel('搜索引用', { exact: true })).toHaveCSS('outline-style', 'solid')
         await expect(panel.getByLabel('搜索引用', { exact: true })).toHaveCSS('outline-width', '2px')
         samples.push({ review, theme, scheme, colors: actual })
+        await panel.evaluate(element => { element.scrollTop = 0 })
         if (!review && theme === 'dark') {
           const legacy = await page.addStyleTag({ content: beforeTheme })
           await expect(panel).toHaveCSS('background-color', 'rgb(255, 255, 255)')
@@ -155,11 +160,17 @@ for (const width of [1440, 390]) test(`AI writing and review follow explicit and
           await legacy.evaluate(element => element.parentNode?.removeChild(element))
         }
         await panel.screenshot({ path: test.info().outputPath(`${review ? 'review' : 'writing'}-${theme}-${scheme}-after.png`) })
+        await panel.locator(review ? '.review-results' : 'section[aria-label="AI 结果预览"]').scrollIntoViewIfNeeded()
+        await panel.screenshot({ path: test.info().outputPath(`${review ? 'review' : 'writing'}-${theme}-${scheme}-result-after.png`) })
       }
     }
     await page.keyboard.press('Escape')
   }
-  expect(calls).toBe(2); expect(writes).toBe(0); await expect(body).toHaveText(originalText)
+  expect(calls).toBe(2); expect(writes).toBe(0)
+  expect(await body.textContent()).toBe(originalText)
+  expect(await body.evaluate(element => (element as HTMLElement & { editor: Editor }).editor.getJSON())).toEqual(originalDocument)
   await settings.close()
-  await test.info().attach('theme-measurements.json', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' })
+  const measurements = test.info().outputPath('theme-measurements.json')
+  writeFileSync(measurements, JSON.stringify(samples, null, 2))
+  await test.info().attach('theme-measurements.json', { path: measurements, contentType: 'application/json' })
 })
