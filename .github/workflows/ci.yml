@@ -19,7 +19,7 @@ jobs:
       - run: npm run build
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
-        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts
+        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
       - run: npx playwright install --with-deps chromium
       - name: Verify isolated browser crash recovery three times
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
@@ -61,7 +61,7 @@ jobs:
       - run: npm run build
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
-        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts
+        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
       - run: npx playwright install ${{ matrix.browser }}
       - name: Verify queued revisions and failed-save drafts five times
         run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue|focus autosave failures retain drafts' --repeat-each=5

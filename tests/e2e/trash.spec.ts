@@ -26,6 +26,26 @@ async function restore(page: Page, name: string) {
   await row(page, name).getByRole('button', { name: '恢复', exact: true }).click()
 }
 
+test('trash: obsolete legacy IDs without trustworthy deletion history stay paused and exportable', async ({ page, request }) => {
+  const f = await seed(request), snapshot = { ...emptyPlanning(), novelId: f.novel.id, version: 1 }
+  snapshot.plotlines.push({ id: 'unknown-old-id', title: '旧版本已丢失删除历史的虚构规划', kind: 'main', content: '不可静默复活，也不可丢失的旧正文' })
+  await page.goto('/')
+  await page.evaluate(value => localStorage.setItem(`storyforge:planning:draft:${value.novelId}`, JSON.stringify({ snapshot: value, generation: 'older-v5-service' })), snapshot)
+  await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: new RegExp(f.novel.title) }).click()
+  await page.getByRole('button', { name: '创作规划', exact: true }).click()
+  await expect(page.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()
+  let writes = 0
+  page.on('request', req => { if (req.method() === 'PUT' && req.url().endsWith('/planning')) writes++ })
+  await page.getByRole('button', { name: '恢复此草稿', exact: true }).click()
+  await expect(page.locator('.draft-protection')).toContainText('数据库中不存在的规划')
+  await expect(page.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()
+  expect((await (await request.get(`/api/novels/${f.novel.id}/planning`)).json()).plotlines).toEqual([])
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出此草稿', exact: true }).click()
+  const source = JSON.parse(readFileSync((await (await download).path())!, 'utf8'))
+  expect(source.value.plotlines[0]).toEqual(snapshot.plotlines[0]); expect(writes).toBe(0)
+})
+
 test('trash: a legacy protected planning draft cannot recreate a purged event and remains exportable', async ({ page, request }) => {
   const f = await seed(request), root = `/api/novels/${f.novel.id}/planning`, data = emptyPlanning()
   data.cards.push({ id: 'purged-event', title: '已永久删除的虚构事件', content: '旧草稿正文必须仍能导出', summary: '', status: 'planned', plotlineId: null, storyTime: '元年', timeOrder: 1, chapterIds: [f.chapter.id], characterIds: [], worldIds: [] })
@@ -36,8 +56,11 @@ test('trash: a legacy protected planning draft cannot recreate a purged event an
   const entry = archives.find(row => row.novelId === f.novel.id && row.kind === 'planning')!
   expect(entry).toBeTruthy()
   expect((await request.delete(`/api/trash/${entry.id}`, { headers: f.headers, data: { confirmed: true, name: entry.name } })).ok()).toBeTruthy()
+  // Simulate an older client rebasing the deleted record onto the latest version:
+  // even when its local metadata passes recovery checks, the server must reject it.
+  const rebased = { ...saved, version: (await (await request.get(root)).json()).version }
   await page.goto('/')
-  await page.evaluate(({ snapshot, generation }) => localStorage.setItem(`storyforge:planning:draft:${snapshot.novelId}`, JSON.stringify({ snapshot, generation })), { snapshot: saved, generation: f.headers['X-StoryForge-Generation'] })
+  await page.evaluate(({ snapshot, generation }) => localStorage.setItem(`storyforge:planning:draft:${snapshot.novelId}`, JSON.stringify({ snapshot, generation })), { snapshot: rebased, generation: f.headers['X-StoryForge-Generation'] })
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: new RegExp(f.novel.title) }).click()
   await page.getByRole('button', { name: '创作规划', exact: true }).click()
   await expect(page.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()

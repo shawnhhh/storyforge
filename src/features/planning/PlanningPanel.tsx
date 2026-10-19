@@ -14,6 +14,8 @@ import type { StoryBible } from '../../../shared/contracts/story-bible'
 import type { KnowledgeSnapshot } from '../../../shared/contracts/knowledge'
 import type { OpenMaterial } from '../story-bible/KnowledgeLinks'
 import { StoryTimeline } from './StoryTimeline'
+import { assertPlanningRecovery } from './recovery'
+import { serviceGeneration } from '../../shared/api/client'
 import type { SearchHit } from '../../../shared/contracts/search'
 
 type Section = 'outlines' | 'plotlines' | 'cards' | 'foreshadows'
@@ -133,7 +135,7 @@ function PlanningEditor({ initial, chapters, onBack, onReload, onDirty, initialS
   const reminderCount = snapshot.foreshadows.filter(row => row.status !== 'resolved' && row.plannedChapterIds.length > 0).length
   return <section className="planning-panel" aria-label="创作规划" onCompositionStart={() => saver.current?.composition(true)} onCompositionEnd={() => saver.current?.composition(false)}>
     <div className="planning-top"><button disabled={status !== 'saved'} onClick={onBack}>返回写作</button><h2>剧情大纲与故事时间线</h2><span role="status" className={`planning-status ${status}`}>{statusLabels[status]}</span><button onClick={() => downloadDraft(snapshot)}>导出规划草稿</button><button disabled={status === 'saving' || status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
-    <DraftNotice draft={draft} onRestore={value => { validatePlanning(value, true); change({ ...value, novelId: initial.novelId, version: snapshot.version }) }} />
+    <DraftNotice draft={draft} onRestore={(value, source) => { validatePlanning(value, true); assertPlanningRecovery(snapshot, source, serviceGeneration()); change({ ...value, novelId: initial.novelId, version: snapshot.version }) }} />
     {(error || storageError) && <div className="planning-error" role="alert">{error || storageError}{status === 'failed' && <button onClick={() => { void saver.current?.flush() }}>重试保存规划</button>}</div>}
     <button className="planning-reload" disabled={status === 'saving'} onClick={() => { if (dirty.current && !window.confirm('重新加载将放弃本机规划草稿。请先导出草稿，确认继续？')) return; void protection.discardWorking().then(() => { onDirty(false); onReload() }).catch(() => setStorageError('无法清除本机草稿，请检查浏览器存储设置。')) }}>重新加载规划</button>
     <fieldset className="draft-editing-scope" disabled={draft.blocked}>
