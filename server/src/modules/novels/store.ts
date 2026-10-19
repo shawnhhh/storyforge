@@ -1,3 +1,4 @@
+import { archiveRemoved, snapshot } from '../trash/store.js'
 import { countDocument } from '../../../../shared/domain/word-count.js'
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -66,7 +67,7 @@ export class NovelStore {
     })
   }
   remove(id: string, expected: number) {
-    this.transaction(() => { this.check(this.novel(id).version, expected); this.db.prepare('DELETE FROM novels WHERE id=? AND version=?').run(id, expected) })
+    this.transaction(() => { const novel = this.novel(id); this.check(novel.version, expected); const before = snapshot(this.db, id); this.db.prepare('DELETE FROM novels WHERE id=? AND version=?').run(id, expected); archiveRemoved(this.db, before, id, 'novel', novel.title) })
   }
   createChapter(novelId: string, expected: number, title: string): ChapterResult {
     return this.transaction(() => {
@@ -96,7 +97,10 @@ export class NovelStore {
       const chapter = this.chapter(id)
       this.check(chapter.version, expected)
       this.check(this.novel(chapter.novelId).version, expectedNovel)
+      const before = snapshot(this.db, chapter.novelId, ['planning_chapter_links', 'knowledge_links'])
+      before.chapters = [this.db.prepare('SELECT * FROM chapters WHERE id=?').get(id)!]
       this.db.prepare('DELETE FROM chapters WHERE id=? AND version=?').run(id, expected)
+      archiveRemoved(this.db, before, chapter.novelId, 'chapter', chapter.title)
       this.db.prepare('UPDATE chapters SET position=position-1 WHERE novel_id=? AND position>?').run(chapter.novelId, chapter.position)
       this.touch(chapter.novelId)
       return this.detail(chapter.novelId)

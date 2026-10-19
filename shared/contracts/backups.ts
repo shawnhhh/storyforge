@@ -4,7 +4,7 @@ export interface BackupEntry {
   size: number
   sha256: string
   schemaVersion: number
-  planningVersion?: 1
+  planningVersion?: 1 | 2
   kind: 'manual' | 'automatic' | 'before-restore'
 }
 export interface BackupSettings { enabled: boolean; retention: number }
