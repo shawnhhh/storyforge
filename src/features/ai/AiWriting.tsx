@@ -8,6 +8,7 @@ import { aiTransaction, captureAiSnapshot, type AiSnapshot } from './editor'
 import { ContextPicker } from './ContextPicker'
 import { ModelCenter } from './ModelCenter'
 import { ResultComparison } from './ResultComparison'
+import { ConsistencyReview } from './ConsistencyReview'
 import './ai.css'
 
 interface Session { snapshot: AiSnapshot; scroll: number }
@@ -20,6 +21,7 @@ export function AiWriting({ editor, chapterId, disabled }: { editor: Editor; cha
     return () => { editor.off('update', changed) }
   }, [editor])
   return <>
+    <ConsistencyReview key={chapterId} editor={editor} chapterId={chapterId} disabled={disabled} />
     <button disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => {
       if (editor.view.composing) return
       setSession({ snapshot: captureAiSnapshot(editor.state), scroll: editor.view.dom.closest('.document')?.scrollTop ?? 0 })
