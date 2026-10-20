@@ -10,7 +10,10 @@ import './ai-planning.css'
 
 export function AiPlanning({ novelId, chapters, disabled, autoFocus, onSaved, onClose }: { novelId: string; chapters: ChapterSummary[]; disabled: boolean; autoFocus: boolean; onSaved: () => void; onClose: () => void }) {
   const [opener, setOpener] = useState<HTMLElement | null>(null)
-  return <><button autoFocus={autoFocus} disabled={disabled} onClick={event => setOpener(event.currentTarget)}>AI 世界观与大纲</button>{opener && <PlanningDialog novelId={novelId} chapters={chapters} opener={opener} onClose={() => { setOpener(null); onClose() }} onSaved={onSaved} />}</>
+  const trigger = useRef<HTMLButtonElement>(null)
+  const restored = useRef(false)
+  useEffect(() => { if (autoFocus && !disabled && !restored.current) { trigger.current?.focus({ preventScroll: true }); restored.current = true } }, [autoFocus, disabled])
+  return <><button ref={trigger} disabled={disabled} onClick={event => setOpener(event.currentTarget)}>AI 世界观与大纲</button>{opener && <PlanningDialog novelId={novelId} chapters={chapters} opener={opener} onClose={() => { setOpener(null); onClose() }} onSaved={onSaved} />}</>
 }
 function PlanningDialog({ novelId, chapters, opener, onClose, onSaved }: { novelId: string; chapters: ChapterSummary[]; opener: HTMLElement; onClose: () => void; onSaved: () => void }) {
   const [catalog, setCatalog] = useState<AiCatalog | null>(null)
@@ -82,7 +85,7 @@ function PlanningDialog({ novelId, chapters, opener, onClose, onSaved }: { novel
       if (alive.current) void request<AiCatalog>('/ai/models').then(value => { if (alive.current) setCatalog(value) }).catch(() => {})
     }
   }
-  return <LocalDialog title="AI 世界观与大纲" className="ai-planning-dialog" returnFocusTo={opener} onClose={close}>
+  return <LocalDialog title="AI 世界观与大纲" className="ai-planning-dialog ap-dialog" returnFocusTo={opener} onClose={close}>
     <p className="ap-note">一次生成一项设定或大纲。先核对发送内容，再编辑结果并确认新增。已有小说、正文和资料保持原样。</p>
     <ModelCenter catalog={catalog} modelId={model?.id ?? ''} parameters={effectiveParameters} disabled={!!busy || !!result} onModel={setModelId} onParameters={setParameters} />
     <fieldset disabled={!!busy || !!result} className="ap-options">
