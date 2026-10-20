@@ -5,7 +5,8 @@ const browserName = process.env.E2E_BROWSER
 if (browserName && browserName !== 'chromium' && browserName !== 'webkit') throw new Error('E2E_BROWSER must be chromium or webkit')
 export default defineConfig({
   testDir: '.',
-  testMatch: '*.spec.ts',
+  testMatch: process.env.E2E_PLANNING_MOCK ? 'ai-planning.spec.ts' : '*.spec.ts',
+  testIgnore: process.env.E2E_PLANNING_MOCK ? [] : ['ai-planning.spec.ts'],
   workers: 1,
   timeout: 45000,
   // Preserve the draft suite's global budget and strict individual deadlines.
