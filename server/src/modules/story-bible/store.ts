@@ -41,7 +41,7 @@ export class StoryBibleStore {
   character(novelId: string, id: string): Character {
     const row = this.row('characters', novelId, id)
     return { id: String(row.id), novelId, name: String(row.name), category: String(row.category), tags: JSON.parse(String(row.tags)), fields: JSON.parse(String(row.fields)), version: Number(row.version), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
-      relations: this.db.prepare('SELECT target_id AS targetId,kind FROM character_relations WHERE novel_id=? AND source_id=? ORDER BY target_id,kind').all(novelId, id) as Character['relations'],
+      relations: this.db.prepare('SELECT target_id AS targetId,kind FROM character_relations WHERE novel_id=? AND source_id=? ORDER BY target_id,kind').all(novelId, id).map(relation => ({ targetId: String(relation.targetId), kind: String(relation.kind) })),
       worldIds: this.db.prepare('SELECT world_id FROM character_world_links WHERE novel_id=? AND character_id=? ORDER BY world_id').all(novelId, id).map(link => String(link.world_id)) }
   }
   world(novelId: string, id: string): WorldEntry {

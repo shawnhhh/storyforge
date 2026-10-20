@@ -51,6 +51,14 @@
 
 本轮原始日志集中在 `work/ai-v2/`；性能 JSON 位于 `work/ai-planning-performance.json`，失败诊断有 `work/ai-planning-performance-last-measurement.json`。最终 CI job 原始日志继续保存到 work/，PR 描述补充通过/失败/未执行数量和链接。
 
+## 首轮 CI 暴露问题与修复
+
+首轮提交 `985eb9a` 的 [PR CI 39417397964](https://github.com/shawnhhh/storyforge/actions/runs/39417397964) 已通过 lint、完整 typecheck、build 及原性能预算；单元/API 为 156/157，失败的是原人物 CRUD 的严格 DTO 相等断言。按 ID 回读返回 SQLite 无原型关系行，而原 list 返回普通对象；现按原接口逐项映射关系，原断言不变，本地定向回归通过。
+
+Firefox 与 WebKit 新规划专项各 14/16 通过；人物编辑因文本域缺少显式可访问名称，精确的“身份”定位失败，现与既有 CharacterEditor 一致添加 aria-label，保留原精确匹配与字段保存断言。小说变更夹具误用 PUT，现按现有契约改为 PATCH，仍检查状态、失效、409 与原数据完整。首轮失败导致后续完整浏览器步骤未运行，不能记为通过；最终以修复后 CI 为准。
+
+首轮 Linux 大样本实测：基线 p95 100.45 ms、引用预览 p95 75.51 ms、有效性 p95 99.01 ms、RSS 增量 89.79 MiB，三类新增分别 79.52/80.83/485.91 ms，性能预算全部通过。原始 JSON 在该 CI 的 performance artifact，job 日志保留于 work/ai-v2/ci-118609642735.log、ci-118609643153.log 和 ci-118609643290.log。
+
 ## 剩余风险
 
 - 原生 Safari/iPhone 输入法、触摸、下载和辅助功能焦点需要真实设备人工验收；自动化不能替代。

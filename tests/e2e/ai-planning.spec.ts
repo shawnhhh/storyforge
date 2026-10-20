@@ -127,7 +127,7 @@ for (const change of ['novel', 'character', 'world', 'chapter', 'planning', 'mod
   let changed
   if (change === 'novel') {
     const detail = await (await page.request.get(`/api/novels/${f.novel.id}`)).json()
-    changed = await page.request.put(`/api/novels/${f.novel.id}`, { headers: f.headers, data: { ...detail.novel, title: '另一窗口的小说标题' } })
+    changed = await page.request.patch(`/api/novels/${f.novel.id}`, { headers: f.headers, data: { ...detail.novel, title: '另一窗口的小说标题' } })
   } else if (change === 'character') changed = await page.request.put(`/api/novels/${f.novel.id}/characters/${person.id}`, { headers: f.headers, data: { ...person, fields: { ...person.fields, identity: '另一窗口的人物身份' } } })
   else if (change === 'world') changed = await page.request.put(`/api/novels/${f.novel.id}/world/${world.id}`, { headers: f.headers, data: { ...world, description: '另一窗口的世界观' } })
   else if (change === 'chapter') changed = await page.request.put(`/api/chapters/${f.chapter.id}`, { headers: f.headers, data: { ...f.chapter, title: '另一窗口的章节标题' } })
