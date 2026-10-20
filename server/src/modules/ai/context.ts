@@ -23,20 +23,16 @@ function clip(value: string, max: number) {
 }
 export class AiContext {
   constructor(private novels: NovelStore, private bible: StoryBibleStore, private planning: PlanningStore) {}
-  private records(novelId: string) {
-    this.novels.novel(novelId)
-    return { profiles: this.bible.list(novelId), plan: this.planning.read(novelId) }
-  }
   choices(chapterId: string): ContextChoice[] {
     const chapter = this.novels.chapter(chapterId)
     return this.choicesNovel(chapter.novelId).filter(row => row.kind !== 'chapter' || row.id !== chapterId)
   }
   choicesNovel(novelId: string): ContextChoice[] {
-    const { profiles, plan } = this.records(novelId)
+    const profiles = this.bible.summaries(novelId), plan = this.planning.summaries(novelId)
     return [
       ...profiles.characters.map(c => ({ kind: 'character' as const, id: c.id, label: c.name })),
       ...profiles.world.map(w => ({ kind: 'world' as const, id: w.id, label: w.name })),
-      ...(['outlines', 'plotlines', 'cards', 'foreshadows'] as const).flatMap((key, i) => plan[key].map(item => ({ kind: (['outline', 'plotline', 'card', 'foreshadow'] as const)[i], id: item.id, label: item.title }))),
+      ...plan.map(item => ({ kind: ({ outlines: 'outline', plotlines: 'plotline', cards: 'card', foreshadows: 'foreshadow' } as const)[item.kind], id: item.id, label: item.title })),
       ...this.novels.detail(novelId).chapters.map(c => ({ kind: 'chapter' as const, id: c.id, label: c.title })),
     ]
   }
@@ -45,17 +41,15 @@ export class AiContext {
     return this.previewNovel(chapter.novelId, selection, chapterId)
   }
   previewNovel(novelId: string, selection: ContextSelection, chapterId?: string): ContextPreview {
-    const { profiles, plan } = this.records(novelId)
+    this.novels.novel(novelId)
     const versions: (string | number)[] = []
     const records = selection.references.map(ref => {
       let label: string, text: string, version: number
       if (ref.kind === 'character') {
-        const row = profiles.characters.find(c => c.id === ref.id)
-        if (!row) throw new HttpError(404, '引用人物不存在或不属于本小说')
+        const row = this.bible.character(novelId, ref.id)
         label = row.name; text = JSON.stringify({ category: row.category, tags: row.tags, fields: row.fields, relations: row.relations }); version = row.version
       } else if (ref.kind === 'world') {
-        const row = profiles.world.find(w => w.id === ref.id)
-        if (!row) throw new HttpError(404, '引用世界观不存在或不属于本小说')
+        const row = this.bible.world(novelId, ref.id)
         label = row.name; text = `${row.description}\n${row.timeText}`; version = row.version
       } else if (ref.kind === 'chapter') {
         const row = this.novels.chapter(ref.id)
@@ -63,9 +57,8 @@ export class AiContext {
         label = row.title; text = renderRichText(row.content, false); version = row.version
       } else {
         const key = { outline: 'outlines', plotline: 'plotlines', card: 'cards', foreshadow: 'foreshadows' }[ref.kind] as 'outlines' | 'plotlines' | 'cards' | 'foreshadows'
-        const row = plan[key].find(item => item.id === ref.id)
-        if (!row) throw new HttpError(404, '引用规划不存在或不属于本小说')
-        label = row.title; text = JSON.stringify(row); version = plan.version
+        const selected = this.planning.readRecord(novelId, key, ref.id)
+        label = selected.record.title; text = JSON.stringify(selected.record); version = selected.version
       }
       versions.push(ref.id, version)
       return { ...ref, label, text }

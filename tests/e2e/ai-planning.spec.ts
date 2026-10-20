@@ -1,3 +1,6 @@
+import { generatedCharacter } from '../fixtures/ai-planning.js'
+import { newCharacter, newWorld } from '../../src/features/story-bible/model.js'
+import type { PlanningGenerationResult } from '../../shared/contracts/ai-planning.js'
 import { expect, test, type Page } from '@playwright/test'
 import { defaultPreferences, preferencesKey } from '../../src/features/preferences/model.js'
 import { emptyPlanning } from '../../shared/contracts/planning.js'
@@ -28,7 +31,7 @@ async function generate(page: Page, kind = 'world', instructions = '生成一项
   await expect(modal.getByLabel('预览标题')).toHaveValue('AI 虚构预览')
 }
 const errors = new WeakMap<Page, string[]>()
-test.beforeEach(({ page }) => { const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message)) })
+test.beforeEach(async ({ page }) => { const reset = await page.request.post('/api/__test/control', { data: { action: 'reset' } }); expect(reset.ok()).toBeTruthy(); const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message)) })
 test.afterEach(({ page }) => { expect(errors.get(page)).toEqual([]) })
 for (const kind of ['world', 'character', 'volume', 'chapter']) test(`${kind}: real preview/edit/confirm/save appends without touching original chapters or outlines`, async ({ page }) => {
   const f = await seed(page)
@@ -49,6 +52,7 @@ for (const kind of ['world', 'character', 'volume', 'chapter']) test(`${kind}: r
   expect(notSaved.outlines).toEqual(f.plan.outlines)
   await modal.getByLabel('预览标题').fill('用户确认的设定')
   await modal.getByLabel('预览内容').fill('人工修订后的完整内容🌕')
+  if (kind === 'character') { await modal.getByLabel('身份', { exact: true }).fill('用户确认的档案管理员'); await modal.getByLabel('人物目标', { exact: true }).fill('用户确认的寻人目标'); await expect(modal.getByLabel('性格', { exact: true })).toHaveValue(generatedCharacter.fields.personality) }
   await modal.getByRole('button', { name: '确认新增保存', exact: true }).click()
   await expect(modal.getByRole('button', { name: '已保存', exact: true })).toBeDisabled()
   const plan = await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json()
@@ -60,6 +64,7 @@ for (const kind of ['world', 'character', 'volume', 'chapter']) test(`${kind}: r
     const saved = kind === 'world' ? bible.world[0] : bible.characters[0]
     expect(saved.name).toBe('用户确认的设定')
     expect(kind === 'world' ? saved.description : saved.fields.notes).toBe('人工修订后的完整内容🌕')
+    if (kind === 'character') { expect(saved.fields).toEqual({ ...generatedCharacter.fields, identity: '用户确认的档案管理员', goals: '用户确认的寻人目标', notes: '人工修订后的完整内容🌕' }); expect(saved.category).toBe('主角'); expect(saved.tags).toEqual(generatedCharacter.tags) }
   }
   expect(await (await page.request.get(`/api/chapters/${f.chapter.id}`)).json()).toEqual(before)
   await modal.getByRole('button', { name: '关闭AI 世界观与大纲' }).click()
@@ -79,11 +84,14 @@ test('cancel and provider error keep original data, stale saves preserve exporta
   await modal.getByRole('button', { name: '核对发送内容', exact: true }).click()
   await modal.getByRole('button', { name: '确认发送并生成', exact: true }).click()
   await expect(modal.getByRole('alert')).toContainText('模拟模型服务暂时不可用')
+  const generatedResponse = page.waitForResponse(response => response.url().endsWith('/api/ai/planning/generate') && response.status() === 200)
   await generate(page)
+  const generated = await (await generatedResponse).json() as PlanningGenerationResult
   const plan = await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json()
   const response = await page.request.put(`/api/novels/${f.novel.id}/planning`, { headers: f.headers, data: { ...plan, outlines: plan.outlines.map((row: { id: string }) => row.id === 'overall' ? { ...row, title: '另一窗口更新' } : row) } }); expect(response.ok()).toBeTruthy()
-  await modal.getByRole('button', { name: '确认新增保存', exact: true }).click()
   await expect(modal.getByRole('alert')).toContainText('已变化')
+  await expect(modal.getByRole('button', { name: '确认新增保存', exact: true })).toBeDisabled()
+  const stale = await page.request.post('/api/ai/planning/save', { headers: f.headers, data: { previewId: generated.previewId, proposal: generated.proposal, confirmed: true } }); expect(stale.status()).toBe(409)
   await expect(modal.getByLabel('预览内容')).toHaveValue(/浮空岛/)
   const download = page.waitForEvent('download')
   await modal.getByRole('button', { name: '导出预览', exact: true }).click()
@@ -105,4 +113,88 @@ test('light, dark and system themes update dialog and narrow view without overfl
   await expect(modal).toBeVisible()
   expect(await modal.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
   await modal.getByRole('button', { name: '关闭AI 世界观与大纲' }).click()
+})
+for (const change of ['novel', 'character', 'world', 'chapter', 'planning', 'model']) test(`${change} changes invalidate the preview, disable saving and reject direct stale submits`, async ({ page }) => {
+  const f = await seed(page)
+  const personResponse = await page.request.post(`/api/novels/${f.novel.id}/characters`, { headers: f.headers, data: { ...newCharacter(), name: '原有人物' } }); expect(personResponse.ok()).toBeTruthy()
+  const person = await personResponse.json()
+  const worldResponse = await page.request.post(`/api/novels/${f.novel.id}/world`, { headers: f.headers, data: { ...newWorld(), name: '原有世界' } }); expect(worldResponse.ok()).toBeTruthy()
+  const world = await worldResponse.json()
+  await open(page, f.novel.title)
+  const generatedResponse = page.waitForResponse(response => response.url().endsWith('/api/ai/planning/generate') && response.status() === 200)
+  await generate(page)
+  const generated = await (await generatedResponse).json() as PlanningGenerationResult
+  let changed
+  if (change === 'novel') {
+    const detail = await (await page.request.get(`/api/novels/${f.novel.id}`)).json()
+    changed = await page.request.put(`/api/novels/${f.novel.id}`, { headers: f.headers, data: { ...detail.novel, title: '另一窗口的小说标题' } })
+  } else if (change === 'character') changed = await page.request.put(`/api/novels/${f.novel.id}/characters/${person.id}`, { headers: f.headers, data: { ...person, fields: { ...person.fields, identity: '另一窗口的人物身份' } } })
+  else if (change === 'world') changed = await page.request.put(`/api/novels/${f.novel.id}/world/${world.id}`, { headers: f.headers, data: { ...world, description: '另一窗口的世界观' } })
+  else if (change === 'chapter') changed = await page.request.put(`/api/chapters/${f.chapter.id}`, { headers: f.headers, data: { ...f.chapter, title: '另一窗口的章节标题' } })
+  else if (change === 'planning') {
+    const plan = await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json()
+    changed = await page.request.put(`/api/novels/${f.novel.id}/planning`, { headers: f.headers, data: { ...plan, outlines: plan.outlines.map((row: { id: string }) => row.id === 'overall' ? { ...row, title: '另一窗口总纲' } : row) } })
+  } else changed = await page.request.post('/api/__test/control', { data: { action: 'rotate-model' } })
+  expect(changed.ok()).toBeTruthy()
+  const before = { bible: await (await page.request.get(`/api/novels/${f.novel.id}/story-bible`)).json(), plan: await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json() }
+  const modal = dialog(page)
+  await expect(modal.getByTestId('planning-validity')).toContainText('失效')
+  await expect(modal.getByRole('button', { name: '确认新增保存', exact: true })).toBeDisabled()
+  const response = await page.request.post('/api/ai/planning/save', { headers: f.headers, data: { previewId: generated.previewId, proposal: generated.proposal, confirmed: true } })
+  expect(response.status()).toBe(409)
+  await expect(modal.getByLabel('预览内容')).toHaveValue(generated.proposal.content)
+  expect({ bible: await (await page.request.get(`/api/novels/${f.novel.id}/story-bible`)).json(), plan: await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json() }).toEqual(before)
+})
+for (const fault of ['timeout', 'budget']) test(`${fault}: failure keeps original data and offers retry without an accepted result`, async ({ page }) => {
+  const f = await seed(page)
+  const control = await page.request.post('/api/__test/control', { data: { action: fault } }); expect(control.ok()).toBeTruthy()
+  await open(page, f.novel.title)
+  const modal = dialog(page)
+  await modal.getByLabel('创作要求').fill(fault === 'timeout' ? 'mock-slow' : '生成一项虚构设定')
+  await modal.getByRole('button', { name: '核对发送内容', exact: true }).click()
+  const response = page.waitForResponse(response => response.url().endsWith('/api/ai/planning/generate'))
+  await modal.getByRole('button', { name: '确认发送并生成', exact: true }).click()
+  expect((await response).status()).toBe(fault === 'timeout' ? 504 : 429)
+  await expect(modal.getByRole('alert')).toContainText(fault === 'timeout' ? '超时' : '预算')
+  await expect(modal.getByRole('button', { name: '确认新增保存' })).toHaveCount(0)
+  await expect(modal.getByRole('button', { name: '确认发送并生成' })).toBeEnabled()
+  expect((await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json()).outlines).toEqual(f.plan.outlines)
+})
+test('lost save response retries the exact preview without duplicating characters or overwriting originals', async ({ page }) => {
+  const f = await seed(page)
+  await open(page, f.novel.title); await generate(page, 'character')
+  const modal = dialog(page)
+  let first = true
+  await page.route('**/api/ai/planning/save', async route => {
+    if (!first) { await route.continue(); return }
+    first = false
+    const saved = await route.fetch(); expect(saved.status()).toBe(200)
+    await route.abort('failed')
+  })
+  await modal.getByRole('button', { name: '确认新增保存', exact: true }).click()
+  await expect(modal.getByRole('alert')).toBeVisible()
+  await modal.getByRole('button', { name: '确认新增保存', exact: true }).click()
+  await expect(modal.getByRole('button', { name: '已保存', exact: true })).toBeDisabled()
+  const bible = await (await page.request.get(`/api/novels/${f.novel.id}/story-bible`)).json()
+  expect(bible.characters).toHaveLength(1)
+  expect(bible.characters[0].fields.identity).toBe(generatedCharacter.fields.identity)
+  expect((await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json()).outlines).toEqual(f.plan.outlines)
+})
+test('large source catalog renders at most 100 rows and preserves selections across search and pages', async ({ page }) => {
+  const f = await seed(page)
+  const populated = await page.request.post('/api/__test/control', { data: { action: 'large', novelId: f.novel.id } }); expect(populated.ok()).toBeTruthy()
+  const start = Date.now()
+  await open(page, f.novel.title)
+  const modal = dialog(page)
+  await modal.getByText('按需引用已保存资料', { exact: false }).click()
+  await expect(modal.locator('.ap-sources input[type=checkbox]')).toHaveCount(100)
+  await modal.getByLabel('搜索引用资料').fill('大库人物01999')
+  await expect(modal.locator('.ap-sources input[type=checkbox]')).toHaveCount(1)
+  await modal.getByLabel('人物：大库人物01999', { exact: true }).check()
+  await modal.getByLabel('搜索引用资料').fill('')
+  await modal.getByRole('button', { name: '下一页资料' }).click()
+  await expect(modal.locator('.ap-sources input[type=checkbox]')).toHaveCount(100)
+  await modal.getByLabel('搜索引用资料').fill('大库人物01999')
+  await expect(modal.getByLabel('人物：大库人物01999', { exact: true })).toBeChecked()
+  console.info('AI_PLANNING_BROWSER_LARGE ' + JSON.stringify({ browser: test.info().project.name, characters: 2000, maxRenderedSources: 100, workflowMs: Date.now() - start }))
 })

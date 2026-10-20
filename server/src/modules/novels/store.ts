@@ -1,5 +1,5 @@
 import { countDocument } from '../../../../shared/domain/word-count.js'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { Chapter, ChapterResult, ChapterSummary, Novel, NovelDetail, RichTextDocument } from '../../../../shared/contracts/novels.js'
 
@@ -25,6 +25,11 @@ export class NovelStore {
     const row = this.db.prepare(`SELECT ${novelColumns} FROM novels WHERE id = ?`).get(id)
     if (!row) throw new HttpError(404, '小说不存在，可能已在另一个窗口删除')
     return row as unknown as Novel
+  }
+  revision(id: string) {
+    const novel = this.novel(id), digest = createHash('sha256')
+    for (const row of this.db.prepare('SELECT id,version,position FROM chapters WHERE novel_id=? ORDER BY id').iterate(id)) digest.update(JSON.stringify([row.id, row.version, row.position]))
+    return { novel, chapters: digest.digest('hex') }
   }
   chapter(id: string): Chapter {
     const row = this.db.prepare(`SELECT ${chapterColumns} FROM chapters WHERE id = ?`).get(id)

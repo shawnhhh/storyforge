@@ -30,9 +30,10 @@ export function validateAiInput(value: unknown): AiInput {
 export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: StoryBibleStore, dependencies: AiDependencies = {}) {
   const router = Router()
   let active = 0
+  const planningRequests = new Set<string>()
   let ledger: AiBudget | undefined
   const contexts = new AiContext(novels, bible, planning)
-  const proposals = new AiPlanning(novels, planning, bible, contexts, dependencies.clock)
+  const proposals = new AiPlanning(novels, planning, bible, contexts, dependencies.clock, () => ({ models: models(), policy: budget().policy }))
   const models = () => {
     try {
       if (dependencies.models) return dependencies.models()
@@ -86,6 +87,7 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
     if (result) res.json(result)
   })
   router.get('/ai/novels/:id/context', (req, res) => { res.json(contexts.choicesNovel(req.params.id)) })
+  router.get('/ai/novels/:id/planning-targets', (req, res) => { res.json(planning.summaries(req.params.id).filter(row => row.kind === 'outlines').map(row => ({ id: row.id, kind: row.outlineKind, title: row.title }))) })
   router.post('/ai/planning/preview', (req, res) => {
     const input = proposals.validate(req.body)
     res.json(proposals.preview(input, planningModel(input.modelId)))
@@ -94,15 +96,20 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
     const input = proposals.validate(req.body), model = planningModel(input.modelId)
     const preview = proposals.preview(input, model)
     if (req.body.fingerprint !== preview.fingerprint) throw new HttpError(409, '发送内容、资料或设置已变化，请重新核对请求预览')
-    const baseline = proposals.baseline(input)
-    const story = JSON.stringify({ request: input.instructions, selectedSources: preview.context.text })
-    const result = await generate(preview.input, story, model, preview.input.parameters!, res)
-    if (!result) return
-    if (proposals.baseline(input) !== baseline) throw new HttpError(409, '生成期间资料已变化，请重新生成；原稿未修改')
-    if (result.finishReason === 'length') throw new HttpError(502, 'AI 结果达到输出上限，无法保存不完整内容；请增加上限或缩短要求')
-    const proposal = parseProposal(result.text)
-    res.json({ ...result, proposal, ...proposals.retain(input, baseline) })
+    if (planningRequests.has(preview.fingerprint)) throw new HttpError(409, '相同生成请求正在处理中，请等待当前请求或先取消')
+    planningRequests.add(preview.fingerprint)
+    try {
+      const baseline = proposals.baseline(input)
+      const story = JSON.stringify({ request: input.instructions, selectedSources: preview.context.text })
+      const result = await generate(preview.input, story, model, preview.input.parameters!, res)
+      if (!result) return
+      if (proposals.baseline(input) !== baseline) throw new HttpError(409, '生成期间资料已变化，请重新生成；原稿未修改')
+      if (result.finishReason === 'length') throw new HttpError(502, 'AI 结果达到输出上限，无法保存不完整内容；请增加上限或缩短要求')
+      const proposal = parseProposal(result.text, input.kind)
+      res.json({ ...result, proposal, ...proposals.retain(input, baseline) })
+    } finally { planningRequests.delete(preview.fingerprint) }
   })
+  router.post('/ai/planning/check', (req, res) => { res.json(proposals.check(req.body?.previewId)) })
   router.post('/ai/planning/save', (req, res) => { res.json(proposals.save(req.body)) })
   function planningModel(id: string) {
     const model = models().find(item => item.id === id)
