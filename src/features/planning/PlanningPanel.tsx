@@ -1,3 +1,4 @@
+import { AiPlanning } from '../ai/AiPlanning'
 import { validatePlanning } from '../../../shared/domain/planning'
 import { useEffect, useRef, useState } from 'react'
 import { cardStatuses, foreshadowStatuses, outlineKinds, type PlanningSnapshot, type Outline, type PlotCard, type Plotline, type Foreshadow } from '../../../shared/contracts/planning'
@@ -20,6 +21,7 @@ export function PlanningPanel({ novelId, chapters, onBack, onDirty, initialSelec
   const [loaded, setLoaded] = useState<{ snapshot: PlanningSnapshot } | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [focusAi, setFocusAi] = useState(false)
   useEffect(() => {
     let active = true
     planningApi.read(novelId).then(async snapshot => {
@@ -33,9 +35,9 @@ export function PlanningPanel({ novelId, chapters, onBack, onDirty, initialSelec
     return () => { active = false }
   }, [novelId, attempt])
   if (!loaded) return <section className="planning-panel"><button onClick={onBack}>返回写作</button>{error ? <div role="alert">{error}<button onClick={() => { void (async () => { try { const drafts = await readLocalDrafts<PlanningSnapshot>(`planning:${novelId}`); if (drafts.length) { for (const draft of drafts) downloadDraft(draft.value) } else { const legacy = readDraft(novelId); if (legacy) downloadDraft(legacy.snapshot); else setError('此作品没有本机草稿') } } catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取本机草稿') } })() }}>导出本机规划草稿</button><button onClick={() => { setError(''); setAttempt(value => value + 1) }}>重试加载</button></div> : <p role="status">正在加载创作规划…</p>}</section>
-  return <PlanningEditor key={`${novelId}:${attempt}`} initial={loaded.snapshot} initialSelection={initialSelection} chapters={chapters} onBack={onBack} onDirty={onDirty} onReload={() => { setLoaded(null); setAttempt(value => value + 1) }} />
+  return <PlanningEditor key={`${novelId}:${attempt}`} initial={loaded.snapshot} focusAi={focusAi} initialSelection={initialSelection} chapters={chapters} onBack={onBack} onDirty={onDirty} onReload={focus => { setFocusAi(!!focus); setLoaded(null); setAttempt(value => value + 1) }} />
 }
-function PlanningEditor({ initial, chapters, onBack, onReload, onDirty, initialSelection }: { initialSelection?: SearchHit | null; initial: PlanningSnapshot; chapters: ChapterSummary[]; onBack: () => void; onReload: () => void; onDirty: (dirty: boolean) => void }) {
+function PlanningEditor({ initial, focusAi, chapters, onBack, onReload, onDirty, initialSelection }: { initialSelection?: SearchHit | null; initial: PlanningSnapshot; focusAi: boolean; chapters: ChapterSummary[]; onBack: () => void; onReload: (focusAi?: boolean) => void; onDirty: (dirty: boolean) => void }) {
   const draft = useDraftProtection(`planning:${initial.novelId}`, initial)
   const { protection } = draft
   const [snapshot, setSnapshot] = useState(initial)
@@ -50,6 +52,7 @@ function PlanningEditor({ initial, chapters, onBack, onReload, onDirty, initialS
   const [unresolved, setUnresolved] = useState(false)
   const [view, setView] = useState('cards')
   const [timeline, setTimeline] = useState(false)
+  const aiSaved = useRef(false)
   const saver = useRef<PlanningAutosave | null>(null)
   const dirty = useRef(false)
   useEffect(() => {
@@ -110,6 +113,7 @@ function PlanningEditor({ initial, chapters, onBack, onReload, onDirty, initialS
   const reminderCount = snapshot.foreshadows.filter(row => row.status !== 'resolved' && row.plannedChapterIds.length > 0).length
   return <section className="planning-panel" aria-label="创作规划" onCompositionStart={() => saver.current?.composition(true)} onCompositionEnd={() => saver.current?.composition(false)}>
     <div className="planning-top"><button disabled={status !== 'saved'} onClick={onBack}>返回写作</button><h2>大纲与剧情规划</h2><span role="status" className={`planning-status ${status}`}>{statusLabels[status]}</span><button onClick={() => downloadDraft(snapshot)}>导出规划草稿</button><button disabled={status === 'saving' || status === 'conflict'} onClick={() => { void saver.current?.flush() }}>立即保存</button></div>
+    <AiPlanning autoFocus={focusAi} novelId={initial.novelId} chapters={chapters} disabled={status !== 'saved' || draft.blocked} onSaved={() => { aiSaved.current = true }} onClose={() => { if (aiSaved.current) { aiSaved.current = false; onReload(true) } }} />
     <DraftNotice draft={draft} onRestore={value => { validatePlanning(value, true); change({ ...value, novelId: initial.novelId, version: snapshot.version }) }} />
     {(error || storageError) && <div className="planning-error" role="alert">{error || storageError}{status === 'failed' && <button onClick={() => { void saver.current?.flush() }}>重试保存规划</button>}</div>}
     <button className="planning-reload" disabled={status === 'saving'} onClick={() => { if (dirty.current && !window.confirm('重新加载将放弃本机规划草稿。请先导出草稿，确认继续？')) return; void protection.discardWorking().then(() => { onDirty(false); onReload() }).catch(() => setStorageError('无法清除本机草稿，请检查浏览器存储设置。')) }}>重新加载规划</button>

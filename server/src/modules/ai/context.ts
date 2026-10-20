@@ -23,22 +23,29 @@ function clip(value: string, max: number) {
 }
 export class AiContext {
   constructor(private novels: NovelStore, private bible: StoryBibleStore, private planning: PlanningStore) {}
-  private records(chapterId: string) {
-    const chapter = this.novels.chapter(chapterId)
-    const profiles = this.bible.list(chapter.novelId), plan = this.planning.read(chapter.novelId)
-    return { chapter, profiles, plan }
+  private records(novelId: string) {
+    this.novels.novel(novelId)
+    return { profiles: this.bible.list(novelId), plan: this.planning.read(novelId) }
   }
   choices(chapterId: string): ContextChoice[] {
-    const { chapter, profiles, plan } = this.records(chapterId)
+    const chapter = this.novels.chapter(chapterId)
+    return this.choicesNovel(chapter.novelId).filter(row => row.kind !== 'chapter' || row.id !== chapterId)
+  }
+  choicesNovel(novelId: string): ContextChoice[] {
+    const { profiles, plan } = this.records(novelId)
     return [
       ...profiles.characters.map(c => ({ kind: 'character' as const, id: c.id, label: c.name })),
       ...profiles.world.map(w => ({ kind: 'world' as const, id: w.id, label: w.name })),
       ...(['outlines', 'plotlines', 'cards', 'foreshadows'] as const).flatMap((key, i) => plan[key].map(item => ({ kind: (['outline', 'plotline', 'card', 'foreshadow'] as const)[i], id: item.id, label: item.title }))),
-      ...this.novels.detail(chapter.novelId).chapters.filter(c => c.id !== chapter.id).map(c => ({ kind: 'chapter' as const, id: c.id, label: c.title })),
+      ...this.novels.detail(novelId).chapters.map(c => ({ kind: 'chapter' as const, id: c.id, label: c.title })),
     ]
   }
   preview(chapterId: string, selection: ContextSelection): ContextPreview {
-    const { chapter, profiles, plan } = this.records(chapterId)
+    const chapter = this.novels.chapter(chapterId)
+    return this.previewNovel(chapter.novelId, selection, chapterId)
+  }
+  previewNovel(novelId: string, selection: ContextSelection, chapterId?: string): ContextPreview {
+    const { profiles, plan } = this.records(novelId)
     const versions: (string | number)[] = []
     const records = selection.references.map(ref => {
       let label: string, text: string, version: number
@@ -52,7 +59,7 @@ export class AiContext {
         label = row.name; text = `${row.description}\n${row.timeText}`; version = row.version
       } else if (ref.kind === 'chapter') {
         const row = this.novels.chapter(ref.id)
-        if (row.novelId !== chapter.novelId || row.id === chapter.id) throw new HttpError(400, '只能引用本小说其他章节')
+        if (row.novelId !== novelId || row.id === chapterId) throw new HttpError(400, '只能引用本小说其他章节')
         label = row.title; text = renderRichText(row.content, false); version = row.version
       } else {
         const key = { outline: 'outlines', plotline: 'plotlines', card: 'cards', foreshadow: 'foreshadows' }[ref.kind] as 'outlines' | 'plotlines' | 'cards' | 'foreshadows'
@@ -74,7 +81,7 @@ export class AiContext {
       return { kind: row.kind, id: row.id, label: row.label, characters: text.length, originalCharacters: row.text.length, truncated: text.length < row.text.length }
     })
     const text = pieces.join('')
-    const fingerprint = createHash('sha256').update(JSON.stringify({ chapterId, versions, text, selection: { references: selection.references, maxCharacters: selection.maxCharacters } })).digest('hex')
+    const fingerprint = createHash('sha256').update(JSON.stringify({ novelId, chapterId, versions, text, selection: { references: selection.references, maxCharacters: selection.maxCharacters } })).digest('hex')
     return { text, fingerprint, characters: text.length, sources }
   }
 }
