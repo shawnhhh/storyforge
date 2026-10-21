@@ -67,6 +67,12 @@ Firefox 与 WebKit 新规划专项各 14/16 通过；人物编辑因文本域缺
 
 失败清理时另有 route.continue 已处理错误：释放保存闸门后原 unroute 不等待在途处理；现用 Playwright unrouteAll({behavior:'wait'}) 等待已释放的真实请求处理完成，避免错误遮蔽主断言。两次原始 Firefox 失败日志保留在 `work/ai-v2/ci-118611268632.log` 与 `ci-118611239128.log`；本修复的最终验收仍以新提交 CI 为准。
 
+## Firefox 完整套件的组合输入夹具修复
+
+提交 `a2e0bd8` 的 [PR CI 39572455580](https://github.com/shawnhhh/storyforge/actions/runs/39572455580) 已通过 157 项单元/API、四个平台各 16 项 AI 专项和 41 项写作回归，Chromium、macOS Chrome/WebKit 的完整套件各 82/82。首次跑完的 Firefox 完整套件为 80/82：规划标题和人物姓名的组合输入期间各观察到一次写入，原零写入断言失败。日志 `work/ai-v2/ci-119129743717.log` 及该 CI 的 Firefox screenshot/trace artifact 保留。
+
+这两例原先在 compositionstart 后使用 Playwright fill；fill 使用浏览器编辑命令，可能自行提交组合输入，不能保证仍处于 IME 中间态。本轮仅修正测试夹具：先聚焦，再由原生 value setter、compositionupdate 与 isComposing=true 的 InputEvent 发送中间态，仍让 React 的真实 onChange、原自动保存队列及真实 HTTP 工作。原 850/900ms 等待、组合期间零写入、组合结束后一次写入、草稿恢复、数据库文本及作品隔离断言全部保留；没有修改生产输入法处理。另在 React 根之外的临时输入框记录旧 fill 方法的事件序列，供三个引擎对照诊断。最终根因和修复验收以新提交的事件日志及完整 CI 为准，不能据此宣称真实中文输入法已通过。
+
 ## 剩余风险
 
 - 原生 Safari/iPhone 输入法、触摸、下载和辅助功能焦点需要真实设备人工验收；自动化不能替代。

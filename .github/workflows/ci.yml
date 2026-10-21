@@ -29,6 +29,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - run: npx playwright install --with-deps chromium
+      - name: IME form-control regression
+        run: npm run test:e2e -- --project=chromium planning story-bible --grep composition
       - name: Verify isolated browser crash recovery three times
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
       - name: Focus, AI selection and dialog focus regression
@@ -65,6 +67,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install ${{ matrix.browser }}
+      - name: IME form-control regression
+        run: npm run test:e2e -- --project=${{ matrix.project }} planning story-bible --grep composition
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: AI planning full-stack Mock E2E
         run: npm run test:e2e -- --mock-planning --project=${{ matrix.project }}
         env:
@@ -102,6 +108,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps firefox
+      - name: IME form-control regression (Firefox)
+        run: npm run test:e2e -- --project=firefox planning story-bible --grep composition
       - name: AI planning full-stack Mock E2E (Firefox)
         run: npm run test:e2e -- --mock-planning --project=firefox
       - name: Writing regression (Firefox)

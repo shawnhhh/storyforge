@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { characterFields } from '../../shared/contracts/story-bible.js'
+import { updateComposition } from './composition-helpers.js'
 
 async function novel(page: Page, name: string) {
   await page.goto('/')
@@ -190,13 +191,14 @@ test('Chinese composition pauses browser autosave and saves the committed text a
   await expect(name).toBeEditable()
   let writes = 0
   page.on('request', request => { if (request.method() === 'PUT' && /\/characters\//.test(request.url())) writes++ })
+  await name.focus()
   await name.dispatchEvent('compositionstart', { data: '' })
-  await name.fill('lin')
+  await updateComposition(name, 'lin')
   // Intentionally span the 700ms debounce: no intermediate IME text may write.
   await page.waitForTimeout(900)
   expect(writes).toBe(0)
   await expect(page.locator('.profile-save-status')).toHaveText('等待保存…')
-  await name.fill('林月🌕')
+  await updateComposition(name, '林月🌕')
   await name.dispatchEvent('compositionend', { data: '林月🌕' })
   await saved(page)
   expect(writes).toBe(1)
