@@ -73,6 +73,14 @@ Firefox 与 WebKit 新规划专项各 14/16 通过；人物编辑因文本域缺
 
 这两例原先在 compositionstart 后使用 Playwright fill；fill 使用浏览器编辑命令，可能自行提交组合输入，不能保证仍处于 IME 中间态。本轮仅修正测试夹具：先聚焦，再由原生 value setter、compositionupdate 与 isComposing=true 的 InputEvent 发送中间态，仍让 React 的真实 onChange、原自动保存队列及真实 HTTP 工作。原 850/900ms 等待、组合期间零写入、组合结束后一次写入、草稿恢复、数据库文本及作品隔离断言全部保留；没有修改生产输入法处理。另在 React 根之外的临时输入框记录旧 fill 方法的事件序列，供三个引擎对照诊断。最终根因和修复验收以新提交的事件日志及完整 CI 为准，不能据此宣称真实中文输入法已通过。
 
+## 同提交双 CI 暴露的富文本填值问题
+
+`182b347` 的 Firefox 最终完整套件 82/82，通过两项输入法定向回归。该提交原生事件诊断确认：Firefox 的 fill 在手工 compositionstart 后又触发 trusted compositionstart/update、beforeinput(isComposing=true)、trusted compositionend、input(isComposing=false)；Chromium/WebKit 没有额外 compositionend。因此前述两项旧输入法模拟确实被 fill 提前提交，修正中间态夹具有明确事件证据，不是放宽保存断言。原始日志 `work/ai-v2/ci-119137780705.log` 保留。
+
+提交 `182b347` 的 PR CI 在 macOS Chrome 完整套件 82/82 通过，但同提交 push CI 为 81/82。失败的原专注写作保存失败用例收到“原正文+新草稿”，而原断言要求全文只含新草稿。原日志 `work/ai-v2/ci-119137759732.log` 和 [截图/trace](https://github.com/shawnhhh/storyforge/actions/runs/39574865240/artifacts/12334197931) 保留，不能只引用 PR 通过结果隐去该失败。
+
+该用例现在先等待专注布局及编辑器焦点，再用真实的 Control/Command+A 快捷键选择全文，并同时断言 ProseMirror 模型选区和浏览器 DOM 选区均为原完整正文，随后用真实键盘插入新草稿并立即断言全文。原保存失败、章节阻止跳转、退出后草稿、重试及再次切章回读断言全部保留，没有缩短预期文本、放宽相等检查或增加超时。此改动避免依赖 Playwright fill 的 DOM 选区与富文本选区观察器之间的时序；不能仅凭历史一次失败断言产品输入有确定缺陷。macOS Chrome/WebKit 将同时把队列和本保存失败用例各重复5次，再执行41项写作和82项完整回归。
+
 ## 剩余风险
 
 - 原生 Safari/iPhone 输入法、触摸、下载和辅助功能焦点需要真实设备人工验收；自动化不能替代。
