@@ -213,8 +213,20 @@ test('timer starts in focus, pauses manually/on exit/when hidden, resumes and re
 test('focus autosave failures retain drafts and block chapter switch until a successful retry', async ({ page }) => {
   const { body } = await start(page)
   await page.getByRole('button', { name: '专注写作', exact: true }).click()
+  await expect(page.locator('.workspace')).toHaveClass(/focused/)
+  await expect(body).toBeFocused()
   await page.route('**/api/chapters/*', route => route.request().method() === 'PUT' ? route.fulfill({ status: 503, json: { message: '隔离测试保存失败' } }) : route.continue())
-  await body.fill('专注模式不能丢失的草稿')
+  // Use the editor's real Select All shortcut: fill() selects a DOM range, which
+  // can race ProseMirror's selection observer before the browser inserts text.
+  await body.press('ControlOrMeta+A')
+  await expect.poll(() => body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor
+    const { from, to } = editor.state.selection
+    const selection = window.getSelection()
+    return { selected: editor.state.doc.textBetween(from, to), dom: selection?.rangeCount ? selection.getRangeAt(0).cloneContents().textContent : null }
+  })).toEqual({ selected: '风起云涌 Hello 2026', dom: '风起云涌 Hello 2026' })
+  await page.keyboard.insertText('专注模式不能丢失的草稿')
+  await expect(body).toHaveText('专注模式不能丢失的草稿')
   await body.press('ControlOrMeta+Alt+Shift+ArrowDown')
   await expect(page.locator('.save-status')).toHaveText('保存失败')
   await expect(page.getByRole('textbox', { name: '章节标题' })).toHaveValue('专注第一章')

@@ -1,4 +1,5 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
+import { AiPlanning, parseProposal } from './planning.js'
 import { aiActions, aiLimits, type AiInput, type AiPolicy } from '../../../../shared/contracts/ai.js'
 import { HttpError, type NovelStore } from '../novels/store.js'
 import type { PlanningStore } from '../planning/store.js'
@@ -29,8 +30,10 @@ export function validateAiInput(value: unknown): AiInput {
 export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: StoryBibleStore, dependencies: AiDependencies = {}) {
   const router = Router()
   let active = 0
+  const planningRequests = new Set<string>()
   let ledger: AiBudget | undefined
   const contexts = new AiContext(novels, bible, planning)
+  const proposals = new AiPlanning(novels, planning, bible, contexts, dependencies.clock, () => ({ models: models(), policy: budget().policy }))
   const models = () => {
     try {
       if (dependencies.models) return dependencies.models()
@@ -61,7 +64,6 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
     if (!model) throw new HttpError(input.modelId ? 400 : 503, input.modelId ? '模型不存在，请重新打开模型配置中心' : '未配置 AI API Key，请配置本地服务端并重启')
     if (!model.apiKey) throw new HttpError(503, '所选模型未配置 API Key，请在本地服务端配置')
     const parameters = generationParameters(input.parameters, model)
-    const config = { ...model, parameters }
     if (active >= 2) throw new HttpError(429, '本地 AI 请求正在处理中，请稍后重试')
     const chapter = novels.chapter(input.chapterId)
     let story = ''
@@ -81,6 +83,43 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
         outlines: outlines.map(o => `${o.title}: ${o.content}`).join('\n').slice(0, 1600),
       }).slice(0, aiLimits.story)
     }
+    const result = await generate(input, story, model, parameters, res)
+    if (result) res.json(result)
+  })
+  router.get('/ai/novels/:id/context', (req, res) => { res.json(contexts.choicesNovel(req.params.id)) })
+  router.get('/ai/novels/:id/planning-targets', (req, res) => { res.json(planning.summaries(req.params.id).filter(row => row.kind === 'outlines').map(row => ({ id: row.id, kind: row.outlineKind, title: row.title }))) })
+  router.post('/ai/planning/preview', (req, res) => {
+    const input = proposals.validate(req.body)
+    res.json(proposals.preview(input, planningModel(input.modelId)))
+  })
+  router.post('/ai/planning/generate', async (req, res) => {
+    const input = proposals.validate(req.body), model = planningModel(input.modelId)
+    const preview = proposals.preview(input, model)
+    if (req.body.fingerprint !== preview.fingerprint) throw new HttpError(409, '发送内容、资料或设置已变化，请重新核对请求预览')
+    if (planningRequests.has(preview.fingerprint)) throw new HttpError(409, '相同生成请求正在处理中，请等待当前请求或先取消')
+    planningRequests.add(preview.fingerprint)
+    try {
+      const baseline = proposals.baseline(input)
+      const story = JSON.stringify({ request: input.instructions, selectedSources: preview.context.text })
+      const result = await generate(preview.input, story, model, preview.input.parameters!, res)
+      if (!result) return
+      if (proposals.baseline(input) !== baseline) throw new HttpError(409, '生成期间资料已变化，请重新生成；原稿未修改')
+      if (result.finishReason === 'length') throw new HttpError(502, 'AI 结果达到输出上限，无法保存不完整内容；请增加上限或缩短要求')
+      const proposal = parseProposal(result.text, input.kind)
+      res.json({ ...result, proposal, ...proposals.retain(input, baseline) })
+    } finally { planningRequests.delete(preview.fingerprint) }
+  })
+  router.post('/ai/planning/check', (req, res) => { res.json(proposals.check(req.body?.previewId)) })
+  router.post('/ai/planning/save', (req, res) => { res.json(proposals.save(req.body)) })
+  function planningModel(id: string) {
+    const model = models().find(item => item.id === id)
+    if (!model) throw new HttpError(400, '模型不存在，请重新打开模型配置中心')
+    if (!model.apiKey) throw new HttpError(503, '所选模型未配置 API Key，请在本地服务端配置')
+    return model
+  }
+  async function generate(input: AiInput, story: string, model: AiModel, parameters: ReturnType<typeof generationParameters>, res: Response) {
+    const config = { ...model, parameters }
+    if (active >= 2) throw new HttpError(429, '本地 AI 请求正在处理中，请稍后重试')
     const estimate = estimateRequest(buildMessages(input, story), parameters, model)
     budget().reserve(estimate)
     const controller = new AbortController()
@@ -91,15 +130,16 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
     active++
     try {
       const provider = (dependencies.provider ?? (settings => new OpenAiProvider(settings)))(config)
-      const result = await provider.generate(input, story, controller.signal)
+      const result = await Promise.race([provider.generate(input, story, controller.signal), new Promise<never>((_resolve, reject) => { controller.signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true }) })])
       if (timedOut) throw new HttpError(504, 'AI 请求超时，请重试或缩短上下文')
-      if (!controller.signal.aborted) res.json({ ...result, modelId: model.id, estimate })
+      if (!controller.signal.aborted) return { ...result, modelId: model.id, estimate }
     } catch (error) {
       if (timedOut) throw new HttpError(504, 'AI 请求超时，请重试或缩短上下文')
       if (controller.signal.aborted) return
       if (error instanceof HttpError) throw error
       throw new HttpError(502, 'AI 服务请求失败，请稍后重试')
     } finally { clearTimeout(timeout); res.off('close', disconnect); active-- }
-  })
+  }
+
   return router
 }
