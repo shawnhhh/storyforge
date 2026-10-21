@@ -59,6 +59,14 @@ Firefox 与 WebKit 新规划专项各 14/16 通过；人物编辑因文本域缺
 
 首轮 Linux 大样本实测：基线 p95 100.45 ms、引用预览 p95 75.51 ms、有效性 p95 99.01 ms、RSS 增量 89.79 MiB，三类新增分别 79.52/80.83/485.91 ms，性能预算全部通过。原始 JSON 在该 CI 的 performance artifact，job 日志保留于 work/ai-v2/ci-118609642735.log、ci-118609643153.log 和 ci-118609643290.log。
 
+## Firefox 写作回归的输入与清理修复
+
+提交 `3f87727` 的 [PR CI 39417890459](https://github.com/shawnhhh/storyforge/actions/runs/39417890459) 中，Linux 的 lint/typecheck/build、157 项单元/API、Chromium 全套及 macOS Chrome/WebKit 全套通过，三个引擎的 AI 规划专项均 16/16。Firefox 写作回归为 40/41，后续完整 Firefox 套件因该失败未运行。
+
+失败发生在原主动阅读滚动用例：单次合成 wheel(-1800) 在 Firefox 只移动约 296 px，未达到原 500 px 门槛；应用没有自定义 wheel 处理。现将同样 -1800 总输入拆成 6 次 -300 的滚轮动作，每次必须观察到实际上移，并附各次视口测量。原“至少离开光标 500 px”、保存前后视口/选区/焦点完全相等，以及继续输入后跟随光标 500 px 的断言全部保留。未通过调整产品滚动行为、阈值、跳过浏览器或删除测试来绕过失败。
+
+失败清理时另有 route.continue 已处理错误：释放保存闸门后原 unroute 不等待在途处理；现用 Playwright unrouteAll({behavior:'wait'}) 等待已释放的真实请求处理完成，避免错误遮蔽主断言。两次原始 Firefox 失败日志保留在 `work/ai-v2/ci-118611268632.log` 与 `ci-118611239128.log`；本修复的最终验收仍以新提交 CI 为准。
+
 ## 剩余风险
 
 - 原生 Safari/iPhone 输入法、触摸、下载和辅助功能焦点需要真实设备人工验收；自动化不能替代。
