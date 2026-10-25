@@ -131,7 +131,7 @@ test('changed references require a fresh preview and deleted references cannot b
   await expect(panel.getByLabel('实际发送的上下文')).toHaveCount(0)
   await preview(panel)
   await expect(panel.getByLabel('实际发送的上下文')).toContainText('规则更新')
-  expect((await page.request.delete(`/api/novels/${novel.id}/world/${world.id}`, { headers, data: { version: updated.version } })).ok()).toBe(true)
+  expect((await page.request.delete(`/api/novels/${novel.id}/world/${world.id}`, { headers, data: { version: updated.version, confirmed: true } })).ok()).toBe(true)
   await panel.getByRole('button', { name: '确认并开始审阅' }).click()
   await expect(panel.getByRole('alert')).toContainText('引用世界观不存在')
   await expect(panel.getByRole('button', { name: '确认并开始审阅' })).toBeDisabled()

@@ -4,6 +4,7 @@ import type { PlanningGenerationResult } from '../../shared/contracts/ai-plannin
 import { expect, test, type Page } from '@playwright/test'
 import { defaultPreferences, preferencesKey } from '../../src/features/preferences/model.js'
 import { emptyPlanning } from '../../shared/contracts/planning.js'
+import { expectChapterReady } from './editor-helpers.js'
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'AI 世界观与大纲', exact: true })
 async function seed(page: Page) {
   const health = await page.request.get('/api/health'), headers = { 'X-StoryForge-Generation': health.headers()['x-storyforge-generation'] }
@@ -33,6 +34,50 @@ async function generate(page: Page, kind = 'world', instructions = '生成一项
 const errors = new WeakMap<Page, string[]>()
 test.beforeEach(async ({ page }) => { const reset = await page.request.post('/api/__test/control', { data: { action: 'reset' } }); expect(reset.ok()).toBeTruthy(); const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message)) })
 test.afterEach(({ page }) => { expect(errors.get(page)).toEqual([]) })
+test('integrated generated world feeds exact review citations while chapter autosave stays independent', async ({ page }) => {
+  const f = await seed(page)
+  await open(page, f.novel.title)
+  await generate(page)
+  const modal = dialog(page)
+  await modal.getByLabel('预览标题').fill('集成飞行规则')
+  await modal.getByLabel('预览内容').fill('浮空岛允许飞行。必须遵守航线。')
+  await modal.getByRole('button', { name: '确认新增保存', exact: true }).click()
+  await expect(modal.getByRole('button', { name: '已保存', exact: true })).toBeDisabled()
+  await modal.getByRole('button', { name: '关闭AI 世界观与大纲' }).click()
+  await expect(page.getByRole('button', { name: 'AI 世界观与大纲', exact: true })).toBeFocused()
+  await page.getByRole('button', { name: '返回写作', exact: true }).click()
+  const body = await expectChapterReady(page, '原有章节')
+  await body.fill('浮空岛禁止飞行。中文正文🌕')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
+  const before = await (await page.request.get(`/api/chapters/${f.chapter.id}`)).json()
+  const node = await body.elementHandle()
+  let chapterWrites = 0
+  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith(`/api/chapters/${f.chapter.id}`)) chapterWrites++ })
+  await page.getByRole('button', { name: '一致性审阅', exact: true }).click()
+  const review = page.getByRole('dialog', { name: 'AI 章节一致性审阅' })
+  await review.locator('summary').filter({ hasText: '按需引用' }).click()
+  await review.getByLabel('世界观：集成飞行规则', { exact: true }).check()
+  await expect(review.getByLabel('引用内容预览')).toContainText('浮空岛允许飞行')
+  await review.getByRole('button', { name: '预览发送上下文' }).click()
+  await expect(review.getByLabel('实际发送的上下文')).toContainText('浮空岛禁止飞行')
+  await review.getByRole('checkbox', { name: '我已核对以上实际发送内容，同意发送至所选模型' }).check()
+  await review.getByRole('button', { name: '确认并开始审阅' }).click()
+  await expect(review.getByLabel('有引用依据的疑似冲突', { exact: true })).toContainText('集成引用规则待核实')
+  await expect(review.locator('blockquote')).toHaveCount(2)
+  expect(await (await page.request.get(`/api/chapters/${f.chapter.id}`)).json()).toEqual(before)
+  expect(chapterWrites).toBe(0)
+  await page.screenshot({ path: test.info().outputPath('integrated-world-review.png') })
+  await review.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(body).toBeFocused()
+  expect(await body.evaluate((element, previous) => element === previous, node)).toBe(true)
+  await body.press('ControlOrMeta+End')
+  await page.keyboard.insertText('后续写作仍保存。')
+  await expect(body).toHaveText('浮空岛禁止飞行。中文正文🌕后续写作仍保存。')
+  await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
+  const after = await (await page.request.get(`/api/chapters/${f.chapter.id}`)).json()
+  expect(after.content.content[0].content[0].text).toBe('浮空岛禁止飞行。中文正文🌕后续写作仍保存。')
+  expect((await (await page.request.get(`/api/novels/${f.novel.id}/planning`)).json()).outlines).toEqual(f.plan.outlines)
+})
 for (const kind of ['world', 'character', 'volume', 'chapter']) test(`${kind}: real preview/edit/confirm/save appends without touching original chapters or outlines`, async ({ page }) => {
   const f = await seed(page)
   await open(page, f.novel.title)
