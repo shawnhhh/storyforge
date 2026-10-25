@@ -145,7 +145,22 @@ test('focus navigation waits for the pending write before loading the next chapt
     await route.continue()
   })
   try {
-    await body.fill('必须保存后才能切换的专注草稿')
+    // Establish a real full-document selection before replacing the fixture;
+    // fill() can race the rich-text selection observer during a focus change.
+    await body.press('ControlOrMeta+a')
+    await expect.poll(() => body.evaluate(element => {
+      const editor = (element as HTMLElement & { editor: Editor }).editor
+      const { from, to, empty } = editor.state.selection
+      const selection = window.getSelection()
+      return {
+        model: editor.state.doc.textBetween(from, to, '\n'),
+        dom: selection?.rangeCount === 1 ? selection.getRangeAt(0).cloneContents().textContent : null,
+        confined: !!selection?.anchorNode && !!selection.focusNode && element.contains(selection.anchorNode) && element.contains(selection.focusNode),
+        empty, wholeDocument: from === 0 && to === editor.state.doc.content.size,
+      }
+    })).toEqual({ model: '风起云涌 Hello 2026', dom: '风起云涌 Hello 2026', confined: true, empty: false, wholeDocument: true })
+    await page.keyboard.insertText('必须保存后才能切换的专注草稿')
+    await expect(body).toHaveText('必须保存后才能切换的专注草稿')
     await body.press('ControlOrMeta+Alt+Shift+ArrowDown')
     await expect(page.locator('.save-status')).toHaveText('保存中…')
     await expect(page.getByRole('textbox', { name: '章节标题' })).toHaveValue('专注第一章')

@@ -67,9 +67,11 @@ test('integrated single-record references notice deleted materials and preserve 
     assert.ok('worldIds' in selected.record); assert.deepEqual(selected.record.worldIds, [])
     const after = context.preview(f.chapter.id, selection)
     assert.notEqual(after.fingerprint, before.fingerprint)
+    assert.throws(() => context.preview(f.chapter.id, { references: [{ kind: 'world', id: f.place.id }], maxCharacters: 6000 }), error => error instanceof HttpError && error.status === 404 && error.message === '引用世界观不存在或不属于本小说')
     assert.deepEqual(f.novels.chapter(f.chapter.id), f.chapter)
     const foreign = f.novels.create('其他作品', '')
     assert.throws(() => f.store.readRecord(foreign.id, 'cards', 'event'), error => error instanceof HttpError && error.status === 404)
+    assert.throws(() => context.preview(f.chapter.id, { references: [{ kind: 'character', id: 'missing-person' }], maxCharacters: 6000 }), error => error instanceof HttpError && error.status === 404 && error.message === '引用人物不存在或不属于本小说')
   } finally { f.close() }
 })
 

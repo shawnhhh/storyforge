@@ -23,6 +23,13 @@ function clip(value: string, max: number) {
 }
 export class AiContext {
   constructor(private novels: NovelStore, private bible: StoryBibleStore, private planning: PlanningStore) {}
+  private reference<T>(read: () => T, kind: '人物' | '世界观'): T {
+    try { return read() }
+    catch (error) {
+      if (error instanceof HttpError && error.status === 404) throw new HttpError(404, `引用${kind}不存在或不属于本小说`)
+      throw error
+    }
+  }
   choices(chapterId: string): ContextChoice[] {
     const chapter = this.novels.chapter(chapterId)
     return this.choicesNovel(chapter.novelId).filter(row => row.kind !== 'chapter' || row.id !== chapterId)
@@ -46,10 +53,10 @@ export class AiContext {
     const records = selection.references.map(ref => {
       let label: string, text: string, version: number
       if (ref.kind === 'character') {
-        const row = this.bible.character(novelId, ref.id)
+        const row = this.reference(() => this.bible.character(novelId, ref.id), '人物')
         label = row.name; text = JSON.stringify({ category: row.category, tags: row.tags, fields: row.fields, relations: row.relations }); version = row.version
       } else if (ref.kind === 'world') {
-        const row = this.bible.world(novelId, ref.id)
+        const row = this.reference(() => this.bible.world(novelId, ref.id), '世界观')
         label = row.name; text = `${row.description}\n${row.timeText}`; version = row.version
       } else if (ref.kind === 'chapter') {
         const row = this.novels.chapter(ref.id)
