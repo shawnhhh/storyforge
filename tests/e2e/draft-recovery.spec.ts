@@ -109,8 +109,7 @@ test('several windows and chapters preserve all drafts and resolving one leaves 
 test('persistent browser profile restores after the browser process closes and restarts', async ({ page, baseURL, browserName }) => {
   const { novel } = await seed(page), dir = mkdtempSync(join(tmpdir(), 'storyforge-browser-profile-'))
   const browserType = browserName === 'webkit' ? webkit : chromium
-  // This separate browser must use the same real Chrome channel as the CI project.
-  const launch = () => browserType.launchPersistentContext(dir, { baseURL, headless: true, ...(browserName === 'chromium' ? { channel: process.env.E2E_CHROMIUM_CHANNEL || undefined, ...(process.env.E2E_CHROMIUM_PATH ? { executablePath: process.env.E2E_CHROMIUM_PATH } : {}) } : {}) })
+  const launch = () => browserType.launchPersistentContext(dir, { baseURL, headless: true, ...(browserName === 'chromium' && process.env.E2E_CHROMIUM_PATH ? { executablePath: process.env.E2E_CHROMIUM_PATH } : {}), ...(browserName === 'chromium' && process.env.E2E_CHROMIUM_CHANNEL ? { channel: process.env.E2E_CHROMIUM_CHANNEL } : {}) })
   let context = await launch()
   try {
     const first = await context.newPage(); await open(first, novel.title); await expectChapterReady(first, '第一章'); await failWrites(first)

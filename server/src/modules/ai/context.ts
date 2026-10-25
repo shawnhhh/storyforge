@@ -37,7 +37,7 @@ export class AiContext {
       ...this.novels.detail(chapter.novelId).chapters.filter(c => c.id !== chapter.id).map(c => ({ kind: 'chapter' as const, id: c.id, label: c.title })),
     ]
   }
-  preview(chapterId: string, selection: ContextSelection): ContextPreview {
+  preview(chapterId: string, selection: ContextSelection, onSource?: (id: string, label: string, text: string, truncated: boolean) => void): ContextPreview {
     const { chapter, profiles, plan } = this.records(chapterId)
     const versions: (string | number)[] = []
     const records = selection.references.map(ref => {
@@ -71,6 +71,7 @@ export class AiContext {
       const allowance = Math.max(0, share - heading.length - 2)
       const text = clip(row.text, allowance)
       pieces.push(`${heading}${text}\n\n`)
+      onSource?.(`${row.kind}:${row.id}`, row.label, text, text.length < row.text.length)
       return { kind: row.kind, id: row.id, label: row.label, characters: text.length, originalCharacters: row.text.length, truncated: text.length < row.text.length }
     })
     const text = pieces.join('')

@@ -21,15 +21,17 @@ jobs:
       - name: Migration, trash, backup and draft safety regression
         run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
       - run: npx playwright install --with-deps chromium
+      - name: Verify live AI theme idle and hover colors first
+        run: npm run test:e2e -- --project=chromium writing-ui.spec.ts --grep 'AI writing and review follow explicit and live system themes'
       - name: Verify isolated browser crash recovery three times
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'persistent browser profile' --repeat-each=3
       - name: Planning, timeline and draft recovery regression
         run: npm run test:e2e -- --project=chromium planning timeline trash draft-recovery
       - name: Focus, AI selection and dialog focus regression
-        run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing search-preferences
+        run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
       - run: npm run test:e2e -- --project=chromium
-      - name: Upload browser failure diagnostics
-        if: failure()
+      - name: Upload browser diagnostics and UI evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-${{ github.event_name }}-${{ github.run_id }}
@@ -63,13 +65,21 @@ jobs:
       - name: Migration, trash, backup and draft safety regression
         run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
       - run: npx playwright install ${{ matrix.browser }}
+      - name: Verify live AI theme idle and hover colors first
+        run: npm run test:e2e -- --project=${{ matrix.project }} writing-ui.spec.ts --grep 'AI writing and review follow explicit and live system themes'
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Verify isolated browser profile with the selected channel
+        run: npm run test:e2e -- --project=${{ matrix.project }} draft-recovery.spec.ts --grep 'persistent browser profile'
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Verify queued revisions and failed-save drafts five times
         run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing --grep 'focus toggles retain the in-flight queue|focus autosave failures retain drafts' --repeat-each=5
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       # Real Google Chrome channel and Playwright WebKit on macOS. WebKit is not
       # the installed Safari app; retain the real Safari manual checklist.
-      - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing search-preferences
+      - run: npm run test:e2e -- --project=${{ matrix.project }} focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Planning, timeline and draft recovery regression

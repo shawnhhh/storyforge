@@ -1,4 +1,6 @@
-import { Router } from 'express'
+import { Router, type Response } from 'express'
+import type { ReviewTask } from '../../../../shared/contracts/consistency-review.js'
+import { validateReviewInput, prepareReview, parseReview } from './review.js'
 import { aiActions, aiLimits, type AiInput, type AiPolicy } from '../../../../shared/contracts/ai.js'
 import { HttpError, type NovelStore } from '../novels/store.js'
 import type { PlanningStore } from '../planning/store.js'
@@ -82,6 +84,28 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
       }).slice(0, aiLimits.story)
     }
     const estimate = estimateRequest(buildMessages(input, story), parameters, model)
+    await execute(input, story, config, estimate, res)
+  })
+  function reviewPreparation(body: unknown) {
+    const input = validateReviewInput(body)
+    novels.chapter(input.chapterId) // Validate current chapter even when no references were chosen.
+    const model = models().find(item => item.id === input.modelId)
+    if (!model) throw new HttpError(400, '模型不存在，请重新打开模型配置中心')
+    return { input, model, ...prepareReview(input, model, contexts) }
+  }
+  router.post('/ai/review/preview', (req, res) => { res.json(reviewPreparation(req.body).preview) })
+  router.post('/ai/review', async (req, res) => {
+    const { input, model, task, parameters, preview } = reviewPreparation(req.body)
+    if (!input.fingerprint || input.fingerprint !== preview.fingerprint) throw new HttpError(409, '章节、引用或模型设置已变化或尚未确认，请重新预览并确认')
+    if (!model.apiKey) throw new HttpError(503, '所选模型未配置 AI API Key，请在本地服务端配置；其他功能可正常使用')
+    if (active >= 2) throw new HttpError(429, '本地 AI 请求正在处理中，请稍后重试')
+    await execute(task, '', { ...model, parameters }, preview.estimate, res, result => {
+      if (result.text.includes(model.apiKey)) throw new HttpError(502, 'AI 审阅响应无效，请重试')
+      return { findings: parseReview(result.text, preview.sources), usage: result.usage, finishReason: result.finishReason, modelId: model.id, estimate: preview.estimate, fingerprint: preview.fingerprint }
+    })
+  })
+  async function execute(input: AiInput | ReviewTask, story: string, config: AiModel, estimate: ReturnType<typeof estimateRequest>, res: Response, transform?: (result: Awaited<ReturnType<AiProvider['generate']>>) => unknown) {
+    const model = config
     budget().reserve(estimate)
     const controller = new AbortController()
     let timedOut = false
@@ -93,13 +117,13 @@ export function aiRoutes(novels: NovelStore, planning: PlanningStore, bible: Sto
       const provider = (dependencies.provider ?? (settings => new OpenAiProvider(settings)))(config)
       const result = await provider.generate(input, story, controller.signal)
       if (timedOut) throw new HttpError(504, 'AI 请求超时，请重试或缩短上下文')
-      if (!controller.signal.aborted) res.json({ ...result, modelId: model.id, estimate })
+      if (!controller.signal.aborted) res.json(transform ? transform({ ...result, modelId: model.id, estimate }) : { ...result, modelId: model.id, estimate })
     } catch (error) {
       if (timedOut) throw new HttpError(504, 'AI 请求超时，请重试或缩短上下文')
       if (controller.signal.aborted) return
       if (error instanceof HttpError) throw error
       throw new HttpError(502, 'AI 服务请求失败，请稍后重试')
     } finally { clearTimeout(timeout); res.off('close', disconnect); active-- }
-  })
+  }
   return router
 }
