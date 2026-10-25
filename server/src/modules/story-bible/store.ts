@@ -1,5 +1,5 @@
 import { archiveRemoved, snapshot } from '../trash/store.js'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { Character, CharacterInput, WorldEntry, WorldInput, StoryBible } from '../../../../shared/contracts/story-bible.js'
 import { HttpError } from '../novels/store.js'
@@ -25,6 +25,29 @@ export class StoryBibleStore {
   }
   private check(kind: Kind, novelId: string, id: string, expected: unknown) {
     if (this.row(kind, novelId, id).version !== version(expected)) throw new HttpError(409, '资料已在另一个窗口更新。请导出草稿后重新加载，避免覆盖。')
+  }
+  summaries(novelId: string) {
+    this.novel(novelId)
+    return { characters: this.db.prepare('SELECT id,name FROM characters WHERE novel_id=? ORDER BY created_at,id').all(novelId) as { id: string; name: string }[], world: this.db.prepare('SELECT id,name FROM world_entries WHERE novel_id=? ORDER BY sort_order,created_at,id').all(novelId) as { id: string; name: string }[] }
+  }
+  versions(novelId: string) {
+    this.novel(novelId)
+    const digest = (table: 'characters' | 'world_entries') => {
+      const hash = createHash('sha256')
+      for (const row of this.db.prepare(`SELECT id,version FROM ${table} WHERE novel_id=? ORDER BY id`).iterate(novelId)) hash.update(JSON.stringify([row.id, row.version]))
+      return hash.digest('hex')
+    }
+    return { characters: digest('characters'), world: digest('world_entries') }
+  }
+  character(novelId: string, id: string): Character {
+    const row = this.row('characters', novelId, id)
+    return { id: String(row.id), novelId, name: String(row.name), category: String(row.category), tags: JSON.parse(String(row.tags)), fields: JSON.parse(String(row.fields)), version: Number(row.version), createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+      relations: this.db.prepare('SELECT target_id AS targetId,kind FROM character_relations WHERE novel_id=? AND source_id=? ORDER BY target_id,kind').all(novelId, id).map(relation => ({ targetId: String(relation.targetId), kind: String(relation.kind) })),
+      worldIds: this.db.prepare('SELECT world_id FROM character_world_links WHERE novel_id=? AND character_id=? ORDER BY world_id').all(novelId, id).map(link => String(link.world_id)) }
+  }
+  world(novelId: string, id: string): WorldEntry {
+    const row = this.row('world', novelId, id)
+    return { id: String(row.id), novelId, name: String(row.name), category: row.category as WorldInput['category'], tags: JSON.parse(String(row.tags)), description: String(row.description), timeText: String(row.time_text), sortOrder: Number(row.sort_order), onTimeline: row.on_timeline === 1, version: Number(row.version), createdAt: String(row.created_at), updatedAt: String(row.updated_at) }
   }
   list(novelId: string): StoryBible {
     return this.transaction(() => {
@@ -65,7 +88,7 @@ export class StoryBibleStore {
       this.links(novelId, recordId, data)
       archiveRemoved(this.db, before, novelId, 'relation', data.name + '的关系与关联')
     })
-    return this.list(novelId).characters.find(row => row.id === recordId)!
+    return this.character(novelId, recordId)
   }
   saveWorld(novelId: string, value: unknown, id?: string, expected?: unknown): WorldEntry {
     const data: WorldInput = worldInput(value)
@@ -78,7 +101,7 @@ export class StoryBibleStore {
         this.db.prepare('UPDATE world_entries SET name=?,category=?,tags=?,description=?,time_text=?,sort_order=?,on_timeline=?,version=version+1,updated_at=? WHERE novel_id=? AND id=?').run(...values, now, novelId, id)
       } else this.db.prepare('INSERT INTO world_entries(name,category,tags,description,time_text,sort_order,on_timeline,id,novel_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(...values, recordId, novelId, now, now)
     })
-    return this.list(novelId).world.find(row => row.id === recordId)!
+    return this.world(novelId, recordId)
   }
   remove(kind: Kind, novelId: string, id: string, expected: unknown) {
     this.transaction(() => {
