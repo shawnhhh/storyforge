@@ -43,6 +43,8 @@ jobs:
         run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
       - name: AI planning full-stack Mock E2E
         run: npm run test:e2e -- --mock-planning --project=chromium
+      - name: Repeat mobile fallback recovery ten times
+        run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
       - run: npm run test:e2e -- --project=chromium
       - name: Upload browser diagnostics and UI evidence
         if: always()
@@ -108,6 +110,10 @@ jobs:
         run: npm run test:e2e -- --project=${{ matrix.project }} planning timeline trash draft-recovery
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Repeat mobile fallback recovery ten times
+        run: npm run test:e2e -- --project=${{ matrix.project }} draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Complete browser regression
         run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
@@ -145,6 +151,9 @@ jobs:
       - name: Writing regression (Firefox)
         if: matrix.shard == 1
         run: npm run test:e2e -- --project=firefox focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
+      - name: Repeat mobile fallback recovery ten times (Firefox)
+        if: matrix.shard == 1
+        run: npm run test:e2e -- --project=firefox draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
       # Separate runners avoid competing browsers and restart the isolated services.
       # All three shards together run the complete suite, with the original deadlines.
       - name: Full E2E (Firefox shard ${{ matrix.shard }}/3)
