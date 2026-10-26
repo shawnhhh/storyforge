@@ -1,0 +1,9 @@
+/* Historical affected rules from 62a4717, scoped for before/after evidence only. */
+.workspace:not(.focused) .document{padding:30px 40px;max-width:950px;align-self:center}
+.workspace:not(.focused) .chapter-title{margin:22px 40px 20px;width:calc(100% - 80px);padding:1px 2px}
+.workspace[data-layout=wide]:not(.focused) .document{max-width:100%}
+.workspace.focused .document{padding:28px 48px 72px;max-width:min(100%,850px);align-self:center}
+.workspace.focused .chapter-title{max-width:754px;margin:16px 24px;width:calc(100% - 48px);padding:1px 2px}
+@media(max-width:1000px){.workspace:not(.focused) .chapter-title{margin-left:25px;width:calc(100% - 50px)}.workspace:not(.focused) .document{padding:25px}}
+@media(max-width:720px){.workspace:not(.focused) .document{padding:20px}}
+@media(max-width:600px){.workspace.focused .document{padding:20px 22px 48px}}

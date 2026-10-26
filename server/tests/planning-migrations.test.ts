@@ -22,7 +22,7 @@ test('v1 upgrade preserves chapters, uses an independent migration name and is i
     migrate(db, 1)
     const novels = new NovelStore(db), novel = novels.create('旧小说', '保留简介'), chapter = novels.createChapter(novel.id, novel.version, '旧章节')
     const before = novels.exportData(novel.id)
-    migratePlanning(db); const once = db.prepare('SELECT * FROM planning_migrations').all(); migratePlanning(db)
+    migratePlanning(db, 1); const once = db.prepare('SELECT * FROM planning_migrations').all(); migratePlanning(db, 1)
     assert.deepEqual(db.prepare('SELECT * FROM planning_migrations').all(), once)
     assert.equal(once[0].name, 'planning/001')
     assert.deepEqual(db.prepare('SELECT version FROM schema_migrations').all().map(row => row.version), [1])
@@ -47,7 +47,7 @@ test('named planning migration can run before or after a later numbered base mig
     const db = new DatabaseSync(':memory:')
     try {
       migrate(db, 1)
-      if (planningFirst) migratePlanning(db)
+      if (planningFirst) migratePlanning(db, 1)
       migrate(db, 2)
       const novels = new NovelStore(db), novel = novels.create('第三阶段保留作品', '')
       const profiles = new StoryBibleStore(db)
@@ -58,7 +58,7 @@ test('named planning migration can run before or after a later numbered base mig
       assert.deepEqual(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map(row => row.version), [1, 2])
       db.exec("INSERT INTO schema_migrations VALUES (4,'future')")
       assert.throws(() => migrate(db), /newer/)
-      db.prepare('INSERT INTO planning_migrations VALUES (?,?)').run('planning/002', 'future')
+      db.prepare('INSERT INTO planning_migrations VALUES (?,?)').run('planning/003', 'future')
       assert.throws(() => migratePlanning(db), /newer/)
     } finally { db.close() }
   }
@@ -72,7 +72,7 @@ for (const baseVersion of [1, 2]) for (const withPlanning of [false, true]) {
       const legacy = new DatabaseSync(path)
       legacy.exec('PRAGMA foreign_keys=ON')
       migrate(legacy, baseVersion)
-      if (withPlanning) migratePlanning(legacy)
+      if (withPlanning) migratePlanning(legacy, 1)
       const oldNovels = new NovelStore(legacy), oldNovel = oldNovels.create('旧快照中的小说', '老数据')
       const chapter = oldNovels.createChapter(oldNovel.id, oldNovel.version, '原章节').chapter
       const oldBible = baseVersion === 2 ? populateBible(legacy, oldNovel.id) : { characters: [], world: [] }
@@ -124,7 +124,7 @@ test('planning and its chapter links survive backup, restore, and injected resto
     const data = emptyPlanning(); data.outlines.push({ id: 'outline', title: '原大纲', content: '中文详细内容', kind: 'chapter', parentId: null, chapterIds: [chapter.id] })
     const originalBible = populateBible(db, novel.id)
     const original = planning.save(novel.id, 0, data), target = await service.create()
-    assert.equal(target.planningVersion, 1)
+    assert.equal(target.planningVersion, 2)
     const changed = planning.save(novel.id, original.version, emptyPlanning())
     const profiles = new StoryBibleStore(db)
     const removed = originalBible.world[0]

@@ -1,3 +1,5 @@
+import { TrashStore } from './modules/trash/store.js'
+import { trashRoutes } from './modules/trash/routes.js'
 import { DashboardStore } from './modules/dashboard/store.js'
 import { dashboardRoutes } from './modules/dashboard/routes.js'
 import { KnowledgeStore } from './modules/story-bible/knowledge.js'
@@ -56,6 +58,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     res.send(exported.body)
   })
   if (backups) app.use('/api', backupRoutes(backups))
+  app.use('/api', trashRoutes(new TrashStore(database)))
   app.use('/api', searchRoutes(database))
   app.use('/api', planningRoutes(planning))
   app.use('/api', dashboardRoutes(new DashboardStore(database)))
