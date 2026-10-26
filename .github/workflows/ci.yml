@@ -43,12 +43,42 @@ jobs:
         run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
       - name: AI planning full-stack Mock E2E
         run: npm run test:e2e -- --mock-planning --project=chromium
-      - run: npm run test:e2e -- --project=chromium
+      - name: Repeat mobile fallback recovery ten times
+        run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
+      - name: Repeat planning deletion and delayed-material safety five times
+        run: npm run test:e2e -- --project=chromium planning.spec.ts --grep 'outline tree CRUD|late material loading' --repeat-each=5
       - name: Upload browser diagnostics and UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-${{ github.event_name }}-${{ github.run_id }}
+          path: work/e2e-results/
+          if-no-files-found: ignore
+          retention-days: 7
+  chromium:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: Chromium complete regression (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Keep the complete suite and deadlines; each runner owns its services,
+      # database and diagnostics, without competing browser workers.
+      - name: Full E2E (Chromium shard ${{ matrix.shard }}/3)
+        run: npm run test:e2e -- --project=chromium --shard=${{ matrix.shard }}/3
+      - name: Upload Chromium diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-${{ matrix.shard }}-${{ github.event_name }}-${{ github.run_id }}
           path: work/e2e-results/
           if-no-files-found: ignore
           retention-days: 7
@@ -108,6 +138,17 @@ jobs:
         run: npm run test:e2e -- --project=${{ matrix.project }} planning timeline trash draft-recovery
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Repeat mobile fallback recovery ten times
+        run: npm run test:e2e -- --project=${{ matrix.project }} draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Repeat planning deletion and delayed-material safety five times
+        run: npm run test:e2e -- --project=${{ matrix.project }} planning.spec.ts --grep 'outline tree CRUD|late material loading' --repeat-each=5
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Repeat isolated backup draft recovery five times (WebKit)
+        if: matrix.browser == 'webkit'
+        run: npm run test:e2e -- --project=webkit draft-recovery.spec.ts --grep 'restoring an isolated database backup' --repeat-each=5
       - name: Complete browser regression
         run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
@@ -122,7 +163,11 @@ jobs:
           retention-days: 7
 
   firefox:
-    name: Firefox planning and writing
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: Firefox planning and writing (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -133,18 +178,29 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps firefox
       - name: IME form-control regression (Firefox)
+        if: matrix.shard == 1
         run: npm run test:e2e -- --project=firefox planning story-bible --grep composition
       - name: AI planning full-stack Mock E2E (Firefox)
+        if: matrix.shard == 1
         run: npm run test:e2e -- --mock-planning --project=firefox
       - name: Writing regression (Firefox)
+        if: matrix.shard == 1
         run: npm run test:e2e -- --project=firefox focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
-      - name: Full E2E (Firefox)
-        run: npm run test:e2e -- --project=firefox
+      - name: Repeat mobile fallback recovery ten times (Firefox)
+        if: matrix.shard == 1
+        run: npm run test:e2e -- --project=firefox draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
+      - name: Repeat planning deletion and delayed-material safety five times (Firefox)
+        if: matrix.shard == 1
+        run: npm run test:e2e -- --project=firefox planning.spec.ts --grep 'outline tree CRUD|late material loading' --repeat-each=5
+      # Separate runners avoid competing browsers and restart the isolated services.
+      # All three shards together run the complete suite, with the original deadlines.
+      - name: Full E2E (Firefox shard ${{ matrix.shard }}/3)
+        run: npm run test:e2e -- --project=firefox --shard=${{ matrix.shard }}/3
       - name: Upload Firefox diagnostics
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: firefox-${{ github.event_name }}-${{ github.run_id }}
+          name: firefox-${{ matrix.shard }}-${{ github.event_name }}-${{ github.run_id }}
           path: work/e2e-results/
           if-no-files-found: ignore
           retention-days: 7

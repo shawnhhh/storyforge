@@ -34,6 +34,7 @@ app.post('/api/__test/control', (req, res) => {
   res.json({ ok: true })
 })
 app.use(createApp(db, backups, { models: () => [currentModel], policy, provider: () => ({ generate: async (input, story, signal) => {
+  if (input.action === 'consistency-review') return { text: JSON.stringify({ findings: [{ category: 'world', certainty: 'conflict', explanation: '集成引用规则待核实', suggestion: '核对设定中的例外', evidence: input.sources.slice(0, 2).map(source => ({ sourceId: source.id, quote: source.text.slice(0, 12) })) }] }), finishReason: 'stop', usage: { inputTokens: 100, outputTokens: 80 } }
   if (story.includes('mock-error')) throw new HttpError(502, '模拟模型服务暂时不可用')
   if (story.includes('mock-slow')) await new Promise<void>((resolve, reject) => { const timer = setTimeout(resolve, 1500); signal.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('cancelled')) }, { once: true }) })
   return { text: JSON.stringify({ title: 'AI 虚构预览', content: '虚构设定：浮空岛上的文明。目标、冲突、转折与悬念。<script>仅为文本</script>', ...(input.instructions.includes('人物设定') ? { character: generatedCharacter } : {}) }), finishReason: 'stop', usage: { inputTokens: 100, outputTokens: 80 } }

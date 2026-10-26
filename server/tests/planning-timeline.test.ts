@@ -13,6 +13,7 @@ import { StoryBibleStore } from '../src/modules/story-bible/store.js'
 import { PlanningStore } from '../src/modules/planning/store.js'
 import { BackupService } from '../src/modules/backups/service.js'
 import { createApp } from '../src/app.js'
+import { AiContext } from '../src/modules/ai/context.js'
 import { newCharacter, newWorld } from '../../src/features/story-bible/model.js'
 import { emptyPlanning, type PlanningSnapshot } from '../../shared/contracts/planning.js'
 import { validatePlanning } from '../../shared/domain/planning.js'
@@ -33,6 +34,46 @@ function fixture() {
   return { dir, db, ...populate(db), close: () => { db.close(); rmSync(dir, { recursive: true, force: true }) } }
 }
 const badRequest = (error: unknown) => error instanceof HttpError && error.status === 400
+
+test('integrated planning references reconstruct normalized materials without loading unrelated plans', () => {
+  const f = fixture()
+  try {
+    const saved = f.store.save(f.novel.id, 0, f.data)
+    // PR19 stores material IDs in link tables; PR21 reads one selected record.
+    const stored = JSON.parse(String(f.db.prepare('SELECT data FROM planning_records WHERE novel_id=? AND id=?').get(f.novel.id, 'outline')!.data))
+    assert.deepEqual(stored.characterIds, []); assert.deepEqual(stored.worldIds, [])
+    const selected = f.store.readRecord(f.novel.id, 'outlines', 'outline')
+    assert.deepEqual(selected, { record: saved.outlines[0], version: saved.version })
+    f.store.read = () => { throw new Error('Must not load the complete planning workspace') }
+    const context = new AiContext(f.novels, f.bible, f.store)
+    const sources: { id: string; text: string }[] = []
+    const preview = context.preview(f.chapter.id, { references: [{ kind: 'outline', id: 'outline' }], maxCharacters: 6000 }, (id, _label, text) => sources.push({ id, text }))
+    assert.equal(sources.length, 1); assert.equal(sources[0].id, 'outline:outline')
+    assert.ok(sources[0].text.includes(f.hero.id)); assert.ok(sources[0].text.includes(f.place.id))
+    assert.ok(preview.text.includes(f.chapter.id))
+    assert.deepEqual(f.db.prepare('PRAGMA foreign_key_check').all(), [])
+  } finally { f.close() }
+})
+
+test('integrated single-record references notice deleted materials and preserve source callback and prose', () => {
+  const f = fixture()
+  try {
+    f.store.save(f.novel.id, 0, f.data)
+    const context = new AiContext(f.novels, f.bible, f.store)
+    const selection = { references: [{ kind: 'card' as const, id: 'event' }], maxCharacters: 6000 }
+    const before = context.preview(f.chapter.id, selection)
+    f.bible.remove('world', f.novel.id, f.place.id, f.place.version)
+    const selected = f.store.readRecord(f.novel.id, 'cards', 'event')
+    assert.ok('worldIds' in selected.record); assert.deepEqual(selected.record.worldIds, [])
+    const after = context.preview(f.chapter.id, selection)
+    assert.notEqual(after.fingerprint, before.fingerprint)
+    assert.throws(() => context.preview(f.chapter.id, { references: [{ kind: 'world', id: f.place.id }], maxCharacters: 6000 }), error => error instanceof HttpError && error.status === 404 && error.message === '引用世界观不存在或不属于本小说')
+    assert.deepEqual(f.novels.chapter(f.chapter.id), f.chapter)
+    const foreign = f.novels.create('其他作品', '')
+    assert.throws(() => f.store.readRecord(foreign.id, 'cards', 'event'), error => error instanceof HttpError && error.status === 404)
+    assert.throws(() => context.preview(f.chapter.id, { references: [{ kind: 'character', id: 'missing-person' }], maxCharacters: 6000 }), error => error instanceof HttpError && error.status === 404 && error.message === '引用人物不存在或不属于本小说')
+  } finally { f.close() }
+})
 
 test('timeline: outline and event links persist across restart without modifying source documents', () => {
   const f = fixture()

@@ -78,6 +78,45 @@ test('integrated trash: restoring deleted plans permits subsequent normal editin
     assert.equal(f.trash.list().length, 1)
   } finally { f.close() }
 })
+test('planning parent deletion preserves linked targets and rejects stale drafts before and after original-ID restoration', () => {
+  const f = fixture()
+  try {
+    const input = structuredClone(f.saved)
+    input.outlines = [
+      { id: 'parent', title: '虚构父纲', content: '父纲正文', kind: 'overall', parentId: null, chapterIds: [f.chapter.id], characterIds: [f.hero.id], worldIds: [f.place.id] },
+      { id: 'child', title: '虚构子纲', content: '子纲正文', kind: 'volume', parentId: 'parent', chapterIds: [f.chapter.id], characterIds: [f.hero.id], worldIds: [f.place.id] },
+    ]
+    const original = f.planning.save(f.novel.id, input.version, input)
+    const draftBytes = JSON.stringify(original)
+    const materials = f.bible.list(f.novel.id), chapter = f.novels.chapter(f.chapter.id)
+    const removed = f.planning.save(f.novel.id, original.version, { ...original, outlines: [{ ...original.outlines[1], parentId: null }] })
+    assert.deepEqual(removed.outlines, [{ ...original.outlines[1], parentId: null }])
+    assert.deepEqual(removed.cards, original.cards)
+    assert.deepEqual(f.bible.list(f.novel.id), materials)
+    assert.deepEqual(f.novels.chapter(f.chapter.id), chapter)
+    assert.throws(() => f.planning.save(f.novel.id, original.version, original), conflict)
+    assert.throws(() => f.planning.save(f.novel.id, removed.version, original), conflict)
+    assert.equal(JSON.stringify(original), draftBytes)
+    assert.deepEqual(f.planning.read(f.novel.id), removed)
+    assert.deepEqual(f.db.prepare('PRAGMA foreign_key_check').all(), [])
+    assert.equal(f.db.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok')
+    const entry = f.trash.list().find(row => row.kind === 'planning' && row.name === '虚构父纲')!
+    assert.ok(entry)
+    f.trash.restore(entry.id, true)
+    const restored = f.planning.read(f.novel.id)
+    assert.deepEqual(new Map(restored.outlines.map(row => [row.id, row])), new Map(original.outlines.map(row => [row.id, row])))
+    assert.deepEqual(restored.cards, original.cards)
+    assert.ok(restored.version > removed.version)
+    assert.throws(() => f.planning.save(f.novel.id, original.version, original), conflict)
+    assert.deepEqual(f.bible.list(f.novel.id), {
+      characters: materials.characters.map(row => ({ ...row, version: row.version + 1 })),
+      world: materials.world.map(row => ({ ...row, version: row.version + 1 })),
+    })
+    assert.deepEqual(f.novels.chapter(f.chapter.id), { ...chapter, version: chapter.version + 1 })
+    assert.deepEqual(f.db.prepare('PRAGMA foreign_key_check').all(), [])
+    assert.equal(f.db.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok')
+  } finally { f.close() }
+})
 test('integrated trash: archived timeline references protect deleted targets from purge and expiry', () => {
   const f = fixture()
   try {
