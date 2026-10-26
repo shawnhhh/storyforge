@@ -1,0 +1,65 @@
+name: Diagnose isolated historical Chrome navigation
+on:
+  push:
+    paths:
+      - .github/workflows/chrome-navigation-diagnostic.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 40254620358
+          name: macos-writing-chrome-40254620358
+          path: evidence
+      - name: Analyze locally and output only whitelisted structural metrics
+        run: |
+          python - <<'PY'
+          # Original screenshot, trace, text, UUIDs and payloads stay on this runner.
+          # Logs contain only known test labels, timings and boolean diagnostics.
+          import json, pathlib, struct, zipfile
+          root = pathlib.Path('evidence')
+          failure = next(p.parent for p in root.rglob('error-context.md') if 'draft-recovery-mobile-reco-' in str(p))
+          context = (failure / 'error-context.md').read_text()
+          png = (failure / 'test-failed-1.png').read_bytes()
+          print('SUMMARY ' + json.dumps({'screenshot_dimensions': struct.unpack('>II', png[16:24]), 'unsaved_navigation_warning': '当前章节尚未保存' in context, 'recovery_dialog_visible': '恢复此草稿' in context, 'prose_draft_present': '移动端降级草稿' in context}))
+          archive = zipfile.ZipFile(failure / 'trace.zip')
+          events = []
+          for name in archive.namelist():
+              if name.endswith(('.trace', '.network')):
+                  for line in archive.read(name).decode().splitlines():
+                      try: events.append(json.loads(line))
+                      except ValueError: pass
+          aliases = {}
+          for name in archive.namelist():
+              if name.startswith('resources/'):
+                  try:
+                      value = json.loads(archive.read(name))
+                      rows = [value] if isinstance(value, dict) else []
+                      for row in list(rows):
+                          rows.extend(x for x in row.values() if isinstance(x, dict))
+                      for row in rows:
+                          if row.get('title') in ('第一章', '第二章') and isinstance(row.get('id'), str): aliases[row['id']] = row['title']
+                  except (ValueError, UnicodeError): pass
+          print('CHAPTER_ALIAS_COUNT ' + str(len(aliases)))
+          for event in events:
+              if event.get('type') == 'before':
+                  selector = str(event.get('params', {}).get('selector', ''))
+                  label = next((label for label, token in [('open-work', '打开作品'), ('first-chapter', '第一章'), ('focus-writing', '专注写作'), ('expect-first-title', '章节标题')] if token in selector), None)
+                  if label: print('ACTION ' + json.dumps({'time': event.get('startTime'), 'call': event.get('callId'), 'method': event.get('method'), 'label': label}))
+              if event.get('type') == 'resource-snapshot':
+                  snapshot = event.get('snapshot', {})
+                  request = snapshot.get('request', {})
+                  url = request.get('url', '')
+                  if '/api/chapters/' in url:
+                      chapter = next((label for key, label in aliases.items() if key in url), 'unknown')
+                      print('CHAPTER_REQUEST ' + json.dumps({'time': snapshot.get('_monotonicTime'), 'method': request.get('method'), 'chapter': chapter, 'status': snapshot.get('response', {}).get('status')}))
+              if event.get('type') == 'frame-snapshot':
+                  snapshot = event.get('snapshot', {})
+                  raw = json.dumps(snapshot.get('html', []), ensure_ascii=False)
+                  print('FRAME ' + json.dumps({'time': snapshot.get('timestamp'), 'name': snapshot.get('snapshotName'), 'unsaved_navigation_warning': '当前章节尚未保存' in raw}))
+          PY
