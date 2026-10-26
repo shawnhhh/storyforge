@@ -20,7 +20,19 @@ jobs:
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
         run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
+      - name: Upload large-library performance measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-planning-performance-${{ github.event_name }}-${{ github.run_id }}
+          path: |
+            work/ai-planning-performance.json
+            work/ai-planning-performance-last-measurement.json
+          if-no-files-found: ignore
+          retention-days: 14
       - run: npx playwright install --with-deps chromium
+      - name: IME form-control regression
+        run: npm run test:e2e -- --project=chromium planning story-bible --grep composition
       - name: Verify live AI theme idle and hover colors first
         run: npm run test:e2e -- --project=chromium writing-ui.spec.ts --grep 'AI writing and review follow explicit and live system themes'
       - name: Verify isolated browser crash recovery three times
@@ -29,6 +41,8 @@ jobs:
         run: npm run test:e2e -- --project=chromium planning timeline trash draft-recovery
       - name: Focus, AI selection and dialog focus regression
         run: npm run test:e2e -- --project=chromium focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
+      - name: AI planning full-stack Mock E2E
+        run: npm run test:e2e -- --mock-planning --project=chromium
       - run: npm run test:e2e -- --project=chromium
       - name: Upload browser diagnostics and UI evidence
         if: always()
@@ -65,6 +79,14 @@ jobs:
       - name: Migration, trash, backup and draft safety regression
         run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
       - run: npx playwright install ${{ matrix.browser }}
+      - name: IME form-control regression
+        run: npm run test:e2e -- --project=${{ matrix.project }} planning story-bible --grep composition
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: AI planning full-stack Mock E2E
+        run: npm run test:e2e -- --mock-planning --project=${{ matrix.project }}
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Verify live AI theme idle and hover colors first
         run: npm run test:e2e -- --project=${{ matrix.project }} writing-ui.spec.ts --grep 'AI writing and review follow explicit and live system themes'
         env:
@@ -95,6 +117,34 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-writing-${{ matrix.browser }}-${{ github.run_id }}
+          path: work/e2e-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  firefox:
+    name: Firefox planning and writing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps firefox
+      - name: IME form-control regression (Firefox)
+        run: npm run test:e2e -- --project=firefox planning story-bible --grep composition
+      - name: AI planning full-stack Mock E2E (Firefox)
+        run: npm run test:e2e -- --mock-planning --project=firefox
+      - name: Writing regression (Firefox)
+        run: npm run test:e2e -- --project=firefox focus-writing editor-experience autosave-scroll ai-writing ai-consistency-review writing-ui search-preferences
+      - name: Full E2E (Firefox)
+        run: npm run test:e2e -- --project=firefox
+      - name: Upload Firefox diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-${{ github.event_name }}-${{ github.run_id }}
           path: work/e2e-results/
           if-no-files-found: ignore
           retention-days: 7

@@ -2,6 +2,7 @@ import { openDeleteMenu } from './trash-helpers.js'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { expectChapterReady, chapterBody } from './editor-helpers.js'
+import { inspectFillComposition, updateComposition } from './composition-helpers.js'
 const panel = (page: Page) => page.getByRole('region', { name: '创作规划', exact: true })
 const saved = (page: Page) => expect(page.locator('.planning-status')).toHaveText('已保存到数据库')
 async function seed(page: Page, title: string) {
@@ -116,13 +117,15 @@ test('failed network drafts restore after refresh, composition defers saves and 
   await panel(page).getByRole('button', { name: '新建大纲', exact: true }).click()
   await saved(page)
   const title = panel(page).getByLabel('规划标题', { exact: true })
+  await inspectFillComposition(page)
   let writes = 0
   await page.route('**/api/novels/*/planning', route => {
     if (route.request().method() === 'PUT') { writes++; return route.abort('failed') }
     return route.continue()
   })
+  await title.focus()
   await title.dispatchEvent('compositionstart')
-  await title.fill('中文组合草稿')
+  await updateComposition(title, '中文组合草稿')
   // Stay beyond the debounce interval; no write may interrupt the composition.
   await page.waitForTimeout(850)
   expect(writes).toBe(0)

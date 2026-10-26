@@ -1,4 +1,4 @@
-import { expect, test, chromium, webkit, type Page } from '@playwright/test'
+import { expect, test, chromium, firefox, webkit, type Page } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -108,8 +108,8 @@ test('several windows and chapters preserve all drafts and resolving one leaves 
 
 test('persistent browser profile restores after the browser process closes and restarts', async ({ page, baseURL, browserName }) => {
   const { novel } = await seed(page), dir = mkdtempSync(join(tmpdir(), 'storyforge-browser-profile-'))
-  const browserType = browserName === 'webkit' ? webkit : chromium
-  // Keep the selected Chrome channel and optional executable for this independent profile.
+  const browserType = { chromium, firefox, webkit }[browserName]
+  // The independent profile follows the project's Chrome channel and executable.
   const chromiumOptions = browserName === 'chromium' ? { channel: process.env.E2E_CHROMIUM_CHANNEL || undefined, ...(process.env.E2E_CHROMIUM_PATH ? { executablePath: process.env.E2E_CHROMIUM_PATH } : {}) } : {}
   const launch = () => browserType.launchPersistentContext(dir, { baseURL, headless: true, ...chromiumOptions })
   let context = await launch()

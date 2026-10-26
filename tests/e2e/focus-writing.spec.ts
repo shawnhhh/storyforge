@@ -213,6 +213,8 @@ test('timer starts in focus, pauses manually/on exit/when hidden, resumes and re
 test('focus autosave failures retain drafts and block chapter switch until a successful retry', async ({ page }) => {
   const { body } = await start(page)
   await page.getByRole('button', { name: '专注写作', exact: true }).click()
+  await expect(page.locator('.workspace')).toHaveClass(/focused/)
+  await expect(body).toBeFocused()
   await page.route('**/api/chapters/*', route => route.request().method() === 'PUT' ? route.fulfill({ status: 503, json: { message: '隔离测试保存失败' } }) : route.continue())
   // The captured WebKit trace showed fill() appending before navigation began.
   // Select through the native key binding and verify both ranges before input,
