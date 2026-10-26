@@ -214,7 +214,20 @@ test('focus autosave failures retain drafts and block chapter switch until a suc
   const { body } = await start(page)
   await page.getByRole('button', { name: '专注写作', exact: true }).click()
   await page.route('**/api/chapters/*', route => route.request().method() === 'PUT' ? route.fulfill({ status: 503, json: { message: '隔离测试保存失败' } }) : route.continue())
-  await body.fill('专注模式不能丢失的草稿')
+  // The captured WebKit trace showed fill() appending before navigation began.
+  // Select through the native key binding and verify both ranges before input,
+  // as in the in-flight revision regression below.
+  await body.press('ControlOrMeta+a')
+  await expect.poll(() => body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor
+    const { from, to, empty } = editor.state.selection
+    const dom = window.getSelection()
+    const visible = dom?.rangeCount === 1 ? dom.getRangeAt(0).cloneContents().textContent : null
+    const confined = !!dom?.anchorNode && !!dom.focusNode && element.contains(dom.anchorNode) && element.contains(dom.focusNode)
+    return { visible, model: editor.state.doc.textBetween(from, to, '\n'), empty, confined, wholeDocument: from === 0 && to === editor.state.doc.content.size }
+  })).toEqual({ visible: '风起云涌 Hello 2026', model: '风起云涌 Hello 2026', empty: false, confined: true, wholeDocument: true })
+  await page.keyboard.insertText('专注模式不能丢失的草稿')
+  await expect(body).toHaveText('专注模式不能丢失的草稿')
   await body.press('ControlOrMeta+Alt+Shift+ArrowDown')
   await expect(page.locator('.save-status')).toHaveText('保存失败')
   await expect(page.getByRole('textbox', { name: '章节标题' })).toHaveValue('专注第一章')

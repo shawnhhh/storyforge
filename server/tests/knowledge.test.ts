@@ -138,7 +138,7 @@ test('HTTP knowledge endpoints enforce versions, local origin, restore generatio
     await new Promise<void>((resolve, reject) => { server.once('listening', resolve); server.once('error', reject) })
     const address = server.address(); assert.ok(address && typeof address === 'object')
     const url = `http://127.0.0.1:${address.port}/api/novels/${f.novel.id}/knowledge-links`
-    const send = (body: unknown, generation: string = backups.generation, origin = 'http://127.0.0.1:5173') => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-StoryForge-Generation': generation, Origin: origin }, body: JSON.stringify(body) })
+    const send = (body: unknown, generation: string = backups.generation, origin = 'http://127.0.0.1:5173') => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-StoryForge-Generation': generation, Origin: origin }, body: JSON.stringify({ ...(body as object), confirmed: true }) })
     assert.deepEqual(await (await fetch(url)).json(), { version: 0, links: [] })
     assert.equal((await send({ version: 0, links: f.links })).status, 200)
     assert.equal((await send({ version: 0, links: [] })).status, 409)
@@ -171,7 +171,7 @@ test('Mock HTTP client sends scoped versioned knowledge snapshots and surfaces c
   assert.deepEqual(await storyApi.links('novel / 中文'), snapshot)
   assert.deepEqual(await storyApi.saveLinks('novel / 中文', snapshot), snapshot)
   assert.equal(calls[0].path, '/api/novels/novel%20%2F%20%E4%B8%AD%E6%96%87/knowledge-links')
-  assert.equal(calls[1].init?.method, 'PUT'); assert.deepEqual(JSON.parse(String(calls[1].init?.body)), snapshot)
+  assert.equal(calls[1].init?.method, 'PUT'); assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { ...snapshot, confirmed: true })
   t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ message: '版本冲突' }), { status: 409 }))
   await assert.rejects(storyApi.saveLinks('novel', snapshot), (error: unknown) => error instanceof ApiError && error.status === 409)
   assert.deepEqual(snapshot, { version: 2, links: [] })

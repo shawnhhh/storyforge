@@ -1,3 +1,4 @@
+import { openDeleteMenu } from './trash-helpers.js'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { characterFields } from '../../shared/contracts/story-bible.js'
@@ -86,16 +87,19 @@ test('profiles CRUD, search, tags, relationships, world links and timeline persi
   await expect(page.getByRole('navigation', { name: '人物列表' }).getByRole('button')).toHaveCount(0)
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '人物世界观验收 🌕' }).click()
   await expect(page.getByLabel('姓名', { exact: true })).toHaveValue('林月🌕')
+  page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '移除关系 1', exact: true }).click()
   await saved(page)
   await page.getByRole('navigation', { name: '人物列表' }).getByRole('button').filter({ hasText: '沈先生' }).click()
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除人物')
   await page.getByRole('button', { name: '删除人物', exact: true }).click()
   await expect(page.getByRole('navigation', { name: '人物列表' }).getByRole('button')).toHaveCount(1)
   await module(page, '世界观')
   await page.getByRole('navigation', { name: '设定列表' }).getByRole('button').filter({ hasText: '云城 <&>' }).click()
   await expect(page.getByRole('listitem').filter({ hasText: '林月🌕' })).toBeVisible()
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除设定')
   await page.getByRole('button', { name: '删除设定', exact: true }).click()
   await expect(page.getByRole('navigation', { name: '设定列表' }).getByRole('button')).toHaveCount(1)
   await module(page, '人物档案')
@@ -141,6 +145,7 @@ test('profile conflicts retain exportable drafts, guard navigation and require e
   await saved(other)
   // A remote deletion must preserve, rather than recreate, the stale editor's draft.
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除人物')
   await page.getByRole('button', { name: '删除人物', exact: true }).click()
   await other.getByLabel('姓名', { exact: true }).fill('被删除后的草稿')
   await expect(other.locator('.profile-save-status')).toHaveText('版本冲突 · 未保存')

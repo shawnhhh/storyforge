@@ -219,3 +219,5 @@ export default defineConfig([
 ### 创作工作台
 
 首页提供作品概览、章节正文进度、字数统计、最近编辑、每日目标、连续写作与快捷继续写作，支持系统深色模式和移动端布局。每日新增字数按 UTC 自然日统计，仅记录功能启用后的成功保存。[功能说明与隔离测试](docs/writing-dashboard.md)。
+
+统一删除、30 天回收站、数据库 v5 迁移和 Mac 隔离验收：[中文审查与开发报告](docs/unified-trash-report.md)。
