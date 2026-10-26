@@ -3,12 +3,15 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { expectChapterReady, chapterBody } from './editor-helpers.js'
 import { inspectFillComposition, updateComposition } from './composition-helpers.js'
+import { emptyPlanning, type PlanningSnapshot } from '../../shared/contracts/planning.js'
+import { newCharacter, newWorld } from '../../src/features/story-bible/model.js'
+import type { StoryBible } from '../../shared/contracts/story-bible.js'
 const panel = (page: Page) => page.getByRole('region', { name: '创作规划', exact: true })
 const saved = (page: Page) => expect(page.locator('.planning-status')).toHaveText('已保存到数据库')
 async function seed(page: Page, title: string) {
   const health = await page.request.get('/api/health')
   const headers = { 'X-StoryForge-Generation': health.headers()['x-storyforge-generation'] }
-  const response = await page.request.post('/api/novels', { headers, data: { title, description: '第五阶段浏览器测试' } })
+  const response = await page.request.post('/api/novels', { headers, data: { title: `${title} ${crypto.randomUUID()}`, description: '第五阶段浏览器测试' } })
   expect(response.ok()).toBeTruthy()
   let novel = await response.json()
   const chapters: { id: string; title: string }[] = []
@@ -17,7 +20,7 @@ async function seed(page: Page, title: string) {
     expect(response.ok()).toBeTruthy()
     const result = await response.json(); novel = result.novel; chapters.push(result.chapter)
   }
-  return { novel, chapters }
+  return { novel, chapters, headers }
 }
 async function open(page: Page, title: string) {
   await page.goto('/')
@@ -65,6 +68,88 @@ test('outline tree CRUD, ordering and chapter links survive reload without chang
   await expect(page.locator('.planning-items article')).toHaveCount(2)
   const after = await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()
   expect(after).toEqual(before)
+})
+
+test('late material loading keeps deletion anchored and preserves linked records and drafts', async ({ page }, info) => {
+  const { novel, chapters, headers } = await seed(page, '异步删除与关联保护')
+  const base = `/api/novels/${novel.id}`
+  const personResponse = await page.request.post(`${base}/characters`, { headers, data: { ...newCharacter(), name: '虚构人物' } })
+  const worldResponse = await page.request.post(`${base}/world`, { headers, data: { ...newWorld('other'), name: '虚构世界观' } })
+  expect(personResponse.ok()).toBeTruthy(); expect(worldResponse.ok()).toBeTruthy()
+  const person = await personResponse.json() as { id: string }, world = await worldResponse.json() as { id: string }
+  const parentId = crypto.randomUUID(), childId = crypto.randomUUID(), cardId = crypto.randomUUID()
+  const parentTitle = '父纲：保留关联'
+  const input = { ...emptyPlanning(), version: 0, confirmed: true,
+    outlines: [
+      { id: parentId, title: parentTitle, content: '虚构父纲', kind: 'overall', parentId: null, chapterIds: [chapters[0].id], characterIds: [person.id], worldIds: [world.id] },
+      { id: childId, title: '子纲：不得丢失', content: '虚构子纲', kind: 'volume', parentId, chapterIds: [chapters[0].id], characterIds: [person.id], worldIds: [world.id] },
+    ],
+    cards: [{ id: cardId, title: '独立事件：不得丢失', content: '', summary: '', status: 'planned', plotlineId: null, storyTime: '', timeOrder: null, chapterIds: [chapters[0].id], characterIds: [person.id], worldIds: [world.id] }],
+  }
+  const created = await page.request.put(`${base}/planning`, { headers, data: input })
+  expect(created.ok()).toBeTruthy()
+  const original = await created.json() as PlanningSnapshot
+  const bibleBefore = await (await page.request.get(`${base}/story-bible`)).json() as StoryBible
+  const chapterBefore = await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()
+  await page.goto('/')
+  await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: novel.title }).click()
+  await expectChapterReady(page, '第一章')
+  const planningButton = page.getByRole('button', { name: '创作规划', exact: true })
+  await expect(planningButton).toBeEnabled()
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  for (const endpoint of ['story-bible', 'knowledge-links']) {
+    await page.route(`**${base}/${endpoint}`, async route => { await gate; await route.continue() })
+  }
+  try {
+    await planningButton.click()
+    await expect(panel(page)).toBeVisible()
+    await panel(page).locator('.planning-items article > button').filter({ hasText: parentTitle }).click()
+    await expect(panel(page).getByLabel('规划标题', { exact: true })).toHaveValue(parentTitle)
+    await expect(panel(page).getByText('资料尚未加载，已有引用会保留。', { exact: true })).toBeVisible()
+    const summary = panel(page).locator('.delete-menu summary')
+    const offset = () => summary.evaluate(element => element.getBoundingClientRect().top - element.closest('.planning-form')!.getBoundingClientRect().top)
+    const beforeOffset = await offset()
+    release()
+    await expect(panel(page).getByRole('group', { name: '关联人物', exact: true })).toBeVisible()
+    await expect(panel(page).getByRole('group', { name: '其他关联资料', exact: true })).toBeVisible()
+    await expect(panel(page).getByRole('group', { name: '关联人物', exact: true }).getByLabel('虚构人物', { exact: true })).toBeChecked()
+    const afterOffset = await offset()
+    await info.attach('delete-layout', { body: Buffer.from(JSON.stringify({ beforeOffset, afterOffset })), contentType: 'application/json' })
+    await expect.poll(offset).toBe(beforeOffset)
+    await openDeleteMenu(page, '删除当前规划')
+    const dialogPromise = page.waitForEvent('dialog')
+    const deleting = panel(page).getByRole('button', { name: '删除当前规划', exact: true }).click()
+    const dialog = await dialogPromise
+    expect(dialog.message()).toBe(`删除规划“${parentTitle}”？大纲子项将提升一级，其他引用将解除。保存后进入回收站保留 30 天。`)
+    await dialog.accept(); await deleting; await saved(page)
+    await expect(panel(page).locator('.planning-items article')).toHaveCount(1)
+    const removed = await (await page.request.get(`${base}/planning`)).json() as PlanningSnapshot
+    expect(removed.outlines.map(row => row.id)).toEqual([childId])
+    expect(removed.outlines[0]).toEqual({ ...original.outlines[1], parentId: null })
+    expect(removed.cards).toEqual(original.cards)
+    expect(await (await page.request.get(`${base}/story-bible`)).json()).toEqual(bibleBefore)
+    expect(await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()).toEqual(chapterBefore)
+    const stale = await page.request.put(`${base}/planning`, { headers, data: { ...original, confirmed: true } })
+    const rebased = await page.request.put(`${base}/planning`, { headers, data: { ...original, version: removed.version, confirmed: true } })
+    expect(stale.status()).toBe(409); expect(rebased.status()).toBe(409)
+    expect(await (await page.request.get(`${base}/planning`)).json()).toEqual(removed)
+    const entries = await (await page.request.get('/api/trash')).json() as { id: string; novelId: string; kind: string; name: string }[]
+    const entry = entries.find(row => row.novelId === novel.id && row.kind === 'planning' && row.name === parentTitle)
+    expect(entry).toBeTruthy()
+    const restore = await page.request.post(`/api/trash/${entry!.id}/restore`, { headers, data: { confirmed: true } })
+    expect(restore.status()).toBe(204)
+    const restored = await (await page.request.get(`${base}/planning`)).json() as PlanningSnapshot
+    expect(new Map(restored.outlines.map(row => [row.id, row]))).toEqual(new Map(original.outlines.map(row => [row.id, row]))); expect(restored.cards).toEqual(original.cards)
+    expect(restored.version).toBeGreaterThan(removed.version)
+    // Restoration advances versions to reject old autosaves; every other field survives.
+    expect(await (await page.request.get(`${base}/story-bible`)).json()).toEqual({
+      characters: bibleBefore.characters.map(row => ({ ...row, version: row.version + 1 })),
+      world: bibleBefore.world.map(row => ({ ...row, version: row.version + 1 })),
+    })
+    expect(await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()).toEqual({ ...chapterBefore, version: chapterBefore.version + 1 })
+    await info.attach('planning-delete-safety', { body: Buffer.from(JSON.stringify({ childPromoted: true, materialsPreserved: true, cardsPreserved: true, staleDraftsRejected: true, restoredOriginalIds: true, chapterUnchanged: true })), contentType: 'application/json' })
+  } finally { release(); await page.unrouteAll({ behavior: 'wait' }) }
 })
 
 test('plotlines, card views, search, filters, story timeline and foreshadow lifecycle', async ({ page }) => {
