@@ -21,7 +21,7 @@
 
 以上 7 项单元包含在新增测试文件中，筛选运行与完整尝试的同一用例不重复累计。API 用例包括预览/确认门禁、共享写作预算、失效请求、截断和无效 JSON、模型错误脱敏、硬超时、取消传播，以及输入/token/费用限额。新增 E2E 6 项（四类型 + 取消/失败/冲突导出 + 主题窄屏），使用真实本地 API 与临时 SQLite、Mock Provider。
 
-完整原始本地日志保存在 work/：`dependency-install.log`、`lint-first-failure.log`、`lint.log`、`typecheck-app.log`、`typecheck-server.log`、`typecheck-full.log`、`build-full.log`、`build-vite.log`、`unit-api.log`、`ai-planning-unit.log`、`ai-planning-api.log`、`ai-planning-e2e.log`。work 被 gitignore 排除，不上传可能混入环境信息的全部原始日志；另提交精简的 [本地验证记录](ai-world-outline-local-validation.txt)。
+完整原始本地日志保存在 work/：`dependency-install.log`、`lint-first-failure.log`、`lint.log`、`typecheck-app.log`、`typecheck-server.log`、`typecheck-full.log`、`build-full.log`、`build-vite.log`、`unit-api.log`、`ai-planning-unit.log`、`ai-planning-api.log`、`ai-planning-e2e.log`。work 被 gitignore 排除，不上传可能混入环境信息的全部原始日志。历史失败及结果见上表；[2026-10-20 日志摘录](https://github.com/shawnhhh/storyforge/blob/df3599116eba47e0883ad2d5a02953c5a6520f22/docs/ai-world-outline-local-validation.txt)保留在原提交中，当前分支不再重复跟踪。后续云端日志、截图及 trace 由 GitHub Actions Artifacts 保存。
 
 ## CI 验证
 

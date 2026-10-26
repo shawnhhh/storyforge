@@ -47,12 +47,38 @@ jobs:
         run: npm run test:e2e -- --project=chromium draft-recovery.spec.ts --grep 'mobile recovery works with IndexedDB disabled' --repeat-each=10
       - name: Repeat planning deletion and delayed-material safety five times
         run: npm run test:e2e -- --project=chromium planning.spec.ts --grep 'outline tree CRUD|late material loading' --repeat-each=5
-      - run: npm run test:e2e -- --project=chromium
       - name: Upload browser diagnostics and UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-${{ github.event_name }}-${{ github.run_id }}
+          path: work/e2e-results/
+          if-no-files-found: ignore
+          retention-days: 7
+  chromium:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: Chromium complete regression (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Keep the complete suite and deadlines; each runner owns its services,
+      # database and diagnostics, without competing browser workers.
+      - name: Full E2E (Chromium shard ${{ matrix.shard }}/3)
+        run: npm run test:e2e -- --project=chromium --shard=${{ matrix.shard }}/3
+      - name: Upload Chromium diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-${{ matrix.shard }}-${{ github.event_name }}-${{ github.run_id }}
           path: work/e2e-results/
           if-no-files-found: ignore
           retention-days: 7
