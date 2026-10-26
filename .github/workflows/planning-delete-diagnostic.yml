@@ -42,7 +42,7 @@ jobs:
                   delta, position = node[0]
                   target = index - delta
                   return resolve(snapshots[target]['nodes'][position], target, snapshots)
-              if isnode(node): return [node[0], node[1], *[resolve(child, index, snapshots) for child in node[2:]]]
+              if isnode(node): return [node[0], node[1] if len(node) > 1 else {}, *[resolve(child, index, snapshots) for child in node[2:]]]
               return node
           def text(node):
               if isinstance(node, str): return node
