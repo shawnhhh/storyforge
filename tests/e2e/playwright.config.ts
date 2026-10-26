@@ -12,7 +12,7 @@ export default defineConfig({
   // Preserve the draft suite's global budget and strict individual deadlines.
   globalTimeout: 900000,
   expect: { timeout: 7000 },
-  reporter: 'list',
+  reporter: [['list'], ['json']],
   outputDir: process.env.E2E_OUTPUT_DIR,
   use: {
     baseURL: process.env.E2E_BASE_URL,
