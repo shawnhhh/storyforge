@@ -19,7 +19,8 @@ const v3Signatures = migrations.slice(2, 4).map(name => {
 })
 export function migrate(database: DatabaseSync, target = schemaVersion) {
   if (!Number.isInteger(target) || target < 1 || target > schemaVersion) throw new Error('Invalid migration target')
-  database.exec('BEGIN IMMEDIATE')
+  const nested = database.isTransaction
+  database.exec(nested ? 'SAVEPOINT base_migration' : 'BEGIN IMMEDIATE')
   try {
     database.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)')
     const versions = database.prepare('SELECT version FROM schema_migrations ORDER BY version').all()
@@ -36,9 +37,9 @@ export function migrate(database: DatabaseSync, target = schemaVersion) {
       if (!(version === 4 && knowledgeAlreadyApplied)) database.exec(migrationSql(migrations[version - 1]))
       database.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)').run(version, new Date().toISOString())
     }
-    database.exec('COMMIT')
+    database.exec(nested ? 'RELEASE base_migration' : 'COMMIT')
   } catch (error) {
-    database.exec('ROLLBACK')
+    database.exec(nested ? 'ROLLBACK TO base_migration; RELEASE base_migration' : 'ROLLBACK')
     throw error
   }
 }

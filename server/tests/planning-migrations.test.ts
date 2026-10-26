@@ -141,3 +141,32 @@ test('planning and its chapter links survive backup, restore, and injected resto
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
   } finally { await service.stop(); db.close(); rmSync(dir, { recursive: true, force: true }) }
 })
+
+for (const conflict of ['future-history', 'conflicting-table']) test(`startup rolls back base upgrades when planning fails: ${conflict}`, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'storyforge-startup-atomic-'))
+  const path = join(dir, 'storyforge.sqlite')
+  let db = new DatabaseSync(path)
+  try {
+    migrate(db, 2)
+    const novel = new NovelStore(db).create('启动失败保留原数据', '原始简介')
+    if (conflict === 'future-history') {
+      migratePlanning(db)
+      db.exec("INSERT INTO planning_migrations VALUES ('planning/003', 'future')")
+    } else db.exec("CREATE TABLE planning_records (note TEXT); INSERT INTO planning_records VALUES ('保留冲突记录')")
+    const dump = () => db.prepare("SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all()
+    const schema = dump(), history = db.prepare('SELECT * FROM schema_migrations ORDER BY version').all()
+    const data = new NovelStore(db).exportData(novel.id)
+    db.close()
+    for (let attempt = 0; attempt < 2; attempt++) {
+      assert.throws(() => openDatabase(dir), conflict === 'future-history' ? /newer/ : /already exists/)
+      db = new DatabaseSync(path)
+      assert.deepEqual(dump(), schema)
+      assert.deepEqual(db.prepare('SELECT * FROM schema_migrations ORDER BY version').all(), history)
+      assert.deepEqual(new NovelStore(db).exportData(novel.id), data)
+      assert.deepEqual(db.prepare('PRAGMA integrity_check').all().map(row => row.integrity_check), ['ok'])
+      assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
+      if (conflict === 'conflicting-table') assert.equal(db.prepare('SELECT note FROM planning_records').get()!.note, '保留冲突记录')
+      db.close()
+    }
+  } finally { if (db.isOpen) db.close(); rmSync(dir, { recursive: true, force: true }) }
+})

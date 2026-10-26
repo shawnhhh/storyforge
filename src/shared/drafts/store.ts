@@ -36,7 +36,14 @@ function open() {
   if (!database) database = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('storyforge-protected-drafts', 1)
     request.onupgradeneeded = () => request.result.createObjectStore('drafts', { keyPath: 'id' })
-    request.onsuccess = () => { const db = request.result; db.onversionchange = () => { db.close(); database = undefined }; resolve(db) }
+    request.onsuccess = () => {
+      const db = request.result
+      // WebKit may close a connection while a page is suspended. Reopen on the
+      // next operation instead of retaining an unusable connection forever.
+      db.onclose = () => { database = undefined }
+      db.onversionchange = () => { db.close(); database = undefined }
+      resolve(db)
+    }
     request.onerror = () => { database = undefined; reject(request.error) }
     request.onblocked = () => { database = undefined; reject(new Error('浏览器草稿库被其他窗口占用')) }
   })
@@ -62,7 +69,9 @@ export async function readLocalDrafts<T>(key: string): Promise<LocalDraft<T>[]> 
   try {
     const db = await open()
     const values = await new Promise<unknown[]>((resolve, reject) => {
-      const request = db.transaction('drafts').objectStore('drafts').getAll()
+      const tx = db.transaction('drafts')
+      tx.onabort = () => reject(tx.error ?? new Error('草稿读取事务中止'))
+      const request = tx.objectStore('drafts').getAll()
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)
     })
     for (const value of values) { if (!valid(value)) throw new Error('本机草稿格式损坏，请保留浏览器数据并导出'); records.set(value.id, value) }
