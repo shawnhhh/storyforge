@@ -50,6 +50,10 @@ jobs:
               if isnode(node):
                   yield node
                   for child in node[2:]: yield from walk(child)
+          def schema_token(value):
+              import re
+              return value if isinstance(value, str) and re.fullmatch(r'[A-Za-z][A-Za-z.:]{0,50}', value) else 'other'
+          emit('schema-counts', types=dict(collections.Counter(schema_token(event.get('type')) for event in events)), methods=dict(collections.Counter(schema_token(event.get('method')) for event in events if event.get('type') == 'event')))
           for event in events:
               kind = event.get('type')
               if kind == 'before':
@@ -67,6 +71,9 @@ jobs:
                   method = event.get('method')
                   if method in ['close', 'crash', 'pageError', 'pageerror', 'dialog', 'frameNavigated', 'navigated']:
                       emit('browser-event', time=event.get('time'), method=method)
+              elif kind == 'log':
+                  value = str(event.get('message', ''))
+                  emit('action-log', time=event.get('time'), call=event.get('callId'), target_closed='closed' in value.lower(), crash='crash' in value.lower(), detached='detach' in value.lower())
               elif kind == 'console':
                   value = str(event.get('text', ''))
                   emit('console-classification', time=event.get('time'), vite_reload='reload' in value.lower() and 'vite' in value.lower(), vite_connect='vite' in value.lower() and 'connect' in value.lower(), error=event.get('messageType') == 'error')
@@ -91,4 +98,27 @@ jobs:
         with:
           name: webkit-backup-structural-evidence
           path: work/webkit-structural-summary.json
+          retention-days: 14
+  reproduce:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install webkit
+      - name: Repeat unchanged backup recovery assertions twenty times
+        run: |
+          mkdir -p work
+          DEBUG=pw:browser npm run test:e2e -- --project=webkit draft-recovery.spec.ts --grep 'restoring an isolated database backup' --repeat-each=20 > work/webkit-backup-browser.log 2>&1
+      - name: Retain browser process logs and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webkit-backup-live-diagnostics
+          path: |
+            work/webkit-backup-browser.log
+            work/e2e-results/
           retention-days: 14

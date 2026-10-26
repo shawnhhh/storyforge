@@ -62,8 +62,22 @@ async function drafts(page: Page) {
   })
 }
 const errors = new WeakMap<Page, string[]>()
-test.beforeEach(({ page }) => { const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message)) })
-test.afterEach(({ page }) => { expect(errors.get(page)).toEqual([]) })
+const lifecycles = new WeakMap<Page, { events: { event: string; elapsedMs: number }[]; cleanup: () => void }>()
+test.beforeEach(({ page }) => {
+  const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message))
+  const started = performance.now(), events: { event: string; elapsedMs: number }[] = []
+  const record = (event: string) => () => events.push({ event, elapsedMs: Math.round(performance.now() - started) })
+  const closed = record('page-closed'), crashed = record('page-crashed'), disconnected = record('browser-disconnected')
+  page.on('close', closed); page.on('crash', crashed)
+  const browser = page.context().browser(); browser?.on('disconnected', disconnected)
+  lifecycles.set(page, { events, cleanup: () => { page.off('close', closed); page.off('crash', crashed); browser?.off('disconnected', disconnected) } })
+})
+test.afterEach(async ({ page }, testInfo) => {
+  const lifecycle = lifecycles.get(page)
+  lifecycle?.cleanup()
+  if (testInfo.status !== testInfo.expectedStatus) await testInfo.attach('browser-lifecycle', { body: JSON.stringify({ events: lifecycle?.events ?? [], pageClosed: page.isClosed(), browserConnected: page.context().browser()?.isConnected() ?? null }), contentType: 'application/json' })
+  expect(errors.get(page)).toEqual([])
+})
 
 test('normal saves clear protected drafts and switching chapters cannot mix content', async ({ page }) => {
   const { novel } = await seed(page); await open(page, novel.title)
