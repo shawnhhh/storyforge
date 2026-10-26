@@ -82,7 +82,7 @@ export function StoryBiblePanel({ novelId, mode, disabled, onDirty, initialId, c
   const filtered = all.filter(item => matchesKnowledge(item, query, tag, category, isLibrary ? materialType : ''))
   const visible = !isLibrary && !isCharacter && timeline ? timelineEntries(filtered as WorldEntry[]) : filtered
   function remove() {
-    if (!selected || blocked || !window.confirm(`删除${label}“${selected.name}”？相关的人物关系和设定关联会一并移除，小说正文不受影响。此操作不可撤销。`)) return
+    if (!selected || blocked || !window.confirm(`删除${label}“${selected.name}”？相关的人物关系和设定关联会一并移除，小说正文不受影响。将进入回收站保留 30 天，可恢复资料及关联。`)) return
     void run(async () => {
       const kind = 'fields' in selected ? 'characters' : 'world'
       await storyApi.remove(kind, selected)
@@ -117,7 +117,7 @@ export function StoryBiblePanel({ novelId, mode, disabled, onDirty, initialId, c
       </aside>
       <div className="story-editor-pane">
         {selected ? <>
-          <div className="profile-detail-heading"><span>资料详情 · 可直接编辑</span><button className="danger" disabled={blocked} onClick={remove}>删除{label}</button></div>
+          <div className="profile-detail-heading"><span>资料详情 · 可直接编辑</span><details className="delete-menu"><summary>···</summary><button className="danger" disabled={blocked} onClick={remove}>删除{label}</button></details></div>
           {'fields' in selected ? <CharacterEditor key={`${selected.id}:${session}`} record={selected} characters={data.characters} world={data.world} disabled={busy || linkBusy || disabled} onSaved={onCharacterSaved} onDirty={setDirty} onReload={() => reload(true)} onOpen={open}>
             <KnowledgeLinks key={selected.id} novelId={novelId} source={{ kind: 'character', id: selected.id }} data={data} chapters={chapters} disabled={busy || dirty || disabled} onBusy={setLinkBusy} onOpen={open} />
           </CharacterEditor> : <WorldEditor key={`${selected.id}:${session}`} record={selected} characters={data.characters} disabled={busy || linkBusy || disabled} onSaved={onWorldSaved} onDirty={setDirty} onReload={() => reload(true)} onOpen={open}>

@@ -3,12 +3,12 @@ import type { useDraftProtection } from './useDraftProtection'
 import type { LocalDraft } from './store'
 import './drafts.css'
 
-export function DraftNotice<T extends object>({ draft, onRestore }: { draft: ReturnType<typeof useDraftProtection<T>>; onRestore: (value: T) => void }) {
+export function DraftNotice<T extends object>({ draft, onRestore }: { draft: ReturnType<typeof useDraftProtection<T>>; onRestore: (value: T, source: LocalDraft<T>) => void }) {
   const { protection, state } = draft
   const [restoreError, setRestoreError] = useState('')
   function restore(record: LocalDraft<T>) {
     // A choice among several drafts never deletes the other drafts.
-    try { protection.validate(record); onRestore(record.value); protection.recover(record); setRestoreError('') }
+    try { protection.validate(record); onRestore(record.value, record); protection.recover(record); setRestoreError('') }
     catch (error) { setRestoreError(String(error)) }
   }
   function download(record: LocalDraft<T>) {

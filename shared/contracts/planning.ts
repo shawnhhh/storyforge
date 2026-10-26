@@ -2,9 +2,11 @@ export const outlineKinds = { overall: '总纲', volume: '分卷大纲', chapter
 export const cardStatuses = { idea: '构思中', planned: '已规划', writing: '写作中', done: '已完成' } as const
 export const foreshadowStatuses = { unplanted: '未埋设', planted: '已埋设', advancing: '推进中', resolved: '已回收' } as const
 export interface PlanningItem { id: string; title: string; content: string }
-export interface Outline extends PlanningItem { kind: keyof typeof outlineKinds; parentId: string | null; chapterIds: string[] }
+// Optional for old backups and local drafts created before planning/002.
+export interface PlanningMaterials { characterIds?: string[]; worldIds?: string[] }
+export interface Outline extends PlanningItem, PlanningMaterials { kind: keyof typeof outlineKinds; parentId: string | null; chapterIds: string[] }
 export interface Plotline extends PlanningItem { kind: 'main' | 'subplot' | 'custom' }
-export interface PlotCard extends PlanningItem {
+export interface PlotCard extends PlanningItem, PlanningMaterials {
   summary: string; status: keyof typeof cardStatuses; plotlineId: string | null
   storyTime: string; timeOrder: number | null; chapterIds: string[]
 }

@@ -1,3 +1,4 @@
+import { openDeleteMenu } from './trash-helpers.js'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { newCharacter, newWorld } from '../../src/features/story-bible/model.js'
@@ -109,6 +110,7 @@ test('unified knowledge CRUD, filters, existing relations, world links and chapt
   const json = JSON.parse(readFileSync((await (await download).path())!, 'utf8'))
   expect(json.knowledge.profiles.characters).toHaveLength(2)
   expect(json.knowledge.references.links).toHaveLength(2)
+  page.once('dialog', dialog => dialog.accept())
   await references.getByRole('button', { name: '移除引用 云城 <&>', exact: true }).click()
   await expect(references.getByText('核对港口布局', { exact: true })).toHaveCount(0)
   expect(errors).toEqual([])
@@ -165,9 +167,11 @@ test('library deletion cleans chapter references and narrow layouts keep control
   await expect(links(page).getByRole('button', { name: '测试地点', exact: true })).toBeVisible()
   await list(page).getByRole('button').filter({ hasText: '测试地点' }).click()
   page.once('dialog', dialog => dialog.dismiss())
+  await openDeleteMenu(page, '删除资料')
   await page.getByRole('button', { name: '删除资料', exact: true }).click()
   await expect(page.getByLabel('设定名称', { exact: true })).toHaveValue('测试地点')
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除资料')
   await page.getByRole('button', { name: '删除资料', exact: true }).click()
   await expect(list(page).getByRole('button')).toHaveCount(2)
   await list(page).getByRole('button').filter({ hasText: '测试势力' }).click()
