@@ -358,3 +358,30 @@ test('closing a tab with only IndexedDB available retains the draft and reopenin
     expect(reopenedErrors).toEqual([])
   } finally { await reopened.close() }
 })
+
+test('IndexedDB-only recovery retries after a synchronous open denial', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('disabled for test', 'SecurityError') } })
+    const original = indexedDB.open.bind(indexedDB)
+    let denied = false
+    indexedDB.open = (...args) => {
+      if (args[0] === 'storyforge-protected-drafts' && !denied) { denied = true; throw new DOMException('temporary denial', 'SecurityError') }
+      return original(...args)
+    }
+  })
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const modulePath = '/src/shared/drafts/store.ts'
+    const store = await import(modulePath)
+    let failure = ''
+    try { await store.readLocalDrafts('retry-test') } catch (error) { failure = String(error) }
+    const draft = { schema: 1, id: crypto.randomUUID(), key: 'retry-test', token: crypto.randomUUID(), revision: 1, updatedAt: new Date().toISOString(), base: '', generation: null, value: { content: '浏览器允许存储后恢复本机保护' } }
+    await store.persistLocalDraft(draft)
+    const records = await store.readLocalDrafts(draft.key)
+    await store.removeLocalDraft(draft)
+    return { failure, records, draft, remaining: await store.readLocalDrafts(draft.key) }
+  })
+  expect(result.failure).toContain('禁止读取')
+  expect(result.records).toEqual([result.draft])
+  expect(result.remaining).toEqual([])
+})

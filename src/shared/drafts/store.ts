@@ -33,21 +33,30 @@ function decode(value: string): unknown {
 }
 let database: Promise<IDBDatabase> | undefined
 function open() {
-  if (!database) database = new Promise<IDBDatabase>((resolve, reject) => {
+  if (database) return database
+  let rejected = false
+  const pending = new Promise<IDBDatabase>((resolve, reject) => {
+    const fail = (error: unknown) => { rejected = true; reject(error) }
     const request = indexedDB.open('storyforge-protected-drafts', 1)
     request.onupgradeneeded = () => request.result.createObjectStore('drafts', { keyPath: 'id' })
     request.onsuccess = () => {
       const db = request.result
-      // WebKit may close a connection while a page is suspended. Reopen on the
-      // next operation instead of retaining an unusable connection forever.
-      db.onclose = () => { database = undefined }
-      db.onversionchange = () => { db.close(); database = undefined }
+      // A blocked request cannot be cancelled. Release a late result rather than
+      // leaking a connection after the caller has already received a failure.
+      if (rejected) { db.close(); return }
+      const invalidate = () => { if (database === pending) database = undefined }
+      db.onclose = invalidate
+      db.onversionchange = () => { db.close(); invalidate() }
       resolve(db)
     }
-    request.onerror = () => { database = undefined; reject(request.error) }
-    request.onblocked = () => { database = undefined; reject(new Error('浏览器草稿库被其他窗口占用')) }
+    request.onerror = () => fail(request.error)
+    request.onblocked = () => fail(new Error('浏览器草稿库被其他窗口占用'))
   })
-  return database
+  database = pending
+  // Also handles synchronous open() exceptions: the Promise is assigned before
+  // this callback runs. An older request must never evict a newer connection.
+  void pending.catch(() => { if (database === pending) database = undefined })
+  return pending
 }
 async function transact(action: (store: IDBObjectStore) => void) {
   const db = await open()

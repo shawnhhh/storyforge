@@ -19,7 +19,7 @@ jobs:
       - run: npm run build
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
-        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
+        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/draft-open.test.ts tests/unit/planning-recovery.test.ts
       - name: Upload large-library performance measurements
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,7 +107,7 @@ jobs:
       - run: npm run build
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
-        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/planning-recovery.test.ts
+        run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/draft-open.test.ts tests/unit/planning-recovery.test.ts
       - run: npx playwright install ${{ matrix.browser }}
       - name: IME form-control regression
         run: npm run test:e2e -- --project=${{ matrix.project }} planning story-bible --grep composition
