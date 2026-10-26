@@ -272,9 +272,16 @@ test('temporarily empty required titles remain recoverable in local drafts', asy
   await page.reload()
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: novel.title }).click()
   await page.getByRole('button', { name: '创作规划', exact: true }).click()
+  // Restoring this intentionally incomplete draft starts another invalid save.
+  // Finish that 400 before editing: a failed in-flight request deliberately
+  // cancels queued retries, so editing during it tests a different workflow.
+  const invalidRestoredSave = page.waitForResponse(response => response.request().method() === 'PUT' && response.url().endsWith(`/api/novels/${novel.id}/planning`) && response.status() === 400)
   await page.getByRole('button', { name: '恢复此草稿', exact: true }).click()
   await panel(page).getByRole('button', { name: /未命名/ }).first().click()
   await expect(panel(page).getByRole('textbox', { name: '详细内容', exact: true })).toHaveValue('尚未命名但必须保留的内容')
+  const invalid = await invalidRestoredSave
+  expect(invalid.request().postDataJSON().outlines[0].title).toBe('')
+  await expect(page.locator('.planning-status')).toHaveText('保存失败 · 草稿已保留')
   await panel(page).getByLabel('规划标题', { exact: true }).fill('补全标题')
   await saved(page)
 })
