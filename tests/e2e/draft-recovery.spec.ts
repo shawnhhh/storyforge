@@ -327,3 +327,34 @@ test('restoring an isolated database backup requires a choice before an old-gene
   expect(after.version).toBe(2)
   expect(after.content.content[0].content[0].text).toBe('备份之后尚未保存的虚构草稿')
 })
+
+test('closing a tab with only IndexedDB available retains the draft and reopening never replays it silently', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('disabled for test', 'SecurityError') } })
+  })
+  const { novel, chapters } = await seed(page)
+  await open(page, novel.title); await expectChapterReady(page, '第一章'); await failWrites(page)
+  const content = '关闭标签后必须明确恢复的 IndexedDB 草稿'
+  const before = await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()
+  await chapterBody(page).fill(content)
+  await expect(page.getByText('临时草稿已保护 · 此浏览器', { exact: true })).toBeVisible()
+  await page.close()
+  const reopened = await context.newPage()
+  const reopenedErrors: string[] = []
+  reopened.on('pageerror', error => reopenedErrors.push(error.message))
+  try {
+    await open(reopened, novel.title, 'recovery')
+    await expect(reopened.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()
+    await expect(chapterBody(reopened)).toHaveAttribute('contenteditable', 'false')
+    const unchanged = await (await reopened.request.get(`/api/chapters/${chapters[0].id}`)).json()
+    expect(unchanged).toEqual(before)
+    await reopened.getByRole('button', { name: '恢复此草稿', exact: true }).click()
+    await expect(chapterBody(reopened)).toHaveText(content)
+    await expect(reopened.locator('.save-status')).toHaveText('已保存到数据库')
+    await expect.poll(() => drafts(reopened)).toEqual([])
+    const saved = await (await reopened.request.get(`/api/chapters/${chapters[0].id}`)).json()
+    expect(saved.version).toBe(before.version + 1)
+    expect(saved.content.content[0].content[0].text).toBe(content)
+    expect(reopenedErrors).toEqual([])
+  } finally { await reopened.close() }
+})
