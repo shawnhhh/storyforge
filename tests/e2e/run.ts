@@ -23,7 +23,7 @@ const outputDir = resolve('work/e2e-results', `${Date.now()}-${process.pid}`)
 mkdirSync(outputDir, { recursive: true })
 const started = performance.now()
 const phase = (name: string) => console.log(`[e2e] ${name} elapsed=${Math.round(performance.now() - started)}ms`)
-const children: { child: ChildProcess; exited: Promise<number | null> }[] = []
+const children: { child: ChildProcess; exited: Promise<number | null>; log: () => string }[] = []
 function launch(args: string[], env: NodeJS.ProcessEnv, inherit = false) {
   const child = spawn(process.execPath, args, { env, stdio: inherit ? 'inherit' : ['ignore', 'pipe', 'pipe'] })
   let log = ''
@@ -33,8 +33,9 @@ function launch(args: string[], env: NodeJS.ProcessEnv, inherit = false) {
     child.once('exit', resolve)
     child.once('error', reject)
   })
-  children.push({ child, exited })
-  return { child, exited, log: () => log }
+  const service = { child, exited, log: () => log }
+  children.push(service)
+  return service
 }
 async function ready(service: ReturnType<typeof launch>, url: string) {
   for (let attempt = 0; attempt < 100; attempt++) {
