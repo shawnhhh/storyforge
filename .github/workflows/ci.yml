@@ -146,6 +146,9 @@ jobs:
         run: npm run test:e2e -- --project=${{ matrix.project }} planning.spec.ts --grep 'outline tree CRUD|late material loading' --repeat-each=5
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Repeat isolated backup draft recovery five times (WebKit)
+        if: matrix.browser == 'webkit'
+        run: npm run test:e2e -- --project=webkit draft-recovery.spec.ts --grep 'restoring an isolated database backup' --repeat-each=5
       - name: Complete browser regression
         run: npm run test:e2e -- --project=${{ matrix.project }}
         env:
