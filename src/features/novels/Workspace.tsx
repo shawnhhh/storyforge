@@ -78,6 +78,13 @@ export function Workspace({ moduleEntry, moduleEntries }: { moduleEntry?: Module
   }
   const active = useRef(false)
   const blocked = loading || busy || dirty || referenceBusy
+  useEffect(() => {
+    const leave = (event: Event) => {
+      if (dirty || busy || referenceBusy) { event.preventDefault(); setNotice('请先保存当前修改或导出草稿，再切换创作模块。') }
+    }
+    window.addEventListener('storyforge:leave-story', leave)
+    return () => window.removeEventListener('storyforge:leave-story', leave)
+  }, [dirty, busy, referenceBusy])
   const updateNovel = useCallback((novel: Novel) => {
     setNovels(items => [novel, ...items.filter(item => item.id !== novel.id)])
     setDetail(current => current?.novel.id === novel.id ? { ...current, novel } : current)
