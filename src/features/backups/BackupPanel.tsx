@@ -1,3 +1,4 @@
+import { UnifiedBackupPanel } from './UnifiedBackupPanel'
 import { useEffect, useRef, useState } from 'react'
 import type { BackupHistory, RestorePreparation } from '../../../shared/contracts/backups'
 import { api } from '../novels/api'
@@ -55,7 +56,8 @@ export function BackupPanel({ onBack }: { onBack: () => void }) {
     {error && <p className="workspace-error" role="alert">{error}</p>}
     {history?.lastAutomaticError && <p className="workspace-error" role="alert">最近自动备份失败：{history.lastAutomaticError}。服务运行时将在下一次检查重试。</p>}
     {history?.busy && <p role="status">服务正在备份或恢复，请稍后刷新。</p>}
-    <h2>备份历史</h2>
+    <UnifiedBackupPanel />
+    <h2>小说备份历史（不含 Studio）</h2>
     {history && !history.entries.length && <p className="backup-note">尚无备份。点击“手动备份”保存当前全部小说。</p>}
     <ul className="backup-list">{history?.entries.map(entry => <li key={entry.id}>
       <div><strong>{time(entry.createdAt)}</strong><span>{kinds[entry.kind]} · {(entry.size / 1024).toFixed(1)} KB · 数据库 v{entry.schemaVersion}</span><small>{entry.id}</small><small>SHA-256：{entry.sha256}</small></div>

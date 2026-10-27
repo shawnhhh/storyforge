@@ -1,14 +1,15 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { CreativeProvider, StudioAsset, StudioKind, StudioProject, StudioSettings, StudioTask, StudioVersion } from '../../../../shared/contracts/studio.js'
 import { HttpError } from '../novels/store.js'
+import { StudioImporter } from './import.js'
 import { MockCreativeProvider } from './provider.js'
 
-function string(value: unknown, name: string, max: number, empty = false): string {
+export function string(value: unknown, name: string, max: number, empty = false): string {
   if (typeof value !== 'string' || value.length > max || (!empty && !value.trim())) throw new HttpError(400, `${name}无效`)
   return value
 }
-function settings(value: unknown, kind: StudioKind): StudioSettings {
+export function settings(value: unknown, kind: StudioKind): StudioSettings {
   if (!value || typeof value !== 'object' || Array.isArray(value) || JSON.stringify(value).length > 200000) throw new HttpError(400, '配置无效')
   const result = value as StudioSettings
   for (const [key, v] of Object.entries(result)) {
@@ -40,6 +41,8 @@ function settings(value: unknown, kind: StudioKind): StudioSettings {
 const mapProject = (row: Record<string, unknown>): StudioProject => ({ ...row, settings: JSON.parse(String(row.settings)) }) as unknown as StudioProject
 const assetColumns = 'id,projectId,name,mime,bytes,createdAt'
 export class StudioStore {
+  get backupDatabase() { return this.db }
+  importer() { return new StudioImporter(this.db) }
   private active = new Set<string>()
   constructor(private db: DatabaseSync, private provider: CreativeProvider = new MockCreativeProvider()) {}
   list(kind: unknown) {
@@ -115,6 +118,7 @@ export class StudioStore {
     return this.tasks(id).find(task => task.id === taskId)!
   }
   export(id: string) {
-    return { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
+    const payload = { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
+    return { ...payload, sha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex') }
   }
 }
