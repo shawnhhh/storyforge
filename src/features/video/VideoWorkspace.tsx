@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StudioAsset, StudioProject, StudioTask, StudioVersion } from '../../../shared/contracts/studio'
 import { MockVideoAdapter, readVideoConfiguration, validateVideo, type VideoConfiguration } from '../../../shared/video/model'
-import { request } from '../../shared/api/client'
+import { ApiError, request } from '../../shared/api/client'
 import { usePreferences } from '../preferences/usePreferences'
 import '../preferences/preferences.css'
 import { AssetPreview, TaskProgress } from '../../shared/studio/StudioFrame'
@@ -57,7 +57,7 @@ export function VideoWorkspace() {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ title, content, configuration }, null, 2)], { type: 'application/json' }))
     const link = document.createElement('a'); link.href = url; link.download = 'video-unsaved-draft.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  async function execute(action: () => Promise<void>) { setBusy(true); try { await action() } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) } finally { setBusy(false) } }
+  async function execute(action: () => Promise<void>) { setBusy(true); try { await action() } catch (error) { setMessage(error instanceof ApiError && error.status === 409 ? `操作冲突 · ${error.message}` : error instanceof Error ? error.message : String(error)) } finally { setBusy(false) } }
   function display(value: StudioProject) {
     activeId.current = value.id; relatedSequence.current++; setAssets([]); setHistory([]); setTasks([]); setDraft(null)
     try { const stored = localStorage.getItem(`storyforge-video-draft:${value.id}`); if (stored) { const candidate = JSON.parse(stored) as Record<string, unknown>; if (typeof candidate.title === 'string' && typeof candidate.content === 'string' && candidate.configuration && typeof candidate.configuration === 'object') { const configuration = candidate.configuration as VideoConfiguration; validateVideo(configuration); setDraft({ title: candidate.title, content: candidate.content, configuration }) } } } catch { /* invalid or unavailable local protection */ }
