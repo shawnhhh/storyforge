@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { CreativeProvider, StudioAsset, StudioKind, StudioProject, StudioSettings, StudioTask, StudioVersion } from '../../../../shared/contracts/studio.js'
 import { HttpError } from '../novels/store.js'
 import { StudioImporter } from './import.js'
+import { StudioJobs, LocalAsyncProvider, type AsyncCreativeProvider } from './jobs.js'
 import { MockCreativeProvider } from './provider.js'
 
 export function string(value: unknown, name: string, max: number, empty = false): string {
@@ -43,8 +44,13 @@ const assetColumns = 'id,projectId,name,mime,bytes,createdAt'
 export class StudioStore {
   get backupDatabase() { return this.db }
   importer() { return new StudioImporter(this.db) }
-  private active = new Set<string>()
-  constructor(private db: DatabaseSync, private provider: CreativeProvider = new MockCreativeProvider()) {}
+  readonly jobs: StudioJobs
+  constructor(private db: DatabaseSync, provider: CreativeProvider = new MockCreativeProvider(), providers?: readonly AsyncCreativeProvider[]) {
+    this.jobs = new StudioJobs(db, providers ?? [new LocalAsyncProvider(provider)], (id, output) => {
+      if (!output.data.length || output.data.length > 650000 || !['audio/wav','video/webm'].includes(output.mime) || !/^[\w.-]{1,200}$/.test(output.name)) throw new Error('Invalid provider output')
+      return this.writeAsset(id, output.name, output.mime, output.data).id
+    })
+  }
   list(kind: unknown) {
     if (kind !== 'music' && kind !== 'video') throw new HttpError(400, '业务模块无效')
     return this.db.prepare('SELECT * FROM studio_projects WHERE kind=? ORDER BY updatedAt DESC,id').all(kind).map(mapProject)
@@ -96,27 +102,9 @@ export class StudioStore {
     const project = this.project(id)
     if (body.version !== project.version) throw new HttpError(409, '项目已更改，请先保存后生成')
     const prompt = string(body.prompt, '提示词', 10000)
-    if (this.active.has(id)) throw new HttpError(409, '项目已有生成任务')
-    const taskId = randomUUID(), now = new Date().toISOString()
-    this.db.prepare('INSERT INTO studio_tasks VALUES(?,?,?,?,?,?,?,?,?)').run(taskId, id, 'mock', 'queued', 0, prompt, null, null, now)
-    this.active.add(id)
-    // Keep API asynchronous, with observable queued/running stages and persisted results.
-    void (async () => {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        this.db.prepare("UPDATE studio_tasks SET status='running',progress=30 WHERE id=?").run(taskId)
-        const result = await this.provider.generate({ project, prompt })
-        await new Promise(resolve => setTimeout(resolve, 150))
-        this.transaction(() => {
-          const asset = this.writeAsset(id, result.name, result.mime, result.data)
-          this.db.prepare("UPDATE studio_tasks SET status='completed',progress=100,assetId=? WHERE id=?").run(asset.id, taskId)
-        })
-      } catch {
-        try { this.db.prepare("UPDATE studio_tasks SET status='failed',progress=0,error='生成失败，请重试' WHERE id=?").run(taskId) } catch { /* shutdown: startup recovers interrupted jobs */ }
-      } finally { this.active.delete(id) }
-    })()
-    return this.tasks(id).find(task => task.id === taskId)!
+    return this.jobs.submit({ project, prompt }, body)
   }
+
   export(id: string) {
     const payload = { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
     return { ...payload, sha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex') }

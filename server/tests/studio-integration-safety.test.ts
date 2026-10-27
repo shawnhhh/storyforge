@@ -23,11 +23,11 @@ test('Studio v2 upgrades without changing works, assets, history or receipts; re
     const archive = store.export(project.id), importer = store.importer()
     importer.restore(archive, importer.prepare(archive).token, '作为新项目导入')
     // Reconstruct v2: the two v3-only tables did not exist yet.
-    db.exec('DROP TABLE unified_restores; DROP TABLE unified_drafts; PRAGMA user_version=2')
+    db.exec('DROP TABLE studio_job_events; DROP TABLE studio_jobs; DROP TABLE unified_restores; DROP TABLE unified_drafts; PRAGMA user_version=2')
     const before = dump(db)
     db.close(); db = openStudioDatabase(dir)
-    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 3)
-    assert.deepEqual(dump(db).filter(([name]) => !['unified_restores', 'unified_drafts'].includes(String(name))), before)
+    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 4)
+    assert.deepEqual(dump(db).filter(([name]) => !['unified_restores', 'unified_drafts', 'studio_jobs', 'studio_job_events'].includes(String(name))), before)
     const after = dump(db)
     db.close(); db = openStudioDatabase(dir)
     assert.deepEqual(dump(db), after)
@@ -40,10 +40,10 @@ test('future Studio schema is refused without changing stored content, history, 
   const db = openStudioDatabase(dir)
   try {
     new StudioStore(db).create({ kind: 'video', title: '新版工程' })
-    db.exec('PRAGMA user_version=4')
+    db.exec('PRAGMA user_version=5')
     const before = dump(db)
     assert.throws(() => openStudioDatabase(dir), /newer/)
-    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 4)
+    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 5)
     assert.deepEqual(dump(db), before)
   } finally { db.close(); rmSync(dir, { recursive: true, force: true }) }
 })

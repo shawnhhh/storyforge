@@ -186,3 +186,21 @@ test('HTTP requires loopback Host, safe origin, session generation and two-stage
     } finally { await f.close() }
   }
 })
+
+test('startup awaits initial automatic backup before the caller advertises readiness', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sf-backup-readiness-'))
+  const db = openDatabase(dir), service = new BackupService(db, join(dir, 'backups'))
+  let release!: () => void
+  const pending = new Promise<void>(resolve => { release = resolve })
+  service.checkAutomatic = async () => { service.busy = true; await pending; service.busy = false }
+  try {
+    let ready = false
+    const startup = service.start()
+    assert.equal(service.start(), startup)
+    const initial = startup.then(() => { ready = true })
+    await Promise.resolve()
+    assert.equal(service.busy, true); assert.equal(ready, false)
+    release(); await initial
+    assert.equal(service.busy, false); assert.equal(ready, true)
+  } finally { release(); await service.stop(); db.close(); rmSync(dir, { recursive: true, force: true }) }
+})

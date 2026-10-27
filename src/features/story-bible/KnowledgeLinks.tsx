@@ -35,10 +35,15 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
   }
   const active = useRef(false)
   const mounted = useRef(false)
+  // A delayed read must never replace an acknowledged newer revision.
+  function acceptSnapshot(value: KnowledgeSnapshot) {
+    setSnapshot(current => current && current.version > value.version ? current : value)
+  }
   useEffect(() => {
     mounted.current = true
-    storyApi.links(novelId).then(value => { if (mounted.current) setSnapshot(value) }).catch(reason => { if (mounted.current) setError(reason instanceof Error ? reason.message : '读取关联失败') })
-    return () => { mounted.current = false }
+    let current = true
+    storyApi.links(novelId).then(value => { if (current) acceptSnapshot(value) }).catch(reason => { if (current) setError(reason instanceof Error ? reason.message : '读取关联失败') })
+    return () => { current = false; mounted.current = false }
   }, [novelId])
   useEffect(() => { onBusy(busy); return () => onBusy(false) }, [busy, onBusy])
   useEffect(() => {
@@ -52,7 +57,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
   async function refresh() {
     if (active.current) return
     active.current = true; setBusy(true)
-    try { const fresh = await storyApi.links(novelId); if (mounted.current) { setSnapshot(fresh); setError(''); setConflict(false) } }
+    try { const fresh = await storyApi.links(novelId); if (mounted.current) { acceptSnapshot(fresh); setError(''); setConflict(false) } }
     catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : '读取关联失败') }
     finally { active.current = false; if (mounted.current) setBusy(false) }
   }
@@ -62,7 +67,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
     try {
       const fresh = await storyApi.saveLinks(novelId, { version: snapshot.version, links })
       if (adding) { void draft.protection.saved({ target, label, note }) }
-      if (mounted.current) { setSnapshot(fresh); if (adding) { setTarget(''); setNote(''); setSaved(true) } }
+      if (mounted.current) { acceptSnapshot(fresh); if (adding) { setTarget(''); setNote(''); setSaved(true) } }
     } catch (reason) {
       if (mounted.current) { setError(reason instanceof Error ? reason.message : '保存关联失败，输入已保留，可重试'); if (reason instanceof ApiError && [400, 404, 409].includes(reason.status)) setConflict(true) }
     } finally { active.current = false; if (mounted.current) setBusy(false) }
