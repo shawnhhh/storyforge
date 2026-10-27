@@ -181,12 +181,13 @@ for (const width of [1440, 390]) test(`AI writing and review follow explicit and
         if (!review && theme === 'dark') {
           const legacy = await page.addStyleTag({ content: beforeTheme })
           await expect(panel).toHaveCSS('background-color', 'rgb(255, 255, 255)')
-          await panel.screenshot({ path: test.info().outputPath('ai-dark-before.png') })
+          await panel.screenshot({ animations: 'disabled', path: test.info().outputPath('ai-dark-before.png') })
           await legacy.evaluate(element => element.parentNode?.removeChild(element))
         }
-        await panel.screenshot({ path: test.info().outputPath(`${review ? 'review' : 'writing'}-${theme}-${scheme}-after.png`) })
+        // Disable CSS animations only during evidence capture; computed-color, hover and contrast assertions above stay intact.
+        await panel.screenshot({ animations: 'disabled', path: test.info().outputPath(`${review ? 'review' : 'writing'}-${theme}-${scheme}-after.png`) })
         await panel.locator(review ? '.review-results' : 'section[aria-label="AI 结果预览"]').scrollIntoViewIfNeeded()
-        await panel.screenshot({ path: test.info().outputPath(`${review ? 'review' : 'writing'}-${theme}-${scheme}-result-after.png`) })
+        await panel.screenshot({ animations: 'disabled', path: test.info().outputPath(`${review ? 'review' : 'writing'}-${theme}-${scheme}-result-after.png`) })
       }
     }
     await page.keyboard.press('Escape')
