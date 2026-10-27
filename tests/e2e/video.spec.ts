@@ -1,8 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import { MockCreativeProvider } from '../../server/src/modules/studio/provider.js'
 async function create(page: Page, title: string) {
+  let release!: () => void
+  const handshake = new Promise<void>(resolve => { release = resolve })
+  await page.route(/\/api\/studio\/projects\?kind=video$/, async route => { await handshake; await route.continue() }, { times: 1 })
   await page.goto('/#video')
   await expect(page.getByRole('heading', { name: '视频工作台', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建视频项目', exact: true })).toBeDisabled()
+  release()
   await page.getByRole('button', { name: '新建视频项目', exact: true }).click()
   await page.getByLabel('视频名称', { exact: true }).fill(title)
   await page.getByLabel('剧本', { exact: true }).fill('清晨，小船驶入虚构港湾。')
