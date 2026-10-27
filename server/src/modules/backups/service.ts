@@ -78,6 +78,7 @@ export class BackupService {
   generation = randomUUID()
   private settings: BackupSettings
   private timer?: ReturnType<typeof setInterval>
+  private initial?: Promise<void>
   private preparations = new Map<string, { id: string; sha256: string; generation: string; expires: number }>()
   lastAutomaticError: string | null = null
   constructor(private db: DatabaseSync, directory: string, private now = () => Date.now()) {
@@ -296,10 +297,11 @@ export class BackupService {
     catch (error) { this.lastAutomaticError = error instanceof Error ? error.message : '自动备份失败'; console.error('StoryForge automatic backup failed:', this.lastAutomaticError) }
   }
   start() {
-    if (this.timer) return
-    void this.checkAutomatic()
+    if (this.timer) return this.initial!
+    this.initial = this.checkAutomatic()
     this.timer = setInterval(() => { void this.checkAutomatic() }, 60_000)
     this.timer.unref()
+    return this.initial
   }
   async stop() {
     if (this.timer) clearInterval(this.timer)
