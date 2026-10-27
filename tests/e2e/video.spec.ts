@@ -1,4 +1,22 @@
 import { expect, test, type Page } from '@playwright/test'
+test('video entry uses the dashboard layout and disappears while a novel is open', async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 900 })
+  await page.goto('/')
+  const entry = page.getByRole('link', { name: '视频工作台', exact: true })
+  await expect(entry).toBeVisible()
+  await expect(entry).toHaveCSS('position', 'static')
+  await entry.click()
+  await expect(page.getByRole('heading', { name: '视频工作台', exact: true })).toBeVisible()
+  await page.getByRole('link', { name: '小说', exact: true }).click()
+  await page.getByRole('button', { name: '新建作品', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('小说名称').fill('隔离入口布局回归')
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('隔离入口布局回归')
+  await expect(entry).toHaveCount(0)
+  await page.getByRole('button', { name: '⌂ 创作工作台', exact: true }).click()
+  await expect(entry).toBeVisible()
+})
 import { MockCreativeProvider } from '../../server/src/modules/studio/provider.js'
 async function create(page: Page, title: string) {
   let release!: () => void

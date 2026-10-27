@@ -16,7 +16,7 @@ Studio 独立持久化为同 dataDir 下 `studio.sqlite`，不改变小说 schem
 
 测试只创建临时 SQLite、虚构素材与 Mock AI，不打开真实 .env、用户数据库、真实备份或付费接口；生产构建沿用 `envDir:false`。没有新增依赖或修改原小说迁移。
 
-## 自动化检查记录
+## 首轮 MVP 自动化检查记录
 
 - 定向单元与 SQLite 安全：5/5 通过，0 失败、0 跳过。包括视频提示词完整性/配置拒绝、SQLite 重开后字段一致、历史及冲突不覆盖、外键与 integrity_check、WebM 真实字节导出及项目素材隔离。
 - 新增 Chromium 浏览器用例 6 项：1440px/390px 保存/重开/真实 Mock 视频播放/完整工程导出，素材导入与历史恢复，输入拒绝及旧版本冲突，本机草稿跨刷新显式恢复，跨项目迟到轮询隔离。最终完整 6/6 通过，0 失败、0 跳过、0 flaky；用时 19.8 秒。1440px/390px 深色截图保存在本次 E2E 工作目录。
@@ -35,3 +35,11 @@ Safari/iPhone、真实系统中文输入法、原生媒体编码、长时运行�
 实际执行顺序是：统一 aria-label 修复 → 完整 6 项浏览器通过 → 完整 245 项单元/API → 96 项数据安全 → lint/typecheck/build。全部测试与 `20d1cb9` 的代码和测试树一致，后续仅更新本报告。构建成功耗时 349ms（不含前置 typecheck）。
 
 已实际查看最终 `video-workspace-390.png` 与 `video-workspace-1440.png`：深色主题层次、项目列表、表单、分镜卡片、任务进度、视频和导出控件均在视口内，390px 自动为单列且无横向溢出。截图位于 `work/e2e-results/1793066706640-15854/video-video-saves-script-a-2a5fe-ock-exports-and-reopens-390-chromium/` 和对应 1440 目录；视频播放已在同一用例重载之前通过 `media.play()`/paused=false 验证，截图记录重载后的媒体预加载状态。
+
+## 远端小说回归失败与入口修复
+
+首轮交付提交 `f892adaae1466986daf3605819908dcbdc67eff0` 的 [CI 40436718539](https://github.com/shawnhhh/storyforge/actions/runs/40436718539) 实际为失败：4 个作业成功、5 个失败。五份日志均指向原有 `ai-writing.spec.ts` 的 700px 预览/放弃/接受/撤销回归；Chromium、Firefox、macOS Chrome 和 WebKit 的点击日志明确记录 `.video-entry` 悬浮链接拦截「撤销本次 AI 修改」按钮的指针事件。这是产品布局回归，不能把首轮本地 Video 6/6 当成全工作台通过，也不能靠重跑或放宽超时掩盖。
+
+移除全局悬浮入口，改用 Workspace 的可选模块入口插槽，链接随创作首页侧栏正常排版；打开小说、备份或回收站时不显示。返回首页使用原有未保存保护，因此不会通过模块入口绕过小说草稿处理。新增 700px 浏览器回归验证首页入口可进入视频、返回小说、打开作品后入口消失以及返回首页后重现；原有 AI 撤销、选区、焦点、滚动断言全部保留。
+
+修复后的同一代码与测试树依次验证：lint、完整 typecheck、build 通过；Chromium 9/9（Video 7/7，加原 AI 预览/放弃/撤销在 1440px 与 700px 的 2/2，36.3 秒）；完整单元/API 245/245（43.4 秒）；数据安全 96/96（5.1 秒），全部零失败/取消/跳过。数据安全为全量子集，不相加。所有服务及临时数据库已清理，未改原断言和期限。修复后日志为 `/tmp/video-overlay-{lint,types,build,e2e,all,safety}.log`。当前最终 SHA 与新 CI 结果在 Draft PR #30 描述登记，旧失败证据保持可追溯。
