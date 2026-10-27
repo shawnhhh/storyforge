@@ -39,7 +39,8 @@ export function VideoWorkspace() {
   }, [])
   useEffect(() => {
     if (!project || !tasks.some(task => task.status === 'queued' || task.status === 'running')) return
-    const timer = setInterval(() => { void related(project.id).catch(error => setMessage(String(error))) }, 350)
+    let pending = false
+    const timer = setInterval(() => { if (pending) return; pending = true; void related(project.id).catch(error => setMessage(String(error))).finally(() => { pending = false }) }, 350)
     return () => clearInterval(timer)
   }, [project, tasks, related])
   useEffect(() => {
@@ -59,7 +60,7 @@ export function VideoWorkspace() {
   async function execute(action: () => Promise<void>) { setBusy(true); try { await action() } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) } finally { setBusy(false) } }
   function display(value: StudioProject) {
     activeId.current = value.id; relatedSequence.current++; setAssets([]); setHistory([]); setTasks([]); setDraft(null)
-    try { const stored = localStorage.getItem(`storyforge-video-draft:${value.id}`); if (stored) setDraft(JSON.parse(stored)) } catch { /* invalid or unavailable local protection */ }
+    try { const stored = localStorage.getItem(`storyforge-video-draft:${value.id}`); if (stored) { const candidate = JSON.parse(stored) as Record<string, unknown>; if (typeof candidate.title === 'string' && typeof candidate.content === 'string' && candidate.configuration && typeof candidate.configuration === 'object') { const configuration = candidate.configuration as VideoConfiguration; validateVideo(configuration); setDraft({ title: candidate.title, content: candidate.content, configuration }) } } } catch { /* invalid or unavailable local protection */ }
     setProject(value); setTitle(value.title); setContent(value.content); setConfiguration(readVideoConfiguration(value.settings)) }
   async function select(id: string) {
     if (dirty && !window.confirm('当前更改尚未保存，确认切换？')) return

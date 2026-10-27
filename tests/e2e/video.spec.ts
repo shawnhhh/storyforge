@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { MockCreativeProvider } from '../../server/src/modules/studio/provider'
 async function create(page: Page, title: string) {
   await page.goto('/#video')
   await expect(page.getByRole('heading', { name: '视频工作台', exact: true })).toBeVisible()
@@ -51,6 +52,11 @@ test('video imports isolated image/audio/video assets and keeps history on expli
   const wav = Buffer.alloc(46); wav.write('RIFF'); wav.writeUInt32LE(38, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(2, 40)
   await upload.setInputFiles({ name: 'isolated.wav', mimeType: 'audio/wav', buffer: wav })
   await expect(page.getByLabel('isolated.wav', { exact: true })).toBeVisible()
+  const fixture = await new MockCreativeProvider().generate({ project: { id: 'local-fixture', kind: 'video', title: 'isolated', content: '', settings: {}, version: 1, createdAt: '', updatedAt: '' }, prompt: 'mock' })
+  await upload.setInputFiles({ name: 'isolated.webm', mimeType: fixture.mime, buffer: Buffer.from(fixture.data) })
+  const imported = page.getByLabel('isolated.webm', { exact: true })
+  await expect(imported).toBeVisible()
+  await expect.poll(() => imported.evaluate(element => (element as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(1)
   await page.getByLabel('剧本', { exact: true }).fill('第二版剧本，原版仍保留。')
   await page.getByRole('button', { name: '保存视频项目', exact: true }).click()
   await expect(page.locator('[data-video-message]')).toHaveText('已保存到数据库')
@@ -83,4 +89,59 @@ test('video refuses invalid shots and retains unsaved edits after a stale-versio
   await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('本窗口未保存的宝贵剧本')
   expect((await (await page.request.get(`/api/studio/projects/${id}`)).json()).title).toBe('另一个窗口的保存')
   await expect(page.getByRole('button', { name: '生成 Mock 视频', exact: true })).toBeDisabled()
+})
+test('video keeps dirty script when leaving is cancelled and explicitly restores protected draft after reload', async ({ page }) => {
+  await create(page, `草稿保护 ${Date.now()}`)
+  await page.getByLabel('剧本', { exact: true }).fill('跨刷新保留的未保存剧本')
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出未保存草稿', exact: true }).click()
+  expect((await download).suggestedFilename()).toBe('video-unsaved-draft.json')
+  page.once('dialog', dialog => dialog.dismiss())
+  await page.getByRole('link', { name: '小说', exact: true }).click()
+  await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('跨刷新保留的未保存剧本')
+  page.once('dialog', dialog => dialog.accept())
+  await page.reload()
+  const title = await page.getByRole('navigation', { name: '视频项目列表' }).getByRole('button').first().textContent()
+  await page.getByRole('navigation', { name: '视频项目列表' }).getByRole('button', { name: title!, exact: true }).click()
+  await expect(page.getByRole('button', { name: '恢复本机草稿', exact: true })).toBeVisible()
+  await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('清晨，小船驶入虚构港湾。')
+  await page.getByRole('button', { name: '恢复本机草稿', exact: true }).click()
+  await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('跨刷新保留的未保存剧本')
+})
+test('late video project polling cannot replace the newly selected project assets or tasks', async ({ page }) => {
+  const first = `迟到项目A ${Date.now()}`, second = `迟到项目B ${Date.now()}`
+  await create(page, first)
+  const oldLink = await page.getByRole('link', { name: '导出工程 JSON', exact: true }).getAttribute('href')
+  const oldId = oldLink!.split('/').at(-2)
+  await page.getByRole('button', { name: '新建视频项目', exact: true }).click()
+  await page.getByLabel('视频名称', { exact: true }).fill(second)
+  await page.getByRole('button', { name: '保存视频项目', exact: true }).click()
+  await expect(page.locator('[data-video-message]')).toHaveText('已保存到数据库')
+  await page.getByRole('navigation', { name: '视频项目列表' }).getByRole('button', { name: first, exact: true }).click()
+  await expect(page.getByLabel('视频名称', { exact: true })).toHaveValue(first)
+  await expect(page.locator('[data-video-message]')).toHaveText('项目已载入')
+  // Force one observed running response so that a real poll is always scheduled.
+  await page.route(`**/api/studio/projects/${oldId}/tasks`, async route => {
+    const response = await route.fetch(); const rows = await response.json()
+    if (rows.length) rows[0] = { ...rows[0], status: 'running', progress: 30 }
+    await route.fulfill({ response, json: rows })
+  }, { times: 1 })
+  let release!: () => void, delayed!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const seen = new Promise<void>(resolve => { delayed = resolve })
+  let reads = 0
+  await page.route(`**/api/studio/projects/${oldId}/assets`, async route => {
+    const response = await route.fetch()
+    if (++reads === 2) { delayed(); await gate }
+    await route.fulfill({ response })
+  })
+  await page.getByRole('button', { name: '生成 Mock 视频', exact: true }).click()
+  await seen
+  await page.getByRole('navigation', { name: '视频项目列表' }).getByRole('button', { name: second, exact: true }).click()
+  await expect(page.getByLabel('视频名称', { exact: true })).toHaveValue(second)
+  release()
+  // A read after releasing the old response provides a deterministic network barrier.
+  await page.request.get(`/api/studio/projects/${oldId}/assets`)
+  await expect(page.getByRole('progressbar')).toHaveCount(0)
+  await expect(page.getByLabel('mock-storyboard.webm', { exact: true })).toHaveCount(0)
 })
