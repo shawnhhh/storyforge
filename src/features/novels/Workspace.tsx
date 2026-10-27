@@ -28,7 +28,9 @@ import { planningApi } from '../planning/api'
 
 const ChapterEditor = lazy(() => import('./ChapterEditor').then(module => ({ default: module.ChapterEditor })))
 
-export function Workspace() {
+type ModuleEntry = { href: string; label: string }
+
+export function Workspace({ moduleEntry, moduleEntries }: { moduleEntry?: ModuleEntry; moduleEntries?: ModuleEntry[] } = {}) {
   const [dashboardRevision, setDashboardRevision] = useState(0)
   const preferences = usePreferences()
   const [utility, setUtility] = useState<'search' | 'preferences' | null>(null)
@@ -223,6 +225,7 @@ export function Workspace() {
     <aside className="library-pane">
       <div className="brand"><span className="brand-mark">S</span><div><strong>StoryForge</strong><small>原创故事工作台</small></div></div>
       <button className="dashboard-home" aria-current={!detail && !backups && !trash ? 'page' : undefined} disabled={blocked || backups} onClick={() => { setTrash(false); setBackups(false); setDetail(null); setChapter(null); setFocused(false); setView('writing'); setNotice(''); setError('') }}>⌂ 创作工作台</button>
+      {!detail && !backups && !trash && (moduleEntries ?? (moduleEntry ? [moduleEntry] : [])).map(entry => <a key={entry.href} className="workspace-module-entry" href={entry.href}>{entry.label}</a>)}
       <div className="library-utilities"><button disabled={backups} onClick={event => openUtility('search', event.currentTarget)}>统一搜索</button><button onClick={event => openUtility('preferences', event.currentTarget)}>偏好设置</button></div>
       <div className="library-heading"><span>我的小说 <span className="count">{novels.length}</span></span><button aria-label="创建小说" disabled={blocked || backups} onClick={event => openModal('create', event.currentTarget)}>＋</button></div>
       <nav aria-label="小说列表">{novels.map(novel => <button key={novel.id} aria-current={detail?.novel.id === novel.id ? 'page' : undefined} className={`novel-item ${detail?.novel.id === novel.id ? 'selected' : ''}`} disabled={blocked || backups} onClick={() => selectNovel(novel)}><span className="book-icon">▤</span><span><strong>{novel.title}</strong><small>{new Date(novel.updatedAt).toLocaleDateString('zh-CN')}</small></span></button>)}</nav>
