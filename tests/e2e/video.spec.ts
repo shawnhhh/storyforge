@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { MockCreativeProvider } from '../../server/src/modules/studio/provider'
+import { MockCreativeProvider } from '../../server/src/modules/studio/provider.js'
 async function create(page: Page, title: string) {
   await page.goto('/#video')
   await expect(page.getByRole('heading', { name: '视频工作台', exact: true })).toBeVisible()
