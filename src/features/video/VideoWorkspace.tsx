@@ -49,7 +49,7 @@ export function VideoWorkspace() {
   }, [project, dirty, title, content, configuration])
   useEffect(() => {
     const unload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
-    const leave = (event: Event) => { if (dirty && !window.confirm('剧本有未保存更改，已保留本机草稿。确认离开？')) event.preventDefault() }
+    const leave = (event: Event) => { if (dirty && !window.confirm('剧本有未保存更改。建议先导出草稿，确认离开？')) event.preventDefault() }
     window.addEventListener('beforeunload', unload); window.addEventListener('storyforge:leave-video', leave)
     return () => { window.removeEventListener('beforeunload', unload); window.removeEventListener('storyforge:leave-video', leave) }
   }, [dirty])
