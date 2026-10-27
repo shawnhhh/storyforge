@@ -8,6 +8,7 @@ import { aiTransaction, captureAiSnapshot, type AiSnapshot } from './editor'
 import { ContextPicker } from './ContextPicker'
 import { ModelCenter } from './ModelCenter'
 import { ResultComparison } from './ResultComparison'
+import { PromptPresets } from './PromptPresets'
 import { ConsistencyReview } from './ConsistencyReview'
 import './ai.css'
 
@@ -124,6 +125,7 @@ function AiDialog({ editor, chapterId, disabled, session, onClose, onApplied }: 
     <ContextPicker chapterId={chapterId} disabled={loading} onChange={setContext} />
     <fieldset disabled={loading} className="ai-options">
       <label>写作操作<select aria-label="写作操作" value={action} onChange={event => { setAction(event.target.value as AiAction); setResult(null); setResultAction(null) }}>{Object.entries(aiActions).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
+      <PromptPresets action={action} onApply={setInstructions} />
       <label>写作要求<textarea aria-label="写作要求" maxLength={aiLimits.instructions} rows={3} value={instructions} placeholder="例如：克制、悬疑，放慢节奏，保持人物口吻" onChange={event => setInstructions(event.target.value)} /></label>
       <label>附近正文总长度<select aria-label="附近正文总长度" value={nearby} onChange={event => setNearby(Number(event.target.value))}><option value={0}>不发送附近正文</option><option value={1500}>最多 1500 字符</option><option value={3000}>最多 3000 字符</option><option value={9000}>最多 9000 字符</option></select></label>
       <label className="ai-check"><input type="checkbox" checked={includeStoryContext && !context?.references.length} disabled={!!context?.references.length} onChange={event => setIncludeStoryContext(event.target.checked)} />附带本小说已保存的人物、世界观与大纲摘要（最多 {aiLimits.story} 字符）</label>
