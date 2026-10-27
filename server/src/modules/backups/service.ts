@@ -125,7 +125,7 @@ export class BackupService {
     this.settings = settings
     return this.history()
   }
-  private validateDatabase(path: string, expectedVersion?: number, expectedPlanning?: number) {
+  validateDatabase(path: string, expectedVersion?: number, expectedPlanning?: number) {
     const header = Buffer.alloc(100), fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
     try { readSync(fd, header, 0, header.length, 0) } finally { closeSync(fd) }
     if (!header.subarray(0, 16).equals(Buffer.from('SQLite format 3\0'))) throw new HttpError(400, '不是有效的 SQLite 数据库')

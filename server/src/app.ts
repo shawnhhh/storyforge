@@ -1,3 +1,4 @@
+import { UnifiedBackupService } from './modules/backups/unified.js'
 import { studioRoutes } from './modules/studio/routes.js'
 import type { StudioStore } from './modules/studio/store.js'
 import { TrashStore } from './modules/trash/store.js'
@@ -42,12 +43,23 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     }
     next()
   })
+  app.use('/api/unified-backups', express.json({ limit: '129mb' }))
   app.use('/api/studio/import', express.json({ limit: '65mb' }))
   app.use(express.json({ limit: '1mb' }))
   app.get('/api/health', (_request, response) => {
     const health: HealthResponse = { status: 'ok' }
     response.json(health)
   })
+  if (studio && backups) {
+    const unified = new UnifiedBackupService(database, studio.backupDatabase, backups)
+    app.get('/api/unified-backups/drafts', (_req,res) => { res.setHeader('Cache-Control','no-store'); res.json(unified.recoveredDrafts()) })
+    app.post('/api/unified-backups/export', (req, res) => {
+      res.setHeader('Cache-Control','no-store'); res.setHeader('Content-Disposition','attachment; filename="storyforge-unified.json"')
+      res.json(unified.create(req.body.drafts))
+    })
+    app.post('/api/unified-backups/preview', (req, res) => res.json(unified.prepare(req.body.archive)))
+    app.post('/api/unified-backups/restore', (req, res) => res.json(unified.restore(req.body.archive,req.body.token,req.body.modules,req.body.confirmation)))
+  }
   const novels = new NovelStore(database)
   if (studio) app.use('/api/studio', studioRoutes(studio, novels))
   const planning = new PlanningStore(database)

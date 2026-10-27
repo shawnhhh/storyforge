@@ -72,7 +72,7 @@ function valid(value: unknown): value is LocalDraft {
   const item = value as LocalDraft
   return item.schema === 1 && typeof item.id === 'string' && typeof item.key === 'string' && typeof item.token === 'string' && typeof item.base === 'string' && typeof item.updatedAt === 'string' && Number.isSafeInteger(item.revision) && item.revision >= 0 && (item.generation === null || typeof item.generation === 'string') && !!item.value && typeof item.value === 'object'
 }
-export async function readLocalDrafts<T>(key: string): Promise<LocalDraft<T>[]> {
+export async function readLocalDrafts<T>(key?: string): Promise<LocalDraft<T>[]> {
   const records = new Map<string, LocalDraft>()
   let readable = false
   try {
@@ -101,7 +101,7 @@ export async function readLocalDrafts<T>(key: string): Promise<LocalDraft<T>[]> 
     readable = true
   } catch (error) { if (error instanceof Error && (error.message.includes('格式损坏') || error instanceof SyntaxError)) throw error }
   if (!readable) throw new Error('浏览器禁止读取本机草稿，请检查存储设置')
-  return [...records.values()].filter(value => value.key === key).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) as LocalDraft<T>[]
+  return [...records.values()].filter(value => key === undefined || value.key === key).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) as LocalDraft<T>[]
 }
 export async function persistLocalDraft(value: LocalDraft) {
   let journaled = false

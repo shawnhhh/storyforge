@@ -41,6 +41,7 @@ export function settings(value: unknown, kind: StudioKind): StudioSettings {
 const mapProject = (row: Record<string, unknown>): StudioProject => ({ ...row, settings: JSON.parse(String(row.settings)) }) as unknown as StudioProject
 const assetColumns = 'id,projectId,name,mime,bytes,createdAt'
 export class StudioStore {
+  get backupDatabase() { return this.db }
   importer() { return new StudioImporter(this.db) }
   private active = new Set<string>()
   constructor(private db: DatabaseSync, private provider: CreativeProvider = new MockCreativeProvider()) {}
