@@ -120,8 +120,13 @@ test('video keeps dirty script when leaving is cancelled and explicitly restores
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出未保存草稿', exact: true }).click()
   expect((await download).suggestedFilename()).toBe('video-unsaved-draft.json')
-  page.once('dialog', dialog => dialog.dismiss())
+  const cancelled = page.waitForEvent('dialog').then(async dialog => {
+    expect(dialog.type()).toBe('confirm')
+    await dialog.dismiss()
+  })
   await page.getByRole('link', { name: '小说', exact: true }).click()
+  await cancelled
+  await expect(page).toHaveURL(/#video$/)
   await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('跨刷新保留的未保存剧本')
   page.once('dialog', dialog => dialog.accept())
   await page.reload()
