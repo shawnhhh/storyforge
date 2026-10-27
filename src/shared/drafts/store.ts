@@ -33,14 +33,30 @@ function decode(value: string): unknown {
 }
 let database: Promise<IDBDatabase> | undefined
 function open() {
-  if (!database) database = new Promise<IDBDatabase>((resolve, reject) => {
+  if (database) return database
+  let rejected = false
+  const pending = new Promise<IDBDatabase>((resolve, reject) => {
+    const fail = (error: unknown) => { rejected = true; reject(error) }
     const request = indexedDB.open('storyforge-protected-drafts', 1)
     request.onupgradeneeded = () => request.result.createObjectStore('drafts', { keyPath: 'id' })
-    request.onsuccess = () => { const db = request.result; db.onversionchange = () => { db.close(); database = undefined }; resolve(db) }
-    request.onerror = () => { database = undefined; reject(request.error) }
-    request.onblocked = () => { database = undefined; reject(new Error('浏览器草稿库被其他窗口占用')) }
+    request.onsuccess = () => {
+      const db = request.result
+      // A blocked request cannot be cancelled. Release a late result rather than
+      // leaking a connection after the caller has already received a failure.
+      if (rejected) { db.close(); return }
+      const invalidate = () => { if (database === pending) database = undefined }
+      db.onclose = invalidate
+      db.onversionchange = () => { db.close(); invalidate() }
+      resolve(db)
+    }
+    request.onerror = () => fail(request.error)
+    request.onblocked = () => fail(new Error('浏览器草稿库被其他窗口占用'))
   })
-  return database
+  database = pending
+  // Also handles synchronous open() exceptions: the Promise is assigned before
+  // this callback runs. An older request must never evict a newer connection.
+  void pending.catch(() => { if (database === pending) database = undefined })
+  return pending
 }
 async function transact(action: (store: IDBObjectStore) => void) {
   const db = await open()
@@ -62,7 +78,9 @@ export async function readLocalDrafts<T>(key: string): Promise<LocalDraft<T>[]> 
   try {
     const db = await open()
     const values = await new Promise<unknown[]>((resolve, reject) => {
-      const request = db.transaction('drafts').objectStore('drafts').getAll()
+      const tx = db.transaction('drafts')
+      tx.onabort = () => reject(tx.error ?? new Error('草稿读取事务中止'))
+      const request = tx.objectStore('drafts').getAll()
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error)
     })
     for (const value of values) { if (!valid(value)) throw new Error('本机草稿格式损坏，请保留浏览器数据并导出'); records.set(value.id, value) }

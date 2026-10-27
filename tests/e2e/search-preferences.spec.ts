@@ -29,8 +29,10 @@ async function seed(request: APIRequestContext) {
 async function search(page: Page, query: string, kind = '') {
   await page.getByRole('button', { name: '统一搜索', exact: true }).first().click()
   const dialog = page.getByRole('dialog', { name: '统一搜索' })
-  await dialog.getByLabel('统一搜索关键词').fill(query)
+  // Set filters before starting the debounced request; selecting an unchanged
+  // filter after a fast mocked failure can clear its error without a new query.
   await dialog.getByLabel('搜索类型').selectOption(kind)
+  await dialog.getByLabel('统一搜索关键词').fill(query)
   return dialog
 }
 

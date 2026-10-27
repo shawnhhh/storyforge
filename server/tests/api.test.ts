@@ -68,7 +68,7 @@ test('HTTP CRUD validates input, detects conflicts and restores SQLite after a p
     let written = await writtenResponse.json() as ChapterResult
     const stale = await request(server.base, `/chapters/${first.chapter.id}`, 'PUT', { version: first.chapter.version, title: 'Chrome 旧版本', content })
     assert.equal(stale.status, 409)
-    assert.equal((await request(server.base, `/novels/${novel.id}`, 'DELETE', { version: first.novel.version })).status, 409)
+    assert.equal((await request(server.base, `/novels/${novel.id}`, 'DELETE', { version: first.novel.version, confirmed: true, name: novel.title })).status, 409)
     const base = server.base
     const simultaneous = await Promise.all(['Safari 并发保存', 'Chrome 并发保存'].map(title => request(base, `/chapters/${first.chapter.id}`, 'PUT', { version: written.chapter.version, title, content })))
     assert.deepEqual(simultaneous.map(response => response.status).sort(), [200, 409])
@@ -84,7 +84,7 @@ test('HTTP CRUD validates input, detects conflicts and restores SQLite after a p
     assert.equal(chapter.title, written.chapter.title)
     const renamed = await (await request(server.base, `/novels/${novel.id}`, 'PATCH', { version: restored.novel.version, title: '重命名小说', description: '已恢复' })).json() as Novel
     assert.equal(renamed.title, '重命名小说')
-    assert.equal((await request(server.base, `/novels/${novel.id}`, 'DELETE', { version: renamed.version })).status, 204)
+    assert.equal((await request(server.base, `/novels/${novel.id}`, 'DELETE', { version: renamed.version, confirmed: true, name: renamed.title })).status, 204)
     assert.equal((await request(server.base, `/chapters/${first.chapter.id}`)).status, 404)
   } finally { await server?.stop(); rmSync(dir, { recursive: true, force: true }) }
 })
@@ -115,8 +115,8 @@ test('HTTP chapter order and deletion validate inputs and preserve data on rejec
     assert.equal(reorderedResponse.status, 200)
     const reordered = await reorderedResponse.json() as NovelDetail
     assert.deepEqual(reordered.chapters.map(item => item.id), [second.chapter.id, first.chapter.id])
-    assert.equal((await request(base, `/chapters/${first.chapter.id}`, 'DELETE', { version: first.chapter.version, novelVersion: before.novel.version })).status, 409)
-    const removedResponse = await request(base, `/chapters/${second.chapter.id}`, 'DELETE', { version: second.chapter.version, novelVersion: reordered.novel.version })
+    assert.equal((await request(base, `/chapters/${first.chapter.id}`, 'DELETE', { version: first.chapter.version, novelVersion: before.novel.version, confirmed: true })).status, 409)
+    const removedResponse = await request(base, `/chapters/${second.chapter.id}`, 'DELETE', { version: second.chapter.version, novelVersion: reordered.novel.version, confirmed: true })
     assert.equal(removedResponse.status, 200)
     const removed = await removedResponse.json() as NovelDetail
     assert.deepEqual(removed.chapters.map(item => [item.id, item.position]), [[first.chapter.id, 0]])
