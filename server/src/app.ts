@@ -1,3 +1,5 @@
+import { studioRoutes } from './modules/studio/routes.js'
+import type { StudioStore } from './modules/studio/store.js'
 import { TrashStore } from './modules/trash/store.js'
 import { trashRoutes } from './modules/trash/routes.js'
 import { DashboardStore } from './modules/dashboard/store.js'
@@ -19,7 +21,7 @@ import { StoryBibleStore } from './modules/story-bible/store.js'
 import { aiRoutes, type AiDependencies } from './modules/ai/routes.js'
 import { searchRoutes } from './modules/search/routes.js'
 
-export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies) {
+export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies, studio?: StudioStore) {
   const app = express()
   app.disable('x-powered-by')
   app.use((req, res, next) => {
@@ -45,6 +47,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     const health: HealthResponse = { status: 'ok' }
     response.json(health)
   })
+  if (studio) app.use('/api/studio', studioRoutes(studio))
   const novels = new NovelStore(database)
   const planning = new PlanningStore(database)
   const profiles = new StoryBibleStore(database)
