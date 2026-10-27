@@ -42,6 +42,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     }
     next()
   })
+  app.use('/api/studio/import', express.json({ limit: '65mb' }))
   app.use(express.json({ limit: '1mb' }))
   app.get('/api/health', (_request, response) => {
     const health: HealthResponse = { status: 'ok' }
