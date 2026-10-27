@@ -1,7 +1,16 @@
+import type { ProjectSummary } from '../../../../shared/contracts/studio.js'
+import type { NovelStore } from '../novels/store.js'
 import { Router } from 'express'
 import type { StudioStore } from './store.js'
-export function studioRoutes(store: StudioStore) {
+export function studioRoutes(store: StudioStore, stories: NovelStore) {
   const router = Router()
+  router.get('/catalog', (_req, res) => {
+    const catalog: ProjectSummary[] = [
+      ...stories.list().map(p => ({ id: p.id, module: 'story' as const, title: p.title, version: p.version, updatedAt: p.updatedAt })),
+      ...(['music', 'video'] as const).flatMap(kind => store.list(kind).map(p => ({ id: p.id, module: kind, title: p.title, version: p.version, updatedAt: p.updatedAt }))),
+    ]
+    res.json(catalog)
+  })
   router.get('/projects', (req, res) => res.json(store.list(req.query.kind)))
   router.post('/projects', (req, res) => res.status(201).json(store.create(req.body ?? {})))
   router.get('/projects/:id', (req, res) => res.json(store.project(req.params.id)))

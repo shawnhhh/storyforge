@@ -47,8 +47,8 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     const health: HealthResponse = { status: 'ok' }
     response.json(health)
   })
-  if (studio) app.use('/api/studio', studioRoutes(studio))
   const novels = new NovelStore(database)
+  if (studio) app.use('/api/studio', studioRoutes(studio, novels))
   const planning = new PlanningStore(database)
   const profiles = new StoryBibleStore(database)
   const knowledge = new KnowledgeStore(database)

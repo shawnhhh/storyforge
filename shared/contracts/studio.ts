@@ -9,3 +9,12 @@ export interface GenerationInput { project: StudioProject; prompt: string }
 export interface GenerationOutput { name: string; mime: string; data: Uint8Array }
 export interface CreativeProvider { readonly id: string; generate(input: GenerationInput): Promise<GenerationOutput> }
 export const studioPrompts = { music: '创作一段适合当前曲风与情绪的音乐。', video: '根据剧本与镜头描述生成可预览的分镜片段。' } as const
+
+export type CreativeModuleId = 'story' | StudioKind
+export interface ProjectSummary { id: string; module: CreativeModuleId; title: string; version: number; updatedAt: string }
+/** Explicit adapters keep existing Story storage and API semantics intact. */
+export const creativeModules = [
+  { id: 'story', label: '小说', projectApi: '/api/novels', workspace: '#story' },
+  { id: 'music', label: '音乐', projectApi: '/api/studio/projects?kind=music', workspace: '#music' },
+  { id: 'video', label: '视频', projectApi: '/api/studio/projects?kind=video', workspace: '#video' },
+] as const
