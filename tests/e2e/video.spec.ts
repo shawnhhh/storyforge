@@ -139,9 +139,10 @@ test('late video project polling cannot replace the newly selected project asset
   await seen
   await page.getByRole('navigation', { name: '视频项目列表' }).getByRole('button', { name: second, exact: true }).click()
   await expect(page.getByLabel('视频名称', { exact: true })).toHaveValue(second)
+  const lateResponse = page.waitForResponse(response => response.url().endsWith(`/api/studio/projects/${oldId}/assets`))
   release()
-  // A read after releasing the old response provides a deterministic network barrier.
-  await page.request.get(`/api/studio/projects/${oldId}/assets`)
+  await lateResponse
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
   await expect(page.getByRole('progressbar')).toHaveCount(0)
   await expect(page.getByLabel('mock-storyboard.webm', { exact: true })).toHaveCount(0)
 })
