@@ -9,7 +9,7 @@ export function openStudioDatabase(dataDir: string) {
   try {
     db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE')
     const version = Number(db.prepare('PRAGMA user_version').get()!.user_version)
-    if (version > 4) throw new Error('Studio database is newer than this application')
+    if (version > 5) throw new Error('Studio database is newer than this application')
     if (version === 0) db.exec(`
       CREATE TABLE studio_projects(id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('music','video')), title TEXT NOT NULL, content TEXT NOT NULL, settings TEXT NOT NULL, version INTEGER NOT NULL, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL);
       CREATE TABLE studio_versions(id INTEGER PRIMARY KEY, projectId TEXT NOT NULL REFERENCES studio_projects(id), version INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, settings TEXT NOT NULL, createdAt TEXT NOT NULL, UNIQUE(projectId,version));
@@ -24,7 +24,11 @@ export function openStudioDatabase(dataDir: string) {
       CREATE TABLE IF NOT EXISTS studio_jobs(taskId TEXT PRIMARY KEY REFERENCES studio_tasks(id), provider TEXT NOT NULL, model TEXT NOT NULL, key TEXT NOT NULL UNIQUE, digest TEXT NOT NULL, snapshot TEXT NOT NULL, remoteId TEXT, attempts INTEGER NOT NULL DEFAULT 0, due INTEGER NOT NULL, deadline INTEGER NOT NULL, lease TEXT, leaseUntil INTEGER NOT NULL DEFAULT 0, cancel INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS studio_job_events(id INTEGER PRIMARY KEY, taskId TEXT NOT NULL REFERENCES studio_tasks(id), status TEXT NOT NULL, at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS studio_jobs_due ON studio_jobs(due,leaseUntil);
-      PRAGMA user_version=4;
+      CREATE TABLE IF NOT EXISTS studio_media_objects(digest TEXT PRIMARY KEY, bytes INTEGER NOT NULL, createdAt INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS studio_media_refs(id TEXT PRIMARY KEY, projectId TEXT NOT NULL REFERENCES studio_projects(id), name TEXT NOT NULL, mime TEXT NOT NULL, digest TEXT NOT NULL REFERENCES studio_media_objects(digest), createdAt TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS studio_media_refs_digest ON studio_media_refs(digest);
+      CREATE TABLE IF NOT EXISTS studio_uploads(id TEXT PRIMARY KEY,projectId TEXT NOT NULL REFERENCES studio_projects(id),name TEXT NOT NULL,mime TEXT NOT NULL,bytes INTEGER NOT NULL,digest TEXT NOT NULL,offset INTEGER NOT NULL,kind TEXT NOT NULL,createdAt INTEGER NOT NULL,result TEXT);
+      PRAGMA user_version=5;
     `)
     db.exec('COMMIT')
     // A process interruption never leaves a job claiming it is still executing.

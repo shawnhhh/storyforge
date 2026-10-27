@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { CreativeProvider, StudioAsset, StudioKind, StudioProject, StudioSettings, StudioTask, StudioVersion } from '../../../../shared/contracts/studio.js'
 import { HttpError } from '../novels/store.js'
 import { StudioImporter } from './import.js'
+import { MediaStore } from './media.js'
 import { StudioJobs, LocalAsyncProvider, type AsyncCreativeProvider } from './jobs.js'
 import { MockCreativeProvider } from './provider.js'
 
@@ -45,7 +46,9 @@ export class StudioStore {
   get backupDatabase() { return this.db }
   importer() { return new StudioImporter(this.db) }
   readonly jobs: StudioJobs
+  readonly media: MediaStore
   constructor(private db: DatabaseSync, provider: CreativeProvider = new MockCreativeProvider(), providers?: readonly AsyncCreativeProvider[]) {
+    this.media = new MediaStore(db)
     this.jobs = new StudioJobs(db, providers ?? [new LocalAsyncProvider(provider)], (id, output) => {
       if (!output.data.length || output.data.length > 650000 || !['audio/wav','video/webm'].includes(output.mime) || !/^[\w.-]{1,200}$/.test(output.name)) throw new Error('Invalid provider output')
       return this.writeAsset(id, output.name, output.mime, output.data).id
@@ -105,7 +108,8 @@ export class StudioStore {
     return this.jobs.submit({ project, prompt }, body)
   }
 
-  export(id: string) {
+  export(id: string, legacyOnly = false) {
+    if (!legacyOnly && this.media.list(id).length) throw new HttpError(413, '大媒体请使用统一媒体备份 v2')
     const payload = { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
     return { ...payload, sha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex') }
   }

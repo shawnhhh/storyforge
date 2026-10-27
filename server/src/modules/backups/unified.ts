@@ -54,7 +54,8 @@ function remap(value: unknown, ids: Map<string,string>): unknown {
 export class UnifiedBackupService {
   private previews = new Map<string,{ digest: string; expires: number }>()
   constructor(private story: DatabaseSync, private studio: DatabaseSync, private backups: BackupService) {}
-  create(drafts: unknown = []) {
+  create(drafts: unknown = [], externalFiles = false) {
+    if (!externalFiles && this.studio.prepare('SELECT 1 FROM studio_media_refs LIMIT 1').get()) throw new HttpError(413,'存在大型媒体，请使用统一媒体备份 v2')
     if (this.backups.busy) throw new HttpError(423,'备份或恢复正在进行')
     if (!Array.isArray(drafts) || Buffer.byteLength(JSON.stringify(drafts)) > 16*1024*1024) fail()
     this.backups.busy = true
@@ -66,6 +67,9 @@ export class UnifiedBackupService {
         this.studio.exec('BEGIN IMMEDIATE')
         try {
           const payload: Payload = { format:'storyforge-unified',version:1,createdAt:new Date().toISOString(),story:capture(this.story),studio:capture(this.studio),drafts: drafts as unknown[] }
+          // Upload sessions and executable remote jobs are never replayed by a restored copy.
+          payload.studio.studio_uploads=[]
+          payload.studio.studio_media_objects=payload.studio.studio_media_objects.filter(o=>payload.studio.studio_media_refs.some(r=>r.digest===o.digest))
           if(Buffer.byteLength(JSON.stringify(payload)) > 128*1024*1024) throw new HttpError(413,'备份超过128MiB，请拆分项目后导出')
           return { ...payload,sha256:digest(payload) }
         } finally { this.studio.exec('ROLLBACK') }
@@ -78,17 +82,21 @@ export class UnifiedBackupService {
     if (a.format !== 'storyforge-unified' || a.version !== 1 || !Number.isFinite(Date.parse(a.createdAt)) || !Array.isArray(a.drafts) || sha256 !== digest(a)) fail()
     const dir=mkdtempSync(join(tmpdir(),'sf-unified-')), story=openDatabase(dir), studio=openStudioDatabase(dir)
     try {
-      load(story,a.story); load(studio,a.studio)
+      load(story,a.story)
+      const compatible={...a.studio}
+      for(const t of ['studio_jobs','studio_job_events','studio_uploads','studio_media_objects','studio_media_refs']) compatible[t]??=[]
+      load(studio,compatible)
       // Validate against the exact frozen novel schema and rich-text validators.
       story.exec('PRAGMA journal_mode=DELETE')
       this.backups.validateDatabase(join(dir,'storyforge.sqlite'))
       const store=new StudioStore(studio)
-      for(const kind of ['music','video'] as const) for(const p of store.list(kind)) store.importer().validate(store.export(p.id))
+      for(const kind of ['music','video'] as const) for(const p of store.list(kind)) store.importer().validate(store.export(p.id,true))
       return {payload:a as Payload,digest:sha256,dir,story,studio,close(){story.close();studio.close();rmSync(dir,{recursive:true,force:true})}}
     } catch(error) { story.close();studio.close();rmSync(dir,{recursive:true,force:true}); throw error }
   }
   recoveredDrafts() { return this.studio.prepare('SELECT * FROM unified_drafts ORDER BY id').all() }
-  prepare(input: unknown) {
+  prepare(input: unknown, externalFiles = false) {
+    if (!externalFiles && (input as Payload)?.studio?.studio_media_refs?.length) throw new HttpError(400,'大媒体需要 v2 文件校验预览')
     const stage=this.stage(input)
     try {
       for(const [token,p] of this.previews) if(p.expires<Date.now()) this.previews.delete(token)
@@ -97,7 +105,8 @@ export class UnifiedBackupService {
       return {token,createdAt:stage.payload.createdAt,story:stage.payload.story.novels.length,music:stage.payload.studio.studio_projects.filter(p=>p.kind==='music').length,video:stage.payload.studio.studio_projects.filter(p=>p.kind==='video').length,drafts:stage.payload.drafts.length,policy:'所选模块均恢复为新副本，不覆盖现有作品'}
     } finally {stage.close()}
   }
-  restore(input: unknown, token: unknown, selection: unknown, confirmation: unknown, beforeCommit?:()=>void) {
+  restore(input: unknown, token: unknown, selection: unknown, confirmation: unknown, beforeCommit?:()=>void, externalFiles = false) {
+    if (!externalFiles && (input as Payload)?.studio?.studio_media_refs?.length) throw new HttpError(400,'大媒体需要 v2 文件校验恢复')
     if(this.backups.busy) throw new HttpError(423,'备份或恢复正在进行')
     if(!Array.isArray(selection) || !selection.length || selection.some(x=>!['story','music','video','drafts'].includes(x)) || new Set(selection).size!==selection.length || confirmation!=='恢复为新副本') fail()
     const selected=selection as Module[], preview=typeof token==='string'?this.previews.get(token):undefined, stage=this.stage(input)
@@ -140,6 +149,9 @@ export class UnifiedBackupService {
             if(table==='studio_tasks') for(const r of rows) if(['queued','running'].includes(String(r.status))) {r.status='failed';r.progress=0;r.error='备份时任务未完成，请重新生成'}
             insert('studio_restore',table,rows)
           }
+          const mediaRefs=(stage.payload.studio.studio_media_refs??[]).filter(r=>projectIds.has(r.projectId))
+          for(const row of stage.payload.studio.studio_media_objects??[]) if(mediaRefs.some(r=>r.digest===row.digest)) this.story.prepare('INSERT OR IGNORE INTO studio_restore.studio_media_objects(digest,bytes,createdAt) VALUES(?,?,?)').run(String(row.digest),Number(row.bytes),Number(row.createdAt))
+          insert('studio_restore','studio_media_refs',mediaRefs)
           if(this.story.prepare('PRAGMA main.foreign_key_check').all().length || this.story.prepare('PRAGMA studio_restore.foreign_key_check').all().length) fail()
           if(selected.includes('drafts')) {
             for (const draft of stage.payload.drafts) this.story.prepare('INSERT INTO studio_restore.unified_drafts VALUES(?,?)').run(randomUUID(),JSON.stringify(remap(draft,ids)))

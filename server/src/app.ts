@@ -1,3 +1,4 @@
+import { MediaArchive } from './modules/backups/media-archive.js'
 import { UnifiedBackupService } from './modules/backups/unified.js'
 import { studioRoutes } from './modules/studio/routes.js'
 import type { StudioStore } from './modules/studio/store.js'
@@ -52,6 +53,11 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
   })
   if (studio && backups) {
     const unified = new UnifiedBackupService(database, studio.backupDatabase, backups)
+    const mediaArchive = new MediaArchive(studio.media,unified)
+    app.post('/api/media-backups',async(req,res)=>res.status(201).json(await mediaArchive.create(req.body.drafts)))
+    app.get('/api/media-backups/:id/content',(req,res)=>res.set('Content-Type','application/octet-stream').set('Content-Disposition','attachment; filename=storyforge-media.sfm').sendFile(studio.media.safe(mediaArchive.path(req.params.id))))
+    app.post('/api/media-backups/preview',async(req,res)=>res.json(await mediaArchive.preview(req.body.uploadId)))
+    app.post('/api/media-backups/restore',async(req,res)=>res.json(await mediaArchive.restore(req.body.token,req.body.modules,req.body.confirmation)))
     app.get('/api/unified-backups/drafts', (_req,res) => { res.setHeader('Cache-Control','no-store'); res.json(unified.recoveredDrafts()) })
     app.post('/api/unified-backups/export', (req, res) => {
       res.setHeader('Cache-Control','no-store'); res.setHeader('Content-Disposition','attachment; filename="storyforge-unified.json"')
