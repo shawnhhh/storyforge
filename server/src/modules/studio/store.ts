@@ -30,8 +30,8 @@ function settings(value: unknown, kind: StudioKind): StudioSettings {
         const s = shot as Record<string, unknown>
         const id = string(s.id, '镜头ID', 100)
         if (ids.has(id)) throw new HttpError(400, '镜头ID重复')
-        ids.add(id); string(s.description, '镜头描述', 10000, true); string(s.camera, '运镜', 200, true)
-        if (typeof s.duration !== 'number' || !Number.isFinite(s.duration) || s.duration < .1 || s.duration > 300) throw new HttpError(400, '镜头时长无效')
+        ids.add(id); string(s.description, '镜头描述', 2000); string(s.camera, '运镜', 100)
+        if (typeof s.duration !== 'number' || !Number.isFinite(s.duration) || s.duration < 1 || s.duration > 60) throw new HttpError(400, '镜头时长无效')
       }
     }
   }

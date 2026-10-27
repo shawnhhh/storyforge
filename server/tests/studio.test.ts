@@ -30,6 +30,10 @@ test('studio rejects malformed settings, unsupported assets, invalid IDs without
     assert.throws(() => f.store.addAsset(project.id, { name: 'evil', mime: 'text/html', data: 'YWJj' }), /不支持/)
     assert.throws(() => f.store.addAsset(project.id, { name: 'evil', mime: 'image/svg+xml', data: 'YWJj' }), /不支持/)
     assert.throws(() => f.store.project('../../user-data'), /不存在/)
+    assert.throws(() => f.store.addAsset(project.id, { name: 'large', mime: 'audio/wav', data: Buffer.alloc(650001).toString('base64') }), /大小/)
+    const music = f.store.create({ kind: 'music', title: '非法配置' })
+    assert.throws(() => f.store.save(music.id, { ...music, settings: { tempo: 301 } }), /速度范围/)
+    assert.throws(() => f.store.save(music.id, { ...music, settings: { structure: ['x'.repeat(101)] } }), /结构无效/)
     assert.deepEqual(f.store.assets(project.id), [])
   } finally { f.close() }
 })
@@ -63,5 +67,21 @@ test('interrupted jobs become failed after reopening without losing projects', (
     f.db.prepare("INSERT INTO studio_tasks VALUES('interrupted',?,'mock','running',30,'mock',NULL,NULL,'now')").run(p.id)
     const second = openStudioDatabase(f.dir)
     try { assert.equal(new StudioStore(second).tasks(p.id)[0].status, 'failed'); assert.equal(new StudioStore(second).project(p.id).title, '中断') } finally { second.close() }
+  } finally { f.close() }
+})
+test('failed completion rolls back media insertion and provider errors preserve project history', async () => {
+  const f = fixture()
+  try {
+    const p = f.store.create({ kind: 'music', title: '原子性' }), before = f.store.history(p.id)
+    f.db.exec("CREATE TRIGGER reject_studio_completion BEFORE UPDATE ON studio_tasks WHEN NEW.status='completed' BEGIN SELECT RAISE(ABORT,'test failure'); END")
+    await f.store.generate(p.id, { version: p.version, prompt: 'mock' })
+    for (let i = 0; i < 40 && !['completed', 'failed'].includes(f.store.tasks(p.id)[0].status); i++) await new Promise(resolve => setTimeout(resolve, 30))
+    assert.equal(f.store.tasks(p.id)[0].status, 'failed'); assert.deepEqual(f.store.assets(p.id), [])
+    assert.deepEqual(f.store.history(p.id), before); assert.deepEqual(f.store.project(p.id), p)
+    f.db.exec('DROP TRIGGER reject_studio_completion')
+    const failing = new StudioStore(f.db, { id: 'mock', generate: async () => { throw new Error('provider failed') } })
+    const task = await failing.generate(p.id, { version: p.version, prompt: 'failure' })
+    for (let i = 0; i < 40 && !['completed', 'failed'].includes(failing.tasks(p.id).find(t => t.id === task.id)!.status); i++) await new Promise(resolve => setTimeout(resolve, 30))
+    assert.equal(failing.tasks(p.id).find(t => t.id === task.id)!.status, 'failed'); assert.deepEqual(failing.assets(p.id), []); assert.deepEqual(failing.history(p.id), before)
   } finally { f.close() }
 })
