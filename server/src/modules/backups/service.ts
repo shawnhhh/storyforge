@@ -1,5 +1,6 @@
+import { TrashStore } from '../trash/store.js'
 import { KnowledgeStore, knowledgeInput } from '../story-bible/knowledge.js'
-import { migratePlanning } from '../../db/planning-migrate.js'
+import { migratePlanning, planningSchemaVersion } from '../../db/planning-migrate.js'
 import { PlanningStore } from '../planning/store.js'
 import { planningInput } from '../planning/validation.js'
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
@@ -24,23 +25,24 @@ function schemaSignature(db: DatabaseSync) {
 const schemaKey = (base: number, planning: number) => `${base}:${planning}`
 const expectedSchemas = new Map<string, Set<string>>()
 for (let version = 1; version <= schemaVersion; version++) {
-  for (const planning of [0, 1]) {
+  for (const planning of [0, 1, 2]) {
+    if (version < 2 && planning === 2) continue
     const reference = new DatabaseSync(':memory:')
     try {
       migrate(reference, version)
-      if (planning) migratePlanning(reference)
+      if (planning) migratePlanning(reference, planning)
       expectedSchemas.set(schemaKey(version, planning), new Set([schemaSignature(reference)]))
     } finally { reference.close() }
   }
 }
 // Also accept exact knowledge-only v3 snapshots produced by PR #10. Their
 // version number alone cannot distinguish them from PR #9 dashboard snapshots.
-for (const planning of [0, 1]) {
+for (const planning of [0, 1, 2]) {
   const reference = new DatabaseSync(':memory:')
   try {
     migrate(reference, 2)
     reference.exec(readFileSync(new URL('../../db/migrations/0004_knowledge.sql', import.meta.url), 'utf8'))
-    if (planning) migratePlanning(reference)
+    if (planning) migratePlanning(reference, planning)
     expectedSchemas.get(schemaKey(3, planning))!.add(schemaSignature(reference))
   } finally { reference.close() }
 }
@@ -123,7 +125,7 @@ export class BackupService {
     this.settings = settings
     return this.history()
   }
-  private validateDatabase(path: string, expectedVersion?: number, expectedPlanning?: number) {
+  validateDatabase(path: string, expectedVersion?: number, expectedPlanning?: number) {
     const header = Buffer.alloc(100), fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
     try { readSync(fd, header, 0, header.length, 0) } finally { closeSync(fd) }
     if (!header.subarray(0, 16).equals(Buffer.from('SQLite format 3\0'))) throw new HttpError(400, '不是有效的 SQLite 数据库')
@@ -135,12 +137,16 @@ export class BackupService {
       const versions = candidate.prepare('SELECT version FROM schema_migrations ORDER BY version').all()
       const current = versions.length
       const hasPlanning = !!candidate.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='planning_migrations'").get()
-      const planningVersion = hasPlanning ? 1 : 0
+      const modules = hasPlanning ? candidate.prepare('SELECT name FROM planning_migrations ORDER BY name').all() : []
+      const planningVersion = modules.length
       if ((expectedVersion !== undefined && current !== expectedVersion) || (expectedPlanning !== undefined && planningVersion !== expectedPlanning) || versions.some((row, index) => row.version !== index + 1) || !expectedSchemas.get(schemaKey(current, planningVersion))?.has(schemaSignature(candidate)) || candidate.prepare('PRAGMA user_version').get()?.user_version !== 0 || candidate.prepare('PRAGMA application_id').get()?.application_id !== 0) throw new Error('Incompatible schema')
       if (hasPlanning) {
-        const modules = candidate.prepare('SELECT name FROM planning_migrations').all()
-        if (modules.length !== 1 || modules[0].name !== 'planning/001') throw new Error('Incompatible planning schema')
+        if (!modules.length || modules.some((row, index) => row.name !== `planning/00${index + 1}`)) throw new Error('Incompatible planning schema')
         if (candidate.prepare('SELECT 1 FROM planning_chapter_links l JOIN chapters c ON c.id=l.chapter_id WHERE l.novel_id<>c.novel_id LIMIT 1').get()) throw new Error('Invalid chapter scope')
+        if (planningVersion >= 2) for (const [table, field] of [['planning_character_links', 'characterIds'], ['planning_world_links', 'worldIds']]) {
+          if (candidate.prepare(`SELECT 1 FROM ${table} l JOIN planning_records r ON r.novel_id=l.novel_id AND r.id=l.record_id
+            WHERE r.kind NOT IN ('outlines','cards') OR json_type(r.data, '$.${field}') IS NOT 'array' LIMIT 1`).get()) throw new Error('Invalid planning material reference')
+        }
         const store = new PlanningStore(candidate)
         for (const row of candidate.prepare('SELECT id FROM novels').all()) planningInput(store.read(String(row.id)))
       }
@@ -155,6 +161,7 @@ export class BackupService {
         if (doc.type !== 'doc') throw new Error('Invalid content')
         textSchema.nodeFromJSON(doc).check()
       }
+      if (current >= 5) { for (const row of candidate.prepare('SELECT novel_id,payload FROM trash_entries').iterate()) new TrashStore(candidate).validatePayload(String(row.payload), String(row.novel_id)) }
       if (current >= 2) {
         for (const row of candidate.prepare('SELECT * FROM characters').iterate()) {
           characterInput({ ...row, tags: JSON.parse(String(row.tags)), fields: JSON.parse(String(row.fields)), relations: [], worldIds: [] })
@@ -183,10 +190,10 @@ export class BackupService {
       // node:sqlite backup wraps sqlite3_backup_init/step/finish, including WAL.
       await backup(this.db, pending)
       finalizeSnapshot(pending)
-      this.validateDatabase(pending, schemaVersion, 1)
+      this.validateDatabase(pending, schemaVersion, planningSchemaVersion)
       const fd = openSync(pending, constants.O_RDONLY)
       try { fsyncSync(fd) } finally { closeSync(fd) }
-      const entry: BackupEntry = { id, createdAt, size: statSync(pending).size, sha256: digest(pending), schemaVersion, planningVersion: 1, kind }
+      const entry: BackupEntry = { id, createdAt, size: statSync(pending).size, sha256: digest(pending), schemaVersion, planningVersion: planningSchemaVersion, kind }
       renameSync(pending, destination)
       atomicJson(`${destination}.json`, entry)
       return entry
@@ -234,7 +241,7 @@ export class BackupService {
       const staged = new DatabaseSync(stage)
       try { migrate(staged); migratePlanning(staged) } finally { staged.close() }
       finalizeSnapshot(stage)
-      this.validateDatabase(stage, schemaVersion, 1)
+      this.validateDatabase(stage, schemaVersion, planningSchemaVersion)
       const safety = await this.snapshot('before-restore')
       this.db.prepare('ATTACH DATABASE ? AS restore_source').run(stage)
       try {
@@ -245,7 +252,9 @@ export class BackupService {
           this.db.exec(`DELETE FROM knowledge_workspaces; DELETE FROM planning_workspaces; DELETE FROM planning_migrations; DELETE FROM character_relations; DELETE FROM character_world_links;
             DELETE FROM characters; DELETE FROM world_entries;
             DELETE FROM chapters; DELETE FROM novels; DELETE FROM schema_migrations;
-            DELETE FROM writing_days; DELETE FROM writing_settings;
+            DELETE FROM writing_days; DELETE FROM writing_settings; DELETE FROM trash_entries; DELETE FROM deleted_planning_records;
+            INSERT INTO deleted_planning_records SELECT * FROM restore_source.deleted_planning_records;
+            INSERT INTO trash_entries SELECT * FROM restore_source.trash_entries;
             INSERT INTO writing_days SELECT * FROM restore_source.writing_days;
             INSERT INTO writing_settings SELECT * FROM restore_source.writing_settings;
             INSERT INTO novels SELECT * FROM restore_source.novels;
@@ -259,6 +268,8 @@ export class BackupService {
             INSERT INTO planning_workspaces SELECT * FROM restore_source.planning_workspaces;
             INSERT INTO planning_records SELECT * FROM restore_source.planning_records;
             INSERT INTO planning_chapter_links SELECT * FROM restore_source.planning_chapter_links;
+            INSERT INTO planning_character_links SELECT * FROM restore_source.planning_character_links;
+            INSERT INTO planning_world_links SELECT * FROM restore_source.planning_world_links;
             INSERT INTO knowledge_workspaces SELECT * FROM restore_source.knowledge_workspaces;
             INSERT INTO knowledge_links SELECT * FROM restore_source.knowledge_links;`)
           if (this.db.prepare('PRAGMA main.foreign_key_check').all().length) throw new Error('Restore foreign keys invalid')

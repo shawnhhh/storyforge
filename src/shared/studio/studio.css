@@ -1,0 +1,10 @@
+.studio-frame { background: var(--sf-surface, var(--bg)); color: var(--sf-text, var(--text-h)); min-height: 100vh; padding: 24px; font: 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.studio-frame header { display:flex; align-items:center; gap:24px; flex-wrap:wrap; margin-bottom:24px; }
+.studio-frame nav { display:flex; gap:18px; }
+.studio-frame a { color:var(--sf-accent,#546ee5); }
+.studio-frame button,.studio-frame input,.studio-frame select,.studio-frame textarea { font:inherit; border:1px solid var(--sf-border,var(--border)); border-radius:9px; padding:9px 12px; color:inherit; background:var(--sf-field,var(--bg)); }
+.studio-frame button { cursor:pointer; }
+.studio-frame button:disabled { opacity:.5; cursor:default; }
+.studio-frame textarea { resize:vertical; }
+.studio-frame :focus-visible { outline:2px solid var(--sf-accent,#546ee5); outline-offset:3px; }
+@media(max-width:600px){.studio-frame{padding:16px}.studio-frame header{gap:12px}}

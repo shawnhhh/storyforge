@@ -10,10 +10,15 @@ export function openDatabase(dataDir: string): DatabaseSync {
   const database = new DatabaseSync(join(dataDir, 'storyforge.sqlite'))
   try {
     database.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;')
+    // Base and module upgrades form one startup transaction. A rejected module
+    // must not leave an existing database partially upgraded.
+    database.exec('BEGIN IMMEDIATE')
     migrate(database)
     migratePlanning(database)
+    database.exec('COMMIT')
     return database
   } catch (error) {
+    if (database.isTransaction) database.exec('ROLLBACK')
     database.close()
     throw error
   }

@@ -1,6 +1,8 @@
+import { openDeleteMenu } from './trash-helpers.js'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { characterFields } from '../../shared/contracts/story-bible.js'
+import { updateComposition } from './composition-helpers.js'
 
 async function novel(page: Page, name: string) {
   await page.goto('/')
@@ -86,16 +88,19 @@ test('profiles CRUD, search, tags, relationships, world links and timeline persi
   await expect(page.getByRole('navigation', { name: '人物列表' }).getByRole('button')).toHaveCount(0)
   await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: '人物世界观验收 🌕' }).click()
   await expect(page.getByLabel('姓名', { exact: true })).toHaveValue('林月🌕')
+  page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '移除关系 1', exact: true }).click()
   await saved(page)
   await page.getByRole('navigation', { name: '人物列表' }).getByRole('button').filter({ hasText: '沈先生' }).click()
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除人物')
   await page.getByRole('button', { name: '删除人物', exact: true }).click()
   await expect(page.getByRole('navigation', { name: '人物列表' }).getByRole('button')).toHaveCount(1)
   await module(page, '世界观')
   await page.getByRole('navigation', { name: '设定列表' }).getByRole('button').filter({ hasText: '云城 <&>' }).click()
   await expect(page.getByRole('listitem').filter({ hasText: '林月🌕' })).toBeVisible()
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除设定')
   await page.getByRole('button', { name: '删除设定', exact: true }).click()
   await expect(page.getByRole('navigation', { name: '设定列表' }).getByRole('button')).toHaveCount(1)
   await module(page, '人物档案')
@@ -141,6 +146,7 @@ test('profile conflicts retain exportable drafts, guard navigation and require e
   await saved(other)
   // A remote deletion must preserve, rather than recreate, the stale editor's draft.
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除人物')
   await page.getByRole('button', { name: '删除人物', exact: true }).click()
   await other.getByLabel('姓名', { exact: true }).fill('被删除后的草稿')
   await expect(other.locator('.profile-save-status')).toHaveText('版本冲突 · 未保存')
@@ -190,13 +196,14 @@ test('Chinese composition pauses browser autosave and saves the committed text a
   await expect(name).toBeEditable()
   let writes = 0
   page.on('request', request => { if (request.method() === 'PUT' && /\/characters\//.test(request.url())) writes++ })
+  await name.focus()
   await name.dispatchEvent('compositionstart', { data: '' })
-  await name.fill('lin')
+  await updateComposition(name, 'lin')
   // Intentionally span the 700ms debounce: no intermediate IME text may write.
   await page.waitForTimeout(900)
   expect(writes).toBe(0)
   await expect(page.locator('.profile-save-status')).toHaveText('等待保存…')
-  await name.fill('林月🌕')
+  await updateComposition(name, '林月🌕')
   await name.dispatchEvent('compositionend', { data: '林月🌕' })
   await saved(page)
   expect(writes).toBe(1)

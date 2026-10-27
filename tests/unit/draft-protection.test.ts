@@ -1,6 +1,7 @@
 import test, { beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import 'fake-indexeddb/auto'
+import { forceCloseDatabase } from 'fake-indexeddb'
 import { DraftProtection } from '../../src/shared/drafts/protection.js'
 import { fingerprint, persistLocalDraft, readLocalDrafts, removeLocalDraft, type LocalDraft } from '../../src/shared/drafts/store.js'
 
@@ -172,4 +173,66 @@ test('a cross-window journal write during old acknowledgement cannot be removed 
     await removeLocalDraft(record)
     assert.equal((await readLocalDrafts<typeof initial>(record.key))[0].value.content, '清理期间的新输入')
   } finally { IDBDatabase.prototype.transaction = originalTransaction; localStorage.removeItem = originalRemove }
+})
+
+test('unexpected IndexedDB close reopens storage when the synchronous journal is unavailable', async () => {
+  const storage = localStorage
+  // Capture the application's cached connection through an actual transaction.
+  const original = IDBDatabase.prototype.transaction
+  const connections = new Set<IDBDatabase>()
+  IDBDatabase.prototype.transaction = function (...args: Parameters<typeof original>) { connections.add(this); return original.apply(this, args) }
+  try {
+    await readLocalDrafts('none')
+    const [cached] = connections
+    assert.ok(cached)
+    const closed = new Promise<void>(resolve => cached.addEventListener('close', () => resolve(), { once: true }))
+    // fake-indexeddb 6.2.5 declares a constructor parameter; its runtime takes an instance.
+    forceCloseDatabase(cached as unknown as Parameters<typeof forceCloseDatabase>[0])
+    await closed
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { setItem() { throw new Error('disabled') }, get length() { throw new Error('disabled') } } })
+    const entity = key(), controller = new DraftProtection(entity, initial)
+    await controller.load()
+    assert.equal(controller.state.error, '')
+    controller.change({ ...initial, content: '后台恢复后仅 IndexedDB 可用' })
+    await settle(controller)
+    assert.equal(controller.state.protected, true)
+    assert.equal((await readLocalDrafts<typeof initial>(entity))[0].value.content, '后台恢复后仅 IndexedDB 可用')
+  } finally {
+    IDBDatabase.prototype.transaction = original
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage })
+  }
+})
+
+test('a delayed load cannot resurrect a draft after an explicit recovery choice', async () => {
+  const entity = key(), writer = new DraftProtection(entity, initial)
+  await writer.load(); writer.change({ ...initial, content: '选择恢复的内容' }); await settle(writer)
+  const controller = new DraftProtection(entity, initial)
+  await controller.load()
+  const selected = controller.state.candidates[0]
+  const original = IDBObjectStore.prototype.getAll
+  let release!: () => void
+  const captured = new Promise<void>(resolve => {
+    IDBObjectStore.prototype.getAll = function (...args: Parameters<typeof original>) {
+      const request = original.apply(this, args)
+      request.addEventListener('success', () => {
+        const callback = request.onsuccess!
+        request.onsuccess = null
+        release = () => callback.call(request, new Event('success'))
+        resolve()
+      })
+      return request
+    }
+  })
+  try {
+    const loading = controller.load()
+    await captured
+    controller.recover(selected)
+    controller.change(selected.value)
+    await controller.saved(selected.value)
+    IDBObjectStore.prototype.getAll = original
+    release(); await loading
+    assert.deepEqual(controller.state.candidates, [])
+    assert.equal(controller.blocked, false)
+    assert.deepEqual(await readLocalDrafts(entity), [])
+  } finally { IDBObjectStore.prototype.getAll = original }
 })

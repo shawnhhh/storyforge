@@ -68,7 +68,7 @@ for (const width of [1440, 700]) {
       expect(await body.evaluate((element, previous) => element === previous, original)).toBe(true)
       await expect(page.getByLabel('字数统计')).toHaveText('10503 字')
       await test.info().attach('stable-bottom-viewport', { body: Buffer.from(JSON.stringify({ first, before, after: await viewport(page) })), contentType: 'application/json' })
-    } finally { release(); await page.unroute('**/api/chapters/*') }
+    } finally { release(); await page.unrouteAll({ behavior: 'wait' }) }
     // Switching chapters and a full reload must recover the final queued write.
     await page.getByRole('button', { name: '添加章节' }).click()
     const second = await expectChapterReady(page, '第 2 章')
@@ -98,9 +98,20 @@ test('autosave respects active user scrolling away from the caret; typing still 
     const bottom = await viewport(page)
     const scroll = page.locator('.document')
     await scroll.hover()
-    await page.mouse.wheel(0, -1800)
+    // Firefox clamps one oversized synthetic wheel event to less than a page.
+    // Keep the same total input, with six separate gestures and observed motion.
+    const gestures = []
+    for (let index = 0; index < 6; index += 1) {
+      const before = await viewport(page)
+      await page.mouse.wheel(0, -300)
+      await expect.poll(async () => (await viewport(page)).scrollTop).toBeLessThan(before.scrollTop)
+      gestures.push(await viewport(page))
+    }
     await expect.poll(async () => (await viewport(page)).scrollTop).toBeLessThan(bottom.scrollTop - 500)
     const reading = await viewport(page)
+    await test.info().attach('active-reading-wheel-gestures', {
+      body: Buffer.from(JSON.stringify({ bottom, gestures, reading })), contentType: 'application/json',
+    })
     release()
     await saved(page)
     expect(await viewport(page)).toEqual(reading)
@@ -109,7 +120,7 @@ test('autosave respects active user scrolling away from the caret; typing still 
     await expect.poll(async () => (await viewport(page)).scrollTop).toBeGreaterThan(reading.scrollTop + 500)
     await saved(page)
     await expect(body).toHaveText(text + '新输入继续')
-  } finally { release(); await page.unroute('**/api/chapters/*') }
+  } finally { release(); await page.unrouteAll({ behavior: 'wait' }) }
 })
 
 test('saving a long document preserves an intentionally blurred editor', async ({ page }) => {
@@ -126,5 +137,5 @@ test('saving a long document preserves an intentionally blurred editor', async (
     await saved(page)
     await expect(page.getByLabel('搜索章节')).toBeFocused()
     expect(await viewport(page)).toEqual(before)
-  } finally { release(); await page.unroute('**/api/chapters/*') }
+  } finally { release(); await page.unrouteAll({ behavior: 'wait' }) }
 })
