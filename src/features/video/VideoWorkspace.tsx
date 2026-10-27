@@ -28,9 +28,10 @@ export function VideoWorkspace() {
   const [tasks, setTasks] = useState<StudioTask[]>([])
   const [message, setMessage] = useState('所有生成均使用 Mock Provider')
   const [busy, setBusy] = useState(false)
+  const [ready, setReady] = useState(false)
   const dirty = Boolean(project && (title !== project.title || content !== project.content || JSON.stringify(configuration) !== JSON.stringify(readVideoConfiguration(project.settings))))
   const loadProjects = useCallback(async () => { setProjects(await request<StudioProject[]>(`${path}?kind=video`)) }, [])
-  useEffect(() => { let active = true; void request<StudioProject[]>(`${path}?kind=video`).then(value => { if (active) setProjects(value) }).catch(error => { if (active) setMessage(String(error)) }); return () => { active = false } }, [])
+  useEffect(() => { let active = true; void request<StudioProject[]>(`${path}?kind=video`).then(value => { if (active) { setProjects(value); setReady(true) } }).catch(error => { if (active) setMessage(String(error)) }); return () => { active = false } }, [])
   const related = useCallback(async (id: string) => {
     const sequence = ++relatedSequence.current
     const [a, h, t] = await Promise.all([request<StudioAsset[]>(`${path}/${id}/assets`), request<StudioVersion[]>(`${path}/${id}/history`), request<StudioTask[]>(`${path}/${id}/tasks`)])
@@ -40,7 +41,7 @@ export function VideoWorkspace() {
   useEffect(() => {
     if (!project || !tasks.some(task => task.status === 'queued' || task.status === 'running')) return
     let pending = false
-    const timer = setInterval(() => { if (pending) return; pending = true; void related(project.id).catch(error => setMessage(String(error))).finally(() => { pending = false }) }, 350)
+    const timer = setInterval(() => { if (pending) return; pending = true; void related(project.id).catch(error => { if (activeId.current === project.id) setMessage(String(error)) }).finally(() => { pending = false }) }, 350)
     return () => clearInterval(timer)
   }, [project, tasks, related])
   useEffect(() => {
@@ -78,7 +79,7 @@ export function VideoWorkspace() {
   function updateShot(index: number, patch: Partial<VideoConfiguration['shots'][number]>) { setConfiguration(value => ({ ...value, shots: value.shots.map((shot, i) => i === index ? { ...shot, ...patch } : shot) })) }
   return <main className="video-studio">
     <header className="video-top"><div><span className="video-eyebrow">STORYFORGE / VIDEO</span><h1>视频工作台</h1></div><a href="#">小说</a></header>
-    <div className="video-layout"><aside><h2>视频项目</h2><button disabled={busy || dirty} onClick={() => void execute(async () => { const value = await request<StudioProject>(path, 'POST', { kind: 'video', title: '未命名视频' }); display(value); await related(value.id); await loadProjects(); setMessage('已创建视频项目') })}>新建视频项目</button><nav aria-label="视频项目列表">{projects.map(value => <button aria-current={project?.id === value.id ? 'page' : undefined} key={value.id} disabled={busy} onClick={() => void select(value.id)}>{value.title}</button>)}</nav><p>素材与版本保存在本机 Studio 数据库。请定期导出工程文件。</p></aside>
+    <div className="video-layout"><aside><h2>视频项目</h2><button disabled={!ready || busy || dirty} onClick={() => void execute(async () => { const value = await request<StudioProject>(path, 'POST', { kind: 'video', title: '未命名视频' }); display(value); await related(value.id); await loadProjects(); setMessage('已创建视频项目') })}>新建视频项目</button><nav aria-label="视频项目列表">{projects.map(value => <button aria-current={project?.id === value.id ? 'page' : undefined} key={value.id} disabled={busy} onClick={() => void select(value.id)}>{value.title}</button>)}</nav><p>素材与版本保存在本机 Studio 数据库。请定期导出工程文件。</p></aside>
     <section className="video-editor"><p role="status" data-video-message>{message}{dirty ? ' · 有未保存更改' : ''}</p>{project ? <fieldset className="video-fields" disabled={busy}>
       <div className="video-toolbar"><button onClick={exportDraft}>导出未保存草稿</button>{draft && <button onClick={() => { setTitle(draft.title); setContent(draft.content); setConfiguration(draft.configuration); setDraft(null); setMessage('本机草稿已载入，请核对后保存') }}>恢复本机草稿</button>}<label>视频名称<input value={title} onChange={event => setTitle(event.target.value)} maxLength={200} /></label><button className="video-primary" disabled={busy} onClick={() => void save()}>保存视频项目</button><a download href={`/api/studio/projects/${project.id}/export`}>导出工程 JSON</a></div><p className="video-backup-note">小说备份不包含视频，请定期导出工程。</p>
       <label>剧本<textarea className="video-script" value={content} onChange={event => setContent(event.target.value)} placeholder="从一段故事开始，描述场景与对白…" /></label>
