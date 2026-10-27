@@ -9,6 +9,7 @@ export default defineConfig(({ mode, command }) => {
   const env = isolated ? {} : loadEnv(mode, process.cwd(), 'SERVER_PORT')
   const port = process.env.SERVER_PORT ?? env.SERVER_PORT ?? '3001'
   return {
+    cacheDir: 'work/vite-cache',
     plugins: [react(), tailwindcss()],
     envDir: isolated ? false : undefined,
     // This entry is reached through the lazy chapter editor. Prebundle it before
