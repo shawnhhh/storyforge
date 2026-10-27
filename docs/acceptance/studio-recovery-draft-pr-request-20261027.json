@@ -1,0 +1,9 @@
+{
+  "repository_full_name": "shawnhhh/storyforge",
+  "base": "main",
+  "head": "integration/studio-recovery-20261027",
+  "draft": true,
+  "maintainer_can_modify": false,
+  "title": "[Draft] StoryForge 总集成：小说、Studio工程导入、导航保护与统一备份",
+  "body": "本 PR 将小说、Music、Video、Studio 工程导入、未保存导航保护与统一备份整合为独立 Draft 候选。保持 main 和来源 #31–#34 不变，不合并任何 PR。\n\n代码 head：`2bc1ab986d1ceb20bb19059ed9fdb13829075e8b`；tree：`b0d3a4357fbb3ea86d4ce5646f85f8c31f9b4f7d`。\n来源冻结 SHA：\n- #31 a4d2408b113e57978809d454d587dae6d6b72520（祖先）\n- #32 e6d4891cb2947d021313909280b719cae9e05a0f（f0cb947/e6d4891 等价补丁已在003cb29/e85b825）\n- #33 cd848d1553387df27ee01e264e5de2f36c94defd（81b882f/cd848d1 等价补丁已在40ddc1d/554352a）\n- #34 f262698f91a1d029d566c93d879d8856423a22e6（祖先）\n无重复叠加功能；58fe057 修正 Music hash 回退等待，2bc1ab9 只补冻结v2迁移与回滚测试。\n\n验证：[push CI 40475054830](https://github.com/shawnhhh/storyforge/actions/runs/40475054830)。7 个成功 Linux Job 的 checkout 日志均记录当前 head；单元/API 263/263、安全专项86/86（子集）、Chromium完整138/138（52+42+44）、Firefox完整138/138（52+42+44）。压力用例与专项不累加为唯一用例数。\nmacOS Chrome/WebKit 在正文准备时仍 queued，未执行，不能算通过；创建PR前必须先核实同一head的全部9个job成功，并用真实日志更新此行。创建PR后按既有workflow等待PR事件完整CI，核对synthetic merge tree，不能用push结果冒称PR事件已成功。\n\n数据安全：小说未保存时阻止模块卸载；Studio 工程预览与一次性确认、新ID新名称副本、重复保护；v2→v3保留工程/历史/BLOB/导入收据、重复打开与迁移异常回滚已测。统一备份以受控临时SQLite验证，恢复通过ATTACH事务与rollback journal处理跨库提交；不覆盖原作，草稿进入独立收件箱需手工核对。旧v2程序拒绝v3，代码回退不等于数据库降级。\n\n只用临时SQLite/隔离素材/Mock，没有读取真实用户库、.env或调用付费模型。macOS Playwright WebKit不等于真实Safari；真实Safari/iPhone/iPad、中文IME、后台/锁屏/触摸、断电/磁盘满仍待人工验收。备份128MiB/工程64MiB限制、SHA-256非签名/加密、媒体声明校验范围及草稿手工采用边界详见中文报告。\n"
+}
