@@ -69,6 +69,7 @@ export class UnifiedBackupService {
           const payload: Payload = { format:'storyforge-unified',version:1,createdAt:new Date().toISOString(),story:capture(this.story),studio:capture(this.studio),drafts: drafts as unknown[] }
           // Upload sessions and executable remote jobs are never replayed by a restored copy.
           payload.studio.studio_uploads=[]
+          payload.studio.studio_cost_quotes=[];payload.studio.studio_cost_reservations=[]
           payload.studio.studio_media_objects=payload.studio.studio_media_objects.filter(o=>payload.studio.studio_media_refs.some(r=>r.digest===o.digest))
           if(Buffer.byteLength(JSON.stringify(payload)) > 128*1024*1024) throw new HttpError(413,'备份超过128MiB，请拆分项目后导出')
           return { ...payload,sha256:digest(payload) }
@@ -84,7 +85,7 @@ export class UnifiedBackupService {
     try {
       load(story,a.story)
       const compatible={...a.studio}
-      for(const t of ['studio_jobs','studio_job_events','studio_uploads','studio_media_objects','studio_media_refs']) compatible[t]??=[]
+      for(const t of ['studio_cost_quotes','studio_cost_reservations','studio_jobs','studio_job_events','studio_uploads','studio_media_objects','studio_media_refs']) compatible[t]??=[]
       load(studio,compatible)
       // Validate against the exact frozen novel schema and rich-text validators.
       story.exec('PRAGMA journal_mode=DELETE')

@@ -1,10 +1,12 @@
 import type { ProjectSummary } from '../../../../shared/contracts/studio.js'
 import type { NovelStore } from '../novels/store.js'
 import { Router } from 'express'
-import type { StudioStore } from './store.js'
+import { string, type StudioStore } from './store.js'
 export function studioRoutes(store: StudioStore, stories: NovelStore) {
   const router = Router()
-  router.get('/providers', (_req, res) => res.json(store.jobs.providers.map(p => ({ id: p.id, models: p.models }))))
+  router.get('/costs',(_req,res)=>res.json({models:store.costs.policy.models,monthly:store.costs.month()}))
+  router.post('/projects/:id/estimate',(req,res)=>{const project=store.project(req.params.id);res.json(store.costs.quote({project,prompt:string(req.body.prompt,'提示词',10000)},String(req.body.provider??'mock'),String(req.body.model??'mock-v1')))})
+  router.get('/providers', (_req, res) => res.json(store.jobs.providers.map(p => ({ id: p.id, models: p.models, keyConfigured:store.keyVault?.configured(p.id)??false }))))
   router.post('/tasks/:id/cancel', (req, res) => res.json(store.jobs.cancel(req.params.id)))
   router.get('/tasks/:id/history', (req, res) => { store.jobs.task(req.params.id); res.json(store.jobs.history(req.params.id)) })
   router.post('/webhooks/:provider', (req, res) => { store.jobs.webhook(req.params.provider, req.body, req.get('x-provider-signature') ?? ''); res.sendStatus(202) })

@@ -59,7 +59,7 @@ try {
   const [apiPort, webPort] = await Promise.all([freePort(), freePort()])
   const baseURL = `http://127.0.0.1:${webPort}`
   // Explicit overrides: never use .env or the application's existing data directory.
-  const isolatedEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['STORYFORGE_AI_', 'STORYFORGE_OPENAI_', 'STORYFORGE_DEEPSEEK_', 'STORYFORGE_LOCAL_'].some(prefix => key.startsWith(prefix))))
+  const isolatedEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['STORYFORGE_AI_', 'STORYFORGE_OPENAI_', 'STORYFORGE_DEEPSEEK_', 'STORYFORGE_LOCAL_', 'STORYFORGE_MEDIA_'].some(prefix => key.startsWith(prefix))))
   const env = { ...isolatedEnv, E2E_PLANNING_MOCK: planningMock ? '1' : '', STORYFORGE_AI_API_KEY: '', SERVER_PORT: String(apiPort), STORYFORGE_DATA_DIR: dir, STORYFORGE_BACKUP_DIR: join(dir, 'backups'), E2E_BASE_URL: baseURL, E2E_OUTPUT_DIR: outputDir, PLAYWRIGHT_JSON_OUTPUT_FILE: join(outputDir, 'results.json') }
   phase('starting API')
   const api = launch(['--import', 'tsx', planningMock ? 'tests/e2e/ai-planning-server.ts' : 'server/src/index.ts'], env)

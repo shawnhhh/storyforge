@@ -3,6 +3,8 @@ import type { DatabaseSync } from 'node:sqlite'
 import type { CreativeProvider, StudioAsset, StudioKind, StudioProject, StudioSettings, StudioTask, StudioVersion } from '../../../../shared/contracts/studio.js'
 import { HttpError } from '../novels/store.js'
 import { StudioImporter } from './import.js'
+import type { ServerKeyVault } from './secrets.js'
+import { CostControls, type BudgetPolicy } from './costs.js'
 import { MediaStore } from './media.js'
 import { StudioJobs, LocalAsyncProvider, type AsyncCreativeProvider } from './jobs.js'
 import { MockCreativeProvider } from './provider.js'
@@ -47,12 +49,14 @@ export class StudioStore {
   importer() { return new StudioImporter(this.db) }
   readonly jobs: StudioJobs
   readonly media: MediaStore
-  constructor(private db: DatabaseSync, provider: CreativeProvider = new MockCreativeProvider(), providers?: readonly AsyncCreativeProvider[]) {
+  readonly costs: CostControls
+  constructor(private db: DatabaseSync, provider: CreativeProvider = new MockCreativeProvider(), providers?: readonly AsyncCreativeProvider[], policy?:BudgetPolicy, readonly keyVault?:ServerKeyVault) {
     this.media = new MediaStore(db)
+    this.costs = new CostControls(db,policy)
     this.jobs = new StudioJobs(db, providers ?? [new LocalAsyncProvider(provider)], (id, output) => {
       if (!output.data.length || output.data.length > 650000 || !['audio/wav','video/webm'].includes(output.mime) || !/^[\w.-]{1,200}$/.test(output.name)) throw new Error('Invalid provider output')
       return this.writeAsset(id, output.name, output.mime, output.data).id
-    })
+    },this.costs)
   }
   list(kind: unknown) {
     if (kind !== 'music' && kind !== 'video') throw new HttpError(400, '业务模块无效')

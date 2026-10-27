@@ -1,3 +1,6 @@
+import { join } from 'node:path'
+import { configuredBudget } from './modules/studio/costs.js'
+import { ServerKeyVault, redact } from './modules/studio/secrets.js'
 import { openStudioDatabase } from './modules/studio/database.js'
 import { StudioStore } from './modules/studio/store.js'
 import { TrashStore } from './modules/trash/store.js'
@@ -20,7 +23,9 @@ const cleanupTimer = setInterval(cleanTrash, 60 * 60 * 1000)
 cleanupTimer.unref()
 // Health must not advertise readiness while the initial backup still blocks writes.
 await backups.start()
-const studioStore = new StudioStore(studioDatabase)
+const master=process.env.STORYFORGE_MEDIA_VAULT_MASTER
+const vault=master?new ServerKeyVault(join(config.dataDir,'server-keys'),Buffer.from(master,'base64')):undefined
+const studioStore = new StudioStore(studioDatabase,undefined,undefined,configuredBudget(),vault)
 const server = createApp(database, backups, undefined, studioStore).listen(config.port, config.host, () => {
   console.info(`StoryForge local service: http://${config.host}:${config.port}`)
   cleanTrash()
@@ -31,7 +36,7 @@ server.on('error', (error) => {
   studioDatabase.close()
   database.close()
   releaseLock()
-  console.error(error)
+  console.error(redact(error instanceof Error?{name:error.name,message:error.message}:error))
   process.exitCode = 1
 })
 
