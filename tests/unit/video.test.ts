@@ -4,7 +4,7 @@ import { MockVideoAdapter, readVideoConfiguration, validateVideo } from '../../s
 import type { StudioProject } from '../../shared/contracts/studio.js'
 const configuration = { aspectRatio: '16:9', shots: [{ id: 'first', description: '虚构的海边清晨', duration: 5, camera: '缓慢推进' }] }
 test('video adapter includes script, shot duration, camera and aspect ratio without network access', () => {
-  const project = { content: '小船驶入港湾', settings: { aspectRatio: configuration.aspectRatio, shots: JSON.stringify(configuration.shots) } } as StudioProject
+  const project = { id: 'isolated', kind: 'video', title: '虚构', version: 1, createdAt: '', updatedAt: '', content: '小船驶入港湾', settings: { aspectRatio: configuration.aspectRatio, shots: JSON.stringify(configuration.shots) } } as StudioProject
   const prompt = new MockVideoAdapter().prompt(project)
   for (const value of ['小船驶入港湾', '16:9', '5 秒', '缓慢推进', '海边清晨']) assert.ok(prompt.includes(value))
   assert.deepEqual(readVideoConfiguration(project.settings), configuration)
