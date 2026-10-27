@@ -26,3 +26,5 @@
 本机日志：`/tmp/music-tests-serial.log`、`/tmp/music-targeted-final.log`、`/tmp/music-e2e-final.log`（首轮失败）、`/tmp/music-e2e-retry.log`（最终成功）、`/tmp/music-{lint,types,build}-verified.log`。成功截图作为PNG base64附件保存在 `work/e2e-results/1793066436968-13429/results.json`，已检查390px完整截图。所有测试专项与完整243项有重叠，不累加为独立测试总数。
 
 Draft PR #29 的远端CI应以最新推送head为准；早期fa50362的CI不能替代最终head。Firefox、WebKit与真实设备验收未在本机执行，不把Chromium结果冒充跨引擎通过。
+
+代码验证边界：243项完整单元/API在连接gate、共享提示词和备份提示已修改后运行；随后仅给歌词textarea增加固定 `aria-label="歌词"`。该纯可访问性标签修改后的代码通过全部3项浏览器和最后完整lint/typecheck/build；没有为纯标签变更重复全量243项，不将其描述为修改后再次执行。
