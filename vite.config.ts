@@ -10,6 +10,7 @@ export default defineConfig(({ mode, command }) => {
   const port = process.env.SERVER_PORT ?? env.SERVER_PORT ?? '3001'
   return {
     plugins: [react(), tailwindcss()],
+    cacheDir: 'work/vite-cache',
     envDir: isolated ? false : undefined,
     // This entry is reached through the lazy chapter editor. Prebundle it before
     // the first edit so dependency discovery cannot reload an active draft.
