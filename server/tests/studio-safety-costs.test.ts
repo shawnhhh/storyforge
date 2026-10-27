@@ -35,7 +35,7 @@ test('quotes bind snapshot, expire and are invalidated by price changes; reserva
 })
 test('encrypted server key storage rejects wrong master/tampering and redacts nested credentials and URL tokens',()=>{
  const dir=mkdtempSync(join(tmpdir(),'sf-vault-'));try{const v=new ServerKeyVault(dir,Buffer.alloc(32,4));v.set('mock','fixture-secret-123');assert.equal(v.get('mock'),'fixture-secret-123');assert.ok(!readFileSync(join(dir,'mock.json'),'utf8').includes('fixture-secret-123'));assert.throws(()=>new ServerKeyVault(dir,Buffer.alloc(32,5)).get('mock'));assert.throws(()=>v.get('../mock'))
- const redacted=JSON.stringify(redact({authorization:'Bearer fixture-secret-123',nested:{api_key:'fixture-secret-123'},message:'token=fixture-secret-123 https://media.example/a?token=fixture-secret-123'}));assert.ok(!redacted.includes('fixture-secret-123'))
+ const redacted=JSON.stringify(redact({authorization:'Bearer fixture-secret-123',nested:{api_key:'fixture-secret-123'},message:'token=fixture-secret-123 https://media.example/a?token=fixture-secret-123'}));assert.ok(!redacted.includes('fixture-secret-123'));assert.ok(!String(redact('upstream: {"api_key":"fixture-secret-123"}')).includes('fixture-secret-123'))
  const data=JSON.parse(readFileSync(join(dir,'mock.json'),'utf8'));data.data=Buffer.alloc(20).toString('base64');writeFileSync(join(dir,'mock.json'),JSON.stringify(data));assert.throws(()=>v.get('mock'))
  }finally{rmSync(dir,{recursive:true,force:true})}
 })

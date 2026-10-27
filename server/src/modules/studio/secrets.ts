@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 export function redact(value:unknown):unknown {
- if(typeof value==='string')return value.replace(/https?:\/\/[^\s"<>]+/g,u=>{try{const url=new URL(u);return url.origin+url.pathname}catch{return '[URL]'}}).replace(/Bearer\s+[^\s,;]+/gi,'Bearer [REDACTED]').replace(/\bsk-[\w-]+/g,'[REDACTED]').replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s,;]+/gi,'$1[REDACTED]')
+ if(typeof value==='string')return value.replace(/https?:\/\/[^\s"<>]+/g,u=>{try{const url=new URL(u);return url.origin+url.pathname}catch{return '[URL]'}}).replace(/Bearer\s+[^\s,;]+/gi,'Bearer [REDACTED]').replace(/\bsk-[\w-]+/g,'[REDACTED]').replace(/((?:api[_-]?key|token|secret|password)["']?\s*[=:]\s*["']?)[^\s,;"']+/gi,'$1[REDACTED]')
  if(Array.isArray(value))return value.map(redact)
  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,/key|token|secret|password|authorization|cookie/i.test(k)?'[REDACTED]':redact(v)]))
  return value
