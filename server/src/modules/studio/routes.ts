@@ -4,6 +4,9 @@ import { Router } from 'express'
 import type { StudioStore } from './store.js'
 export function studioRoutes(store: StudioStore, stories: NovelStore) {
   const router = Router()
+  const importer = store.importer()
+  router.post('/import/preview', (req, res) => res.json(importer.prepare(req.body.archive)))
+  router.post('/import/confirm', (req, res) => res.status(201).json(importer.restore(req.body.archive, req.body.token, req.body.confirmation)))
   router.get('/catalog', (_req, res) => {
     const catalog: ProjectSummary[] = [
       ...stories.list().map(p => ({ id: p.id, module: 'story' as const, title: p.title, version: p.version, updatedAt: p.updatedAt })),
