@@ -1,9 +1,15 @@
 import { test, expect } from '@playwright/test'
 for (const width of [1440, 390]) test(`music project lyrics history mock audio import and export ${width}`, async ({ page }) => {
   await page.setViewportSize({ width, height: 1000 })
+  let release!: () => void
+  const initialList = new Promise<void>(resolve => { release = resolve })
+  await page.route(/\/api\/studio\/projects\?kind=music$/, async route => { await initialList; await route.continue() })
   await page.goto('/#music')
   await expect(page.getByRole('heading', { name: '音乐工作台' })).toBeVisible()
   await page.getByLabel('歌曲名称', { exact: true }).fill(`临时歌曲-${width}`)
+  await expect(page.getByRole('button', { name: '创建歌曲', exact: true })).toBeDisabled()
+  release()
+  await expect(page.getByRole('button', { name: '创建歌曲', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '创建歌曲', exact: true }).click()
   await expect(page.getByLabel('项目标题', { exact: true })).toHaveValue(`临时歌曲-${width}`)
   await page.getByLabel('歌词', { exact: true }).fill('[主歌]\n虚构的月亮照亮归途\n[副歌]\n向星海航行')
