@@ -4,7 +4,7 @@ export type StudioSettings = Record<string, string | number | boolean | string[]
 export interface StudioProject { id: string; kind: StudioKind; title: string; content: string; settings: StudioSettings; version: number; createdAt: string; updatedAt: string }
 export interface StudioVersion { id: number; projectId: string; version: number; title: string; content: string; settings: StudioSettings; createdAt: string }
 export interface StudioAsset { id: string; projectId: string; name: string; mime: string; bytes: number; createdAt: string }
-export interface StudioTask { id: string; projectId: string; provider: 'mock'; status: 'queued' | 'running' | 'completed' | 'failed'; progress: number; prompt: string; assetId: string | null; error: string | null; createdAt: string }
+export interface StudioTask { id: string; projectId: string; provider: string; status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'; progress: number; prompt: string; assetId: string | null; error: string | null; createdAt: string }
 export interface GenerationInput { project: StudioProject; prompt: string }
 export interface GenerationOutput { name: string; mime: string; data: Uint8Array }
 export interface CreativeProvider { readonly id: string; generate(input: GenerationInput): Promise<GenerationOutput> }

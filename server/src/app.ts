@@ -39,7 +39,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
       }
       if (!req.is('application/json')) { res.status(415).json({ message: '请求必须使用 JSON' }); return }
       if (backups?.busy) { res.status(423).json({ message: '备份或恢复正在进行，请稍后重试' }); return }
-      if (backups && req.get('X-StoryForge-Generation') !== backups.generation) { res.status(409).json({ message: '服务已重启或数据库已恢复。请先导出未保存草稿，再刷新整个页面。' }); return }
+      if (backups && !/^\/api\/studio\/webhooks\/[\w-]+$/.test(req.path) && req.get('X-StoryForge-Generation') !== backups.generation) { res.status(409).json({ message: '服务已重启或数据库已恢复。请先导出未保存草稿，再刷新整个页面。' }); return }
     }
     next()
   })

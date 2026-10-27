@@ -4,6 +4,10 @@ import { Router } from 'express'
 import type { StudioStore } from './store.js'
 export function studioRoutes(store: StudioStore, stories: NovelStore) {
   const router = Router()
+  router.get('/providers', (_req, res) => res.json(store.jobs.providers.map(p => ({ id: p.id, models: p.models }))))
+  router.post('/tasks/:id/cancel', (req, res) => res.json(store.jobs.cancel(req.params.id)))
+  router.get('/tasks/:id/history', (req, res) => { store.jobs.task(req.params.id); res.json(store.jobs.history(req.params.id)) })
+  router.post('/webhooks/:provider', (req, res) => { store.jobs.webhook(req.params.provider, req.body, req.get('x-provider-signature') ?? ''); res.sendStatus(202) })
   const importer = store.importer()
   router.post('/import/preview', (req, res) => res.json(importer.prepare(req.body.archive)))
   router.post('/import/confirm', (req, res) => res.status(201).json(importer.restore(req.body.archive, req.body.token, req.body.confirmation)))

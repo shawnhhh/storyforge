@@ -79,6 +79,7 @@ test('failed completion rolls back media insertion and provider errors preserve 
     assert.equal(f.store.tasks(p.id)[0].status, 'failed'); assert.deepEqual(f.store.assets(p.id), [])
     assert.deepEqual(f.store.history(p.id), before); assert.deepEqual(f.store.project(p.id), p)
     f.db.exec('DROP TRIGGER reject_studio_completion')
+    f.store.jobs.stop() // Replace the worker before registering a different implementation under the same provider ID.
     const failing = new StudioStore(f.db, { id: 'mock', generate: async () => { throw new Error('provider failed') } })
     const task = await failing.generate(p.id, { version: p.version, prompt: 'failure' })
     for (let i = 0; i < 40 && !['completed', 'failed'].includes(failing.tasks(p.id).find(t => t.id === task.id)!.status); i++) await new Promise(resolve => setTimeout(resolve, 30))

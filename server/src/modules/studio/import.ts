@@ -41,7 +41,7 @@ export class StudioImporter {
       if (!data.length || data.length > 650000 || data.length !== asset.bytes || data.toString('base64') !== asset.data) fail()
     }
     for (const t of a.tasks) {
-      id(t.id); if (taskIds.has(t.id) || t.projectId !== p.id || t.provider !== 'mock' || !['queued','running','completed','failed'].includes(t.status)) fail(); taskIds.add(t.id)
+      id(t.id); if (taskIds.has(t.id) || t.projectId !== p.id || typeof t.provider !== 'string' || !/^[\w-]{1,100}$/.test(t.provider) || !['queued','running','completed','failed','cancelled'].includes(t.status)) fail(); taskIds.add(t.id)
       date(t.createdAt); string(t.prompt, '提示词', 10000); if (!Number.isInteger(t.progress) || t.progress < 0 || t.progress > 100 || (t.error !== null && typeof t.error !== 'string') || (t.assetId !== null && !assetIds.has(t.assetId)) || (t.status === 'completed' && !t.assetId)) fail()
     }
     return { archive: a, digest: hash(a), verified: sha256 !== undefined }

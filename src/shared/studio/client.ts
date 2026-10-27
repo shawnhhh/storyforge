@@ -7,5 +7,6 @@ export const studioClient = {
   history: (id: string) => request<StudioVersion[]>(`/studio/projects/${id}/history`),
   assets: (id: string) => request<StudioAsset[]>(`/studio/projects/${id}/assets`),
   tasks: (id: string) => request<StudioTask[]>(`/studio/projects/${id}/tasks`),
-  generate: (project: StudioProject, prompt: string) => request<StudioTask>(`/studio/projects/${project.id}/generate`, 'POST', { version: project.version, prompt }),
+  cancel: (id: string) => request<StudioTask>(`/studio/tasks/${id}/cancel`, 'POST', {}),
+  generate: (project: StudioProject, prompt: string) => request<StudioTask>(`/studio/projects/${project.id}/generate`, 'POST', { version: project.version, prompt, idempotencyKey: crypto.randomUUID() }),
 }

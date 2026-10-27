@@ -18,13 +18,15 @@ function cleanTrash() {
 }
 const cleanupTimer = setInterval(cleanTrash, 60 * 60 * 1000)
 cleanupTimer.unref()
-const server = createApp(database, backups, undefined, new StudioStore(studioDatabase)).listen(config.port, config.host, () => {
+const studioStore = new StudioStore(studioDatabase)
+const server = createApp(database, backups, undefined, studioStore).listen(config.port, config.host, () => {
   console.info(`StoryForge local service: http://${config.host}:${config.port}`)
   cleanTrash()
   backups.start()
 })
 
 server.on('error', (error) => {
+  studioStore.jobs.stop()
   studioDatabase.close()
   database.close()
   releaseLock()
@@ -39,8 +41,9 @@ function shutdown() {
   clearInterval(cleanupTimer)
   server.close(async () => {
     await backups.stop()
+    studioStore.jobs.stop()
     studioDatabase.close()
-  database.close()
+    database.close()
     releaseLock()
   })
 }
