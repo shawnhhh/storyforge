@@ -19,6 +19,11 @@ export default function App() {
         history.replaceState(null, '', '#video')
         return
       }
+      if (hash !== '#music' && hash !== '#video' && ['#music', '#video'].includes(next) &&
+        !window.dispatchEvent(new Event('storyforge:leave-story', { cancelable: true }))) {
+        history.replaceState(null, '', hash || '#story')
+        return
+      }
       setHash(next)
     }
     window.addEventListener('hashchange', changed)
