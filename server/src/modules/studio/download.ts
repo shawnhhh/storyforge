@@ -58,6 +58,6 @@ export class SafeMediaDownloader {
    // Read just the signature, not an entire multi-gigabyte result.
    const {openSync:open,readSync,closeSync:close}=await import('node:fs'),head=Buffer.alloc(32),file=open(pending,'r');try{readSync(file,head,0,head.length,0);checkContainer(expected.mime,head)}finally{close(file)}
    renameSync(pending,destination);rmSync(statePath,{force:true});return{path:destination,bytes:offset,digest:expected.digest}
-  }catch(e){if(e instanceof HttpError)throw e;throw new HttpError(controller.signal.aborted?504:502,controller.signal.aborted?'媒体下载超时':'媒体下载失败；可用相同文件信息恢复')}finally{clearTimeout(timer)}
+  }catch(e){if(e instanceof HttpError)throw e;throw new HttpError(controller.signal.aborted?504:502,controller.signal.aborted?'媒体下载超时':'媒体下载失败；可用相同文件信息恢复')}finally{controller.abort();clearTimeout(timer)}
  }
 }
