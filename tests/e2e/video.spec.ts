@@ -98,6 +98,7 @@ test('video refuses invalid shots and retains unsaved edits after a stale-versio
 test('video keeps dirty script when leaving is cancelled and explicitly restores protected draft after reload', async ({ page }) => {
   await create(page, `草稿保护 ${Date.now()}`)
   await page.getByLabel('剧本', { exact: true }).fill('跨刷新保留的未保存剧本')
+  await page.getByLabel('镜头描述 1', { exact: true }).fill('')
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出未保存草稿', exact: true }).click()
   expect((await download).suggestedFilename()).toBe('video-unsaved-draft.json')
@@ -112,6 +113,7 @@ test('video keeps dirty script when leaving is cancelled and explicitly restores
   await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('清晨，小船驶入虚构港湾。')
   await page.getByRole('button', { name: '恢复本机草稿', exact: true }).click()
   await expect(page.getByLabel('剧本', { exact: true })).toHaveValue('跨刷新保留的未保存剧本')
+  await expect(page.getByLabel('镜头描述 1', { exact: true })).toHaveValue('')
 })
 test('late video project polling cannot replace the newly selected project assets or tasks', async ({ page }) => {
   const first = `迟到项目A ${Date.now()}`, second = `迟到项目B ${Date.now()}`
