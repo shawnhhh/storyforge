@@ -11,7 +11,7 @@ export type SafeTransport=(url:URL,address:Address,headers:Record<string,string>
 const transport:SafeTransport=async(url,address,headers,signal)=>{
  // A generic HTTP proxy can resolve a different IP than the validated address. Fail closed.
  if(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)throw new HttpError(503,'当前代理未配置安全 DNS 固定下载传输')
- return new Promise((resolve,reject)=>{const req=httpsRequest(url,{agent:false,signal,headers,lookup:(_host,_options,callback)=>callback(null,address.address,address.family)},res=>{const mapped:Record<string,string|undefined>={};for(const[k,v]of Object.entries(res.headers))mapped[k]=Array.isArray(v)?v[0]:v;resolve({status:res.statusCode??0,headers:mapped,body:res})});req.on('error',()=>reject(new HttpError(502,'远端媒体请求失败')));req.end()})
+ return new Promise((resolve,reject)=>{const req=httpsRequest(url,{agent:false,signal,headers,family:address.family,lookup:(_host,_options,callback)=>callback(null,address.address,address.family)},res=>{const mapped:Record<string,string|undefined>={};for(const[k,v]of Object.entries(res.headers))mapped[k]=Array.isArray(v)?v[0]:v;resolve({status:res.statusCode??0,headers:mapped,body:res})});req.on('error',()=>reject(new HttpError(502,'远端媒体请求失败')));req.end()})
 }
 export class SafeMediaDownloader {
  constructor(private domains:readonly string[],private resolve:(host:string)=>Promise<Address[]>=host=>lookup(host,{all:true}),private send:SafeTransport=transport){}
