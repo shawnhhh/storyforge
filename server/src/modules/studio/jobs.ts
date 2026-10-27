@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { CreativeProvider, GenerationInput, GenerationOutput, StudioTask } from '../../../../shared/contracts/studio.js'
+import type { CostControls } from './costs.js'
 import { HttpError } from '../novels/store.js'
 
 export interface ModelCapability { id: string; kinds: ('music' | 'video')[]; maxPrompt: number }
@@ -19,7 +20,7 @@ export interface AsyncCreativeProvider {
 /** Local fixture bridge only; never adapt a paid synchronous provider through this class. */
 export class LocalAsyncProvider implements AsyncCreativeProvider {
   readonly id: string
-  readonly models = [{ id: 'mock-v1', kinds: ['music', 'video'] as ('music' | 'video')[], maxPrompt: 10000 }]
+  readonly models = ['mock-v1','mock-metered'].map(id=>({ id, kinds: ['music', 'video'] as ('music' | 'video')[], maxPrompt: 10000 }))
   constructor(private local: CreativeProvider) { this.id = local.id }
   validate(input: GenerationInput, model: string) {
     const capability = this.models.find(m => m.id === model)
@@ -36,7 +37,7 @@ const terminal = new Set(['completed', 'failed', 'cancelled'])
 export class StudioJobs {
   private timer?: ReturnType<typeof setTimeout>
   private stopped = false
-  constructor(private db: DatabaseSync, readonly providers: readonly AsyncCreativeProvider[], private publish: (projectId: string, output: GenerationOutput) => string) {
+  constructor(private db: DatabaseSync, readonly providers: readonly AsyncCreativeProvider[], private publish: (projectId: string, output: GenerationOutput) => string, private costs?:CostControls) {
     if (new Set(providers.map(p => p.id)).size !== providers.length) throw new Error('Duplicate provider IDs')
     this.wake()
   }
@@ -56,6 +57,7 @@ export class StudioJobs {
       if (this.db.prepare("SELECT 1 FROM studio_tasks WHERE projectId=? AND status IN ('queued','running')").get(input.project.id)) throw new HttpError(409, '项目已有生成任务')
       const id = randomUUID(), now = Date.now()
       this.db.prepare('INSERT INTO studio_tasks VALUES(?,?,?,?,?,?,?,?,?)').run(id, input.project.id, provider.id, 'queued', 0, input.prompt, null, null, new Date(now).toISOString())
+      this.costs?.reserve(id,input,provider.id,model,body.confirmation)
       this.db.prepare('INSERT INTO studio_jobs(taskId,provider,model,key,digest,snapshot,due,deadline) VALUES(?,?,?,?,?,?,?,?)').run(id, provider.id, model, key, digest, snapshot, now, now + 30 * 60 * 1000)
       this.event(id, 'submitted'); this.event(id, 'queued'); return id
     })
@@ -116,7 +118,7 @@ export class StudioJobs {
             if (Date.now() >= claimed.deadline) throw new Error('deadline')
             if (result.status === 'completed') {
               const assetId = this.publish(input.project.id, result.output)
-              this.db.prepare("UPDATE studio_tasks SET status='completed',progress=100,assetId=? WHERE id=?").run(assetId, claimed.taskId); this.event(claimed.taskId, 'completed')
+              this.db.prepare("UPDATE studio_tasks SET status='completed',progress=100,assetId=? WHERE id=?").run(assetId, claimed.taskId); this.costs?.completed(claimed.taskId); this.event(claimed.taskId, 'completed')
             } else if (result.status === 'failed') throw new Error('remote failed')
             else { this.db.prepare('UPDATE studio_tasks SET progress=? WHERE id=?').run(Math.max(0, Math.min(99, Math.floor(result.progress))), claimed.taskId); this.db.prepare('UPDATE studio_jobs SET due=?,attempts=0 WHERE taskId=?').run(Date.now() + 1000, claimed.taskId) }
           })

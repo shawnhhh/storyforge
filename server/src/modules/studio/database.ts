@@ -9,7 +9,7 @@ export function openStudioDatabase(dataDir: string) {
   try {
     db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; BEGIN IMMEDIATE')
     const version = Number(db.prepare('PRAGMA user_version').get()!.user_version)
-    if (version > 5) throw new Error('Studio database is newer than this application')
+    if (version > 6) throw new Error('Studio database is newer than this application')
     if (version === 0) db.exec(`
       CREATE TABLE studio_projects(id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('music','video')), title TEXT NOT NULL, content TEXT NOT NULL, settings TEXT NOT NULL, version INTEGER NOT NULL, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL);
       CREATE TABLE studio_versions(id INTEGER PRIMARY KEY, projectId TEXT NOT NULL REFERENCES studio_projects(id), version INTEGER NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, settings TEXT NOT NULL, createdAt TEXT NOT NULL, UNIQUE(projectId,version));
@@ -28,7 +28,10 @@ export function openStudioDatabase(dataDir: string) {
       CREATE TABLE IF NOT EXISTS studio_media_refs(id TEXT PRIMARY KEY, projectId TEXT NOT NULL REFERENCES studio_projects(id), name TEXT NOT NULL, mime TEXT NOT NULL, digest TEXT NOT NULL REFERENCES studio_media_objects(digest), createdAt TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS studio_media_refs_digest ON studio_media_refs(digest);
       CREATE TABLE IF NOT EXISTS studio_uploads(id TEXT PRIMARY KEY,projectId TEXT NOT NULL REFERENCES studio_projects(id),name TEXT NOT NULL,mime TEXT NOT NULL,bytes INTEGER NOT NULL,digest TEXT NOT NULL,offset INTEGER NOT NULL,kind TEXT NOT NULL,createdAt INTEGER NOT NULL,result TEXT);
-      PRAGMA user_version=5;
+      CREATE TABLE IF NOT EXISTS studio_cost_quotes(token TEXT PRIMARY KEY,digest TEXT NOT NULL,amount INTEGER NOT NULL,expires INTEGER NOT NULL,price TEXT NOT NULL,taskId TEXT);
+      CREATE TABLE IF NOT EXISTS studio_cost_reservations(taskId TEXT PRIMARY KEY REFERENCES studio_tasks(id),month TEXT NOT NULL,reserved INTEGER NOT NULL,spent INTEGER NOT NULL,status TEXT NOT NULL,price TEXT NOT NULL,createdAt INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS studio_cost_month ON studio_cost_reservations(month);
+      PRAGMA user_version=6;
     `)
     db.exec('COMMIT')
     // A process interruption never leaves a job claiming it is still executing.
