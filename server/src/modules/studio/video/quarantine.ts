@@ -22,7 +22,7 @@ export class VideoQuarantine {
     // No redirect support in this path. CDN origins must be explicitly reviewed.
     const length=Number(reply.headers['content-length']),etag=reply.headers.etag
     const bytes=state?.bytes??length
-    if((offset?reply.status!==206:reply.status!==200)||!/^\d+$/.test(reply.headers['content-length']??'')||!Number.isSafeInteger(length)||length<=0||bytes>mediaLimit||bytes<12||reply.headers['content-type']?.split(';')[0]!=='video/mp4'||(reply.headers['content-encoding']&&reply.headers['content-encoding']!=='identity')||(offset&&(etag!==state!.etag||reply.headers['content-range']!==`bytes ${offset}-${bytes-1}/${bytes}`||length!==bytes-offset)))throw Error('invalid-video-response')
+    if((offset?reply.status!==206:reply.status!==200)||!/^\d+$/.test(reply.headers['content-length']??'')||!Number.isSafeInteger(length)||length<=0||bytes>mediaLimit||bytes<12||reply.headers['content-type']?.split(';')[0]!=='video/mp4'||(reply.headers['content-encoding']&&reply.headers['content-encoding']!=='identity')||(offset&&(etag!==state!.etag||reply.headers['content-range']!==`bytes ${offset}-${bytes-1}/${bytes}`||length!==bytes-offset))){await reply.body[Symbol.asyncIterator]().return?.();throw Error('invalid-video-response')}
     const fd=openSync(path,offset?'a':'wx',0o600)
     try{
      for await(const chunk of reply.body){
