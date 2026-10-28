@@ -1,5 +1,5 @@
 import { closeSync, existsSync, fsyncSync, openSync, lstatSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { SafeMediaDownloader, pinnedMediaTransport, type SafeTransport } from '../download.js'
 import { fileHash, mediaLimit } from '../media.js'
@@ -30,7 +30,7 @@ export class VideoQuarantine {
       let n=0;while(n<chunk.length)n+=writeSync(fd,chunk,n,chunk.length-n);offset+=chunk.length
      }
     }finally{fsyncSync(fd);closeSync(fd)
-     if(etag&&/^"[^"\r\n]+"$/.test(etag)){const checkpoint={identity,etag,bytes,offset,digest:await fileHash(path)};writeFileSync(statePath+'.tmp',JSON.stringify(checkpoint),{mode:0o600});renameSync(statePath+'.tmp',statePath)}
+     if(etag&&/^"[^"\r\n]+"$/.test(etag)){const checkpoint={identity,etag,bytes,offset,digest:await fileHash(path)};const temp=statePath+'.'+randomUUID();writeFileSync(temp,JSON.stringify(checkpoint),{mode:0o600,flag:'wx',flush:true});renameSync(temp,statePath)}
     }
     if(offset!==bytes)throw Error('video-interrupted')
    }
