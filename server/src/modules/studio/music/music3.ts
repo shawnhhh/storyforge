@@ -1,13 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { request } from 'node:http'
 import { createWriteStream, renameSync, rmSync } from 'node:fs'
-import { once } from 'node:events'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import type { DatabaseSync } from 'node:sqlite'
 import type { GenerationInput } from '../../../../../shared/contracts/studio.js'
 import type { AsyncCreativeProvider, RemoteState } from '../jobs.js'
 import { MediaStore, fileHash, mediaLimit } from '../media.js'
 import type { ServerKeyVault } from '../secrets.js'
 import { HttpError } from '../../novels/store.js'
+import { verifyMusic3Wave } from './wave.js'
 export const music3Capabilities={remoteQuery:false,remoteCancel:false,remoteIdempotency:false,webhook:false,localCancellation:true} as const
 export function music3Request(input:GenerationInput){
  const s=input.project.settings
@@ -69,9 +71,12 @@ export class Music3Provider implements AsyncCreativeProvider {
   try{
    const response=await this.send(music3Request(input),controller.signal)
    if(response.status!==200||response.mime!=='audio/wav')throw new Error(response.status===401||response.status===403?'auth':response.status===429?'rate-limited':'upstream')
-   stream=createWriteStream(temp,{flags:'wx',mode:0o600});let ioError:unknown;stream.on('error',e=>{ioError=e});let bytes=0
-   for await(const chunk of response.body){if(controller.signal.aborted||this.stopped)throw new Error('interrupted');bytes+=chunk.length;if(bytes>mediaLimit)throw new Error('size');if(ioError)throw ioError;if(!stream.write(chunk))await once(stream,'drain')}
-   stream.end();await once(stream,'finish');if(controller.signal.aborted||this.stopped)throw new Error('interrupted')
+   stream=createWriteStream(temp,{flags:'wx',mode:0o600,flush:true});let bytes=0
+   const limit=new Transform({transform(chunk:Buffer,_encoding,done){bytes+=chunk.length;done(bytes>mediaLimit?new Error('size'):null,chunk)}})
+   // pipeline handles source/destination failures and aborts even while writes are backpressured.
+   await pipeline(Readable.from(response.body),limit,stream,{signal:controller.signal})
+   if(controller.signal.aborted||this.stopped)throw new Error('interrupted')
+   verifyMusic3Wave(temp)
    const digest=await fileHash(temp),upload=this.media.start(input.project.id,{name:'music3.wav',mime:'audio/wav',bytes,digest})
    renameSync(temp,this.media.pendingPath(upload.id));this.db.prepare('UPDATE studio_uploads SET offset=bytes WHERE id=?').run(upload.id)
    await this.media.prepare(upload.id)
