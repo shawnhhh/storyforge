@@ -16,6 +16,7 @@ export class CostControls {
  private price(input:GenerationInput,provider:string,model:string){
   const p=this.policy.models.find(p=>p.id===model&&p.provider===provider)
   if(!p||!p.kinds.includes(input.project.kind)||input.prompt.length>p.maxPrompt)throw new HttpError(400,'模型或提示词能力不支持')
+  if(provider==='minimax-hailuo'&&(p.virtual||p.rateMicrosPerSecond<130000||p.billingSeconds!==undefined))throw new HttpError(400,'H3需要明确的真实美元保守费率（至少0.13美元/秒），不允许固定计费时长')
   const seconds=p.billingSeconds??input.project.settings.durationSeconds??(input.project.kind==='music'?2:1)
   if(typeof seconds!=='number'||!Number.isInteger(seconds)||seconds<1||seconds>p.maxSeconds)throw new HttpError(400,'模型时长参数不支持')
   const amount=p.rateMicrosPerSecond*seconds
@@ -27,7 +28,7 @@ export class CostControls {
   const {p,seconds,amount}=this.price(input,provider,model),token=randomUUID(),expires=this.now()+300000
   this.db.prepare('INSERT INTO studio_cost_quotes VALUES(?,?,?,?,?,NULL)').run(token,digest(input,provider,model),amount,expires,JSON.stringify(p))
   this.db.prepare('DELETE FROM studio_cost_quotes WHERE expires<? AND taskId IS NULL').run(this.now())
-  return {token,provider,model,seconds,amountMicros:amount,currency:'virtual-unit',virtual:p.virtual,expires,monthly:this.month()}
+  return {token,provider,model,seconds,amountMicros:amount,currency:p.virtual?'virtual-unit':'USD',virtual:p.virtual,expires,monthly:this.month()}
  }
  // Called inside the SAME transaction as StudioJobs submission. No provider call precedes this reservation.
  reserve(taskId:string,input:GenerationInput,provider:string,model:string,token:unknown){

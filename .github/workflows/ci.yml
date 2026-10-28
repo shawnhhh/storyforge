@@ -17,6 +17,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      - name: Install media validator
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
         run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/draft-open.test.ts tests/unit/planning-recovery.test.ts
@@ -105,6 +108,9 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      - name: Install media validator
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
       - run: npm test
       - name: Migration, trash, backup and draft safety regression
         run: node --import tsx --test server/tests/trash*.test.ts server/tests/planning-timeline.test.ts server/tests/planning-migrations.test.ts server/tests/restore-crash.test.ts tests/unit/draft-protection.test.ts tests/unit/draft-open.test.ts tests/unit/planning-recovery.test.ts

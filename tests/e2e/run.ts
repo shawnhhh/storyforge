@@ -15,9 +15,10 @@ async function freePort() {
   return address.port
 }
 
+const hailuoMock = process.argv.includes('--mock-hailuo')
 const musicMock = process.argv.includes('--mock-music3')
 const planningMock = process.argv.includes('--mock-planning')
-const testArgs = process.argv.slice(2).filter(value => value !== '--mock-planning' && value !== '--mock-music3')
+const testArgs = process.argv.slice(2).filter(value => value !== '--mock-hailuo' && value !== '--mock-planning' && value !== '--mock-music3')
 const dir = mkdtempSync(join(tmpdir(), 'storyforge-e2e-'))
 // A distinct output directory preserves earlier steps' traces when a later suite runs.
 const outputDir = resolve('work/e2e-results', `${Date.now()}-${process.pid}`)
@@ -60,10 +61,10 @@ try {
   const [apiPort, webPort] = await Promise.all([freePort(), freePort()])
   const baseURL = `http://127.0.0.1:${webPort}`
   // Explicit overrides: never use .env or the application's existing data directory.
-  const isolatedEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['STORYFORGE_AI_', 'STORYFORGE_OPENAI_', 'STORYFORGE_DEEPSEEK_', 'STORYFORGE_LOCAL_', 'STORYFORGE_MEDIA_', 'STORYFORGE_MUSIC3_'].some(prefix => key.startsWith(prefix))))
-  const env = { ...isolatedEnv, E2E_PLANNING_MOCK: planningMock ? '1' : '', E2E_MUSIC3_MOCK: musicMock?'1':'', STORYFORGE_AI_API_KEY: '', SERVER_PORT: String(apiPort), STORYFORGE_DATA_DIR: dir, STORYFORGE_BACKUP_DIR: join(dir, 'backups'), E2E_BASE_URL: baseURL, E2E_OUTPUT_DIR: outputDir, PLAYWRIGHT_JSON_OUTPUT_FILE: join(outputDir, 'results.json') }
+  const isolatedEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['STORYFORGE_AI_', 'STORYFORGE_OPENAI_', 'STORYFORGE_DEEPSEEK_', 'STORYFORGE_LOCAL_', 'STORYFORGE_MEDIA_', 'STORYFORGE_MUSIC3_', 'STORYFORGE_HAILUO_'].some(prefix => key.startsWith(prefix))))
+  const env = { ...isolatedEnv, E2E_HAILUO_MOCK: hailuoMock?'1':'', E2E_PLANNING_MOCK: planningMock ? '1' : '', E2E_MUSIC3_MOCK: musicMock?'1':'', STORYFORGE_AI_API_KEY: '', SERVER_PORT: String(apiPort), STORYFORGE_DATA_DIR: dir, STORYFORGE_BACKUP_DIR: join(dir, 'backups'), E2E_BASE_URL: baseURL, E2E_OUTPUT_DIR: outputDir, PLAYWRIGHT_JSON_OUTPUT_FILE: join(outputDir, 'results.json') }
   phase('starting API')
-  const api = launch(['--import', 'tsx', planningMock ? 'tests/e2e/ai-planning-server.ts' : musicMock?'tests/e2e/music3-server.ts':'server/src/index.ts'], env)
+  const api = launch(['--import', 'tsx', hailuoMock?'tests/e2e/hailuo-server.ts':planningMock ? 'tests/e2e/ai-planning-server.ts' : musicMock?'tests/e2e/music3-server.ts':'server/src/index.ts'], env)
   await ready(api, `http://127.0.0.1:${apiPort}/api/health`)
   phase('API ready; starting Vite')
   const web = launch(['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], env)
