@@ -56,6 +56,7 @@ export class HailuoProvider implements AsyncCreativeProvider {
   if(row.state==='complete')return{status:'completed',output:{name:'hailuo.mp4',mime:'video/mp4',mediaUploadId:String(row.uploadId)}}
   if(['failed','cancelled'].includes(String(row.state)))return{status:'failed',code:'hailuo-import-failed'}
   if(this.active.has(id))return{status:'running',progress:80}
+  if(this.active.size>=2)return{status:'running',progress:60}
   const task=record(record(await this.send('GET',`/v2/query/video_generation/${id}`,undefined,signal)).task)
   if(task.id!==id||task.model!=='MiniMax-H3')throw Error('hailuo-task-mismatch')
   if(task.status==='queued'||task.status==='running')return{status:'running',progress:task.status==='queued'?30:50}
