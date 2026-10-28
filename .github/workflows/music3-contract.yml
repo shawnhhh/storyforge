@@ -37,6 +37,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - name: Install media validator
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
       - run: npm test
       - run: npx playwright install --with-deps ${{ matrix.install }}
       - run: npm run test:e2e -- --mock-music3 --project=${{ matrix.browser }}

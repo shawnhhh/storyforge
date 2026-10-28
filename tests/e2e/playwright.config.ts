@@ -5,8 +5,8 @@ const browserName = process.env.E2E_BROWSER
 if (browserName && !['chromium', 'firefox', 'webkit'].includes(browserName)) throw new Error('E2E_BROWSER must be chromium, firefox or webkit')
 export default defineConfig({
   testDir: '.',
-  testMatch: process.env.E2E_MUSIC3_MOCK ? 'music3.spec.ts' : process.env.E2E_PLANNING_MOCK ? 'ai-planning.spec.ts' : '*.spec.ts',
-  testIgnore: process.env.E2E_MUSIC3_MOCK ? ['ai-planning.spec.ts'] : process.env.E2E_PLANNING_MOCK ? ['music3.spec.ts'] : ['ai-planning.spec.ts','music3.spec.ts'],
+  testMatch: process.env.E2E_HAILUO_MOCK ? 'hailuo.spec.ts' : process.env.E2E_MUSIC3_MOCK ? 'music3.spec.ts' : process.env.E2E_PLANNING_MOCK ? 'ai-planning.spec.ts' : '*.spec.ts',
+  testIgnore: process.env.E2E_HAILUO_MOCK ? [] : process.env.E2E_MUSIC3_MOCK ? ['ai-planning.spec.ts'] : process.env.E2E_PLANNING_MOCK ? ['music3.spec.ts'] : ['ai-planning.spec.ts','music3.spec.ts','hailuo.spec.ts'],
   workers: 1,
   timeout: 45000,
   // Preserve the draft suite's global budget and strict individual deadlines.

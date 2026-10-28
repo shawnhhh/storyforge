@@ -1,3 +1,4 @@
+import { HailuoProvider, officialHailuoTransport } from './modules/studio/video/hailuo.js'
 import { Music3Provider, localMusic3Transport } from './modules/studio/music/music3.js'
 import { LocalAsyncProvider } from './modules/studio/jobs.js'
 import { MockCreativeProvider } from './modules/studio/provider.js'
@@ -31,6 +32,7 @@ const master=process.env.STORYFORGE_MEDIA_VAULT_MASTER
 const vault=master?new ServerKeyVault(join(config.dataDir,'server-keys'),Buffer.from(master,'base64')):undefined
 const providers=[new LocalAsyncProvider(new MockCreativeProvider())] as import('./modules/studio/jobs.js').AsyncCreativeProvider[]
 if(process.env.STORYFORGE_MUSIC3_ENABLE==='selfhost')providers.push(new Music3Provider(studioDatabase,new MediaStore(studioDatabase),localMusic3Transport(process.env.STORYFORGE_MUSIC3_ENDPOINT??'http://127.0.0.1:8000/v1/audio/speech',vault)))
+if(process.env.STORYFORGE_HAILUO_ENABLE==='official'){if(!vault)throw new Error('Hailuo requires Key Vault');providers.push(new HailuoProvider(studioDatabase,new MediaStore(studioDatabase),officialHailuoTransport(vault)))}
 const studioStore = new StudioStore(studioDatabase,undefined,providers,configuredBudget(),vault)
 const server = createApp(database, backups, undefined, studioStore).listen(config.port, config.host, () => {
   console.info(`StoryForge local service: http://${config.host}:${config.port}`)

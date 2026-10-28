@@ -1,0 +1,53 @@
+name: Hailuo protocol acceptance
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  protocol:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            browser: chromium
+            install: chromium
+            channel: ''
+          - os: ubuntu-latest
+            browser: firefox
+            install: firefox
+            channel: ''
+          - os: macos-latest
+            browser: chromium
+            install: chrome
+            channel: chrome
+          - os: macos-latest
+            browser: webkit
+            install: webkit
+            channel: ''
+    runs-on: ${{ matrix.os }}
+    name: Hailuo ${{ matrix.os }} ${{ matrix.install }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install media validator
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npx playwright install --with-deps ${{ matrix.install }}
+      - run: npm run test:e2e -- --mock-hailuo --project=${{ matrix.browser }}
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hailuo-${{ matrix.os }}-${{ matrix.install }}-${{ github.run_id }}
+          path: work/e2e-results/
+          retention-days: 7

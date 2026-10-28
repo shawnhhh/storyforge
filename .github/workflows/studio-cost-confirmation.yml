@@ -30,6 +30,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - run: brew install ffmpeg
       - run: npm test
       - run: npx playwright install ${{ matrix.browser }}
       - name: Repeat cost confirmation cancellation and settlement ten times

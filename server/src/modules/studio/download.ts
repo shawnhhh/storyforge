@@ -8,13 +8,13 @@ import { checkContainer, fileHash } from './media.js'
 interface Address {address:string;family:number}
 interface Reply {status:number;headers:Record<string,string|undefined>;body:AsyncIterable<Uint8Array>}
 export type SafeTransport=(url:URL,address:Address,headers:Record<string,string>,signal:AbortSignal)=>Promise<Reply>
-const transport:SafeTransport=async(url,address,headers,signal)=>{
+export const pinnedMediaTransport:SafeTransport=async(url,address,headers,signal)=>{
  // A generic HTTP proxy can resolve a different IP than the validated address. Fail closed.
  if(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)throw new HttpError(503,'当前代理未配置安全 DNS 固定下载传输')
  return new Promise((resolve,reject)=>{const req=httpsRequest(url,{agent:false,signal,headers,family:address.family,lookup:(_host,_options,callback)=>callback(null,address.address,address.family)},res=>{const mapped:Record<string,string|undefined>={};for(const[k,v]of Object.entries(res.headers))mapped[k]=Array.isArray(v)?v[0]:v;resolve({status:res.statusCode??0,headers:mapped,body:res})});req.on('error',()=>reject(new HttpError(502,'远端媒体请求失败')));req.end()})
 }
 export class SafeMediaDownloader {
- constructor(private domains:readonly string[],private resolve:(host:string)=>Promise<Address[]>=host=>lookup(host,{all:true}),private send:SafeTransport=transport){}
+ constructor(private domains:readonly string[],private resolve:(host:string)=>Promise<Address[]>=host=>lookup(host,{all:true}),private send:SafeTransport=pinnedMediaTransport){}
  async validate(raw:string){
   let url:URL;try{url=new URL(raw)}catch{throw new HttpError(400,'媒体 URL 无效')}
   if(url.protocol!=='https:'||url.username||url.password||url.hash||(url.port&&url.port!=='443')||raw.length>8192||url.hostname.endsWith('.')||isIP(url.hostname.replace(/^\[|\]$/g,''))||!this.domains.includes(url.hostname))throw new HttpError(400,'媒体 URL 不在服务商允许范围')
