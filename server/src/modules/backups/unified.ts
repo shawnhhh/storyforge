@@ -69,6 +69,7 @@ export class UnifiedBackupService {
           const payload: Payload = { format:'storyforge-unified',version:1,createdAt:new Date().toISOString(),story:capture(this.story),studio:capture(this.studio),drafts: drafts as unknown[] }
           // Upload sessions and executable remote jobs are never replayed by a restored copy.
           payload.studio.studio_uploads=[]
+          payload.studio.studio_music_calls=[]
           payload.studio.studio_cost_quotes=[];payload.studio.studio_cost_reservations=[]
           payload.studio.studio_media_objects=payload.studio.studio_media_objects.filter(o=>payload.studio.studio_media_refs.some(r=>r.digest===o.digest))
           if(Buffer.byteLength(JSON.stringify(payload)) > 128*1024*1024) throw new HttpError(413,'备份超过128MiB，请拆分项目后导出')
@@ -85,7 +86,7 @@ export class UnifiedBackupService {
     try {
       load(story,a.story)
       const compatible={...a.studio}
-      for(const t of ['studio_cost_quotes','studio_cost_reservations','studio_jobs','studio_job_events','studio_uploads','studio_media_objects','studio_media_refs']) compatible[t]??=[]
+      for(const t of ['studio_music_calls','studio_task_media','studio_cost_quotes','studio_cost_reservations','studio_jobs','studio_job_events','studio_uploads','studio_media_objects','studio_media_refs']) compatible[t]??=[]
       load(studio,compatible)
       // Validate against the exact frozen novel schema and rich-text validators.
       story.exec('PRAGMA journal_mode=DELETE')
@@ -153,6 +154,8 @@ export class UnifiedBackupService {
           const mediaRefs=(stage.payload.studio.studio_media_refs??[]).filter(r=>projectIds.has(r.projectId))
           for(const row of stage.payload.studio.studio_media_objects??[]) if(mediaRefs.some(r=>r.digest===row.digest)) this.story.prepare('INSERT OR IGNORE INTO studio_restore.studio_media_objects(digest,bytes,createdAt) VALUES(?,?,?)').run(String(row.digest),Number(row.bytes),Number(row.createdAt))
           insert('studio_restore','studio_media_refs',mediaRefs)
+          const taskIds=new Set(stage.payload.studio.studio_tasks.filter(t=>projectIds.has(t.projectId)).map(t=>t.id))
+          insert('studio_restore','studio_task_media',(stage.payload.studio.studio_task_media??[]).filter(r=>taskIds.has(r.taskId)))
           if(this.story.prepare('PRAGMA main.foreign_key_check').all().length || this.story.prepare('PRAGMA studio_restore.foreign_key_check').all().length) fail()
           if(selected.includes('drafts')) {
             for (const draft of stage.payload.drafts) this.story.prepare('INSERT INTO studio_restore.unified_drafts VALUES(?,?)').run(randomUUID(),JSON.stringify(remap(draft,ids)))

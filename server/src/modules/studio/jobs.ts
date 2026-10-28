@@ -10,6 +10,8 @@ export type RemoteState = { status: 'running'; progress: number } | { status: 'c
 export interface AsyncCreativeProvider {
   readonly id: string
   readonly models: readonly ModelCapability[]
+  readonly capabilities?: {remoteQuery:boolean;remoteCancel:boolean;remoteIdempotency:boolean;webhook:boolean;localCancellation:boolean}
+  stop?():void
   validate(input: GenerationInput, model: string): void
   lookup(key: string, signal: AbortSignal): Promise<string | null>
   submit(input: GenerationInput, model: string, key: string, signal: AbortSignal): Promise<string>
@@ -31,13 +33,14 @@ export class LocalAsyncProvider implements AsyncCreativeProvider {
   async poll(_id: string, input: GenerationInput): Promise<RemoteState> { return { status: 'completed', output: await this.local.generate(input) } }
   async cancel() { /* local deterministic fixtures have no external side effects */ }
 }
+class ProviderFailure extends Error {}
 export class RetryableProviderError extends Error {}
 interface Job { taskId: string; provider: string; model: string; key: string; digest: string; snapshot: string; remoteId: string | null; attempts: number; due: number; deadline: number; lease: string | null; leaseUntil: number; cancel: number }
 const terminal = new Set(['completed', 'failed', 'cancelled'])
 export class StudioJobs {
   private timer?: ReturnType<typeof setTimeout>
   private stopped = false
-  constructor(private db: DatabaseSync, readonly providers: readonly AsyncCreativeProvider[], private publish: (projectId: string, output: GenerationOutput) => string, private costs?:CostControls) {
+  constructor(private db: DatabaseSync, readonly providers: readonly AsyncCreativeProvider[], private publish: (projectId: string, output: GenerationOutput, taskId:string) => string|null, private costs?:CostControls) {
     if (new Set(providers.map(p => p.id)).size !== providers.length) throw new Error('Duplicate provider IDs')
     this.wake()
   }
@@ -63,7 +66,7 @@ export class StudioJobs {
     })
     this.wake(); return this.task(id)
   }
-  task(id: string): StudioTask { const task = this.db.prepare('SELECT * FROM studio_tasks WHERE id=?').get(id); if (!task) throw new HttpError(404, '任务不存在'); return task as unknown as StudioTask }
+  task(id: string): StudioTask { const task = this.db.prepare('SELECT t.*,m.mediaId FROM studio_tasks t LEFT JOIN studio_task_media m ON m.taskId=t.id WHERE t.id=?').get(id); if (!task) throw new HttpError(404, '任务不存在'); return task as unknown as StudioTask }
   cancel(id: string) {
     this.atomic(() => {
       const task = this.task(id)
@@ -79,7 +82,7 @@ export class StudioJobs {
     // A signed event only wakes authoritative polling; never trust callback result bytes.
     this.db.prepare('UPDATE studio_jobs SET due=0 WHERE provider=? AND key=?').run(providerId, verified.key); this.wake()
   }
-  stop() { this.stopped = true; clearTimeout(this.timer) }
+  stop() { this.providers.forEach(p=>p.stop?.()); this.stopped = true; clearTimeout(this.timer) }
   wake() { if (this.stopped || this.timer) return; this.timer = setTimeout(() => { this.timer = undefined; void this.tick() }, 100); this.timer.unref() }
   async tick() {
     if (this.stopped || !this.db.isOpen) return
@@ -105,7 +108,7 @@ export class StudioJobs {
         if (claimed.cancel) {
           const remote = claimed.remoteId ?? await call(s => provider.lookup(claimed.key, s))
           if (remote) await call(s => provider.cancel(remote, s))
-          this.commit(claimed, () => { this.db.prepare('UPDATE studio_jobs SET cancel=0 WHERE taskId=?').run(claimed.taskId); this.event(claimed.taskId, 'remote-cancelled') }); return
+          this.commit(claimed, () => { this.db.prepare('UPDATE studio_jobs SET cancel=0 WHERE taskId=?').run(claimed.taskId); this.event(claimed.taskId, provider.capabilities?.remoteCancel===false?'local-cancelled-remote-unsupported':'remote-cancelled') }); return
         }
         if (Date.now() >= claimed.deadline) throw new Error('deadline')
         if (!claimed.remoteId) {
@@ -117,9 +120,9 @@ export class StudioJobs {
             if (this.task(claimed.taskId).status === 'cancelled') return
             if (Date.now() >= claimed.deadline) throw new Error('deadline')
             if (result.status === 'completed') {
-              const assetId = this.publish(input.project.id, result.output)
+              const assetId = this.publish(input.project.id, result.output,claimed.taskId)
               this.db.prepare("UPDATE studio_tasks SET status='completed',progress=100,assetId=? WHERE id=?").run(assetId, claimed.taskId); this.costs?.completed(claimed.taskId); this.event(claimed.taskId, 'completed')
-            } else if (result.status === 'failed') throw new Error('remote failed')
+            } else if (result.status === 'failed') throw new ProviderFailure('remote failed')
             else { this.db.prepare('UPDATE studio_tasks SET progress=? WHERE id=?').run(Math.max(0, Math.min(99, Math.floor(result.progress))), claimed.taskId); this.db.prepare('UPDATE studio_jobs SET due=?,attempts=0 WHERE taskId=?').run(Date.now() + 1000, claimed.taskId) }
           })
         }
@@ -129,7 +132,7 @@ export class StudioJobs {
         try { this.commit(job, () => {
           const retry = error instanceof RetryableProviderError && job!.attempts < 4 && Date.now() < job!.deadline
           if (retry) { this.db.prepare('UPDATE studio_jobs SET attempts=attempts+1,due=? WHERE taskId=?').run(Date.now() + Math.min(30000, 500 * 2 ** job!.attempts) + Math.floor(Math.random() * 100), job!.taskId); this.event(job!.taskId, 'retry') }
-          else { this.db.prepare("UPDATE studio_tasks SET status=CASE WHEN status='cancelled' THEN status ELSE 'failed' END,error='生成或取消失败，请检查任务历史' WHERE id=?").run(job!.taskId); this.db.prepare('UPDATE studio_jobs SET cancel=0 WHERE taskId=?').run(job!.taskId); this.event(job!.taskId, 'failed') }
+          else { this.db.prepare("UPDATE studio_tasks SET status=CASE WHEN status='cancelled' THEN status ELSE 'failed' END,error=? WHERE id=?").run(error instanceof ProviderFailure?'生成或导入失败；未自动重发，请核对服务端后确认重试':'生成或取消失败，请检查任务历史',job!.taskId); this.db.prepare('UPDATE studio_jobs SET cancel=0 WHERE taskId=?').run(job!.taskId); this.event(job!.taskId, 'failed') }
         }) } catch { /* closed database or storage failure: durable lease permits recovery */ }
       }
     } finally { if (job && this.db.isOpen) { try { this.db.prepare('UPDATE studio_jobs SET lease=NULL,leaseUntil=0 WHERE taskId=? AND lease=?').run(job.taskId, job.lease) } catch { /* recover after lease expiry */ } } if (this.db.isOpen) this.wake() }

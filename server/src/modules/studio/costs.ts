@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { GenerationInput } from '../../../../shared/contracts/studio.js'
 import { HttpError } from '../novels/store.js'
-export interface PriceModel {id:string;provider:string;rateMicrosPerSecond:number;maxSeconds:number;maxPrompt:number;kinds:('music'|'video')[];virtual:boolean}
+export interface PriceModel {id:string;provider:string;rateMicrosPerSecond:number;maxSeconds:number;maxPrompt:number;kinds:('music'|'video')[];virtual:boolean;billingSeconds?:number}
 export interface BudgetPolicy {taskLimitMicros:number;monthlyLimitMicros:number;models:PriceModel[]}
 export const defaultPolicy:BudgetPolicy={taskLimitMicros:100000,monthlyLimitMicros:1000000,models:[{id:'mock-v1',provider:'mock',rateMicrosPerSecond:0,maxSeconds:60,maxPrompt:10000,kinds:['music','video'],virtual:true},{id:'mock-metered',provider:'mock',rateMicrosPerSecond:1000,maxSeconds:60,maxPrompt:10000,kinds:['music','video'],virtual:true}]}
 const digest=(input:GenerationInput,provider:string,model:string)=>createHash('sha256').update(JSON.stringify([input,provider,model])).digest('hex')
@@ -10,13 +10,13 @@ export class CostControls {
  readonly policy:BudgetPolicy
  constructor(private db:DatabaseSync,policy:BudgetPolicy=defaultPolicy,private now=()=>Date.now()){
   if(!Number.isSafeInteger(policy.taskLimitMicros)||policy.taskLimitMicros<0||!Number.isSafeInteger(policy.monthlyLimitMicros)||policy.monthlyLimitMicros<0||new Set(policy.models.map(m=>m.provider+':'+m.id)).size!==policy.models.length)throw new Error('Invalid budget policy')
-  for(const m of policy.models)if(!/^[\w-]{1,100}$/.test(m.id)||!m.kinds.length||m.kinds.some(k=>!['music','video'].includes(k))||typeof m.virtual!=='boolean'||!/^[\w-]{1,100}$/.test(m.provider)||!Number.isSafeInteger(m.rateMicrosPerSecond)||m.rateMicrosPerSecond<0||!Number.isSafeInteger(m.maxSeconds)||m.maxSeconds<1||m.maxSeconds>3600||!Number.isSafeInteger(m.maxPrompt)||m.maxPrompt<1||m.maxPrompt>10000)throw new Error('Invalid price model')
-  this.policy={taskLimitMicros:policy.taskLimitMicros,monthlyLimitMicros:policy.monthlyLimitMicros,models:policy.models.map(m=>({id:m.id,provider:m.provider,rateMicrosPerSecond:m.rateMicrosPerSecond,maxSeconds:m.maxSeconds,maxPrompt:m.maxPrompt,kinds:[...m.kinds],virtual:m.virtual}))}
+  for(const m of policy.models)if(!/^[\w-]{1,100}$/.test(m.id)||!m.kinds.length||m.kinds.some(k=>!['music','video'].includes(k))||typeof m.virtual!=='boolean'||!/^[\w-]{1,100}$/.test(m.provider)||!Number.isSafeInteger(m.rateMicrosPerSecond)||m.rateMicrosPerSecond<0||!Number.isSafeInteger(m.maxSeconds)||m.maxSeconds<1||m.maxSeconds>3600||!Number.isSafeInteger(m.maxPrompt)||m.maxPrompt<1||m.maxPrompt>10000||(m.billingSeconds!==undefined&&(!Number.isSafeInteger(m.billingSeconds)||m.billingSeconds<1||m.billingSeconds>m.maxSeconds)))throw new Error('Invalid price model')
+  this.policy={taskLimitMicros:policy.taskLimitMicros,monthlyLimitMicros:policy.monthlyLimitMicros,models:policy.models.map(m=>({id:m.id,provider:m.provider,rateMicrosPerSecond:m.rateMicrosPerSecond,maxSeconds:m.maxSeconds,maxPrompt:m.maxPrompt,kinds:[...m.kinds],virtual:m.virtual,...(m.billingSeconds===undefined?{}:{billingSeconds:m.billingSeconds})}))}
  }
  private price(input:GenerationInput,provider:string,model:string){
   const p=this.policy.models.find(p=>p.id===model&&p.provider===provider)
   if(!p||!p.kinds.includes(input.project.kind)||input.prompt.length>p.maxPrompt)throw new HttpError(400,'模型或提示词能力不支持')
-  const seconds=input.project.settings.durationSeconds??(input.project.kind==='music'?2:1)
+  const seconds=p.billingSeconds??input.project.settings.durationSeconds??(input.project.kind==='music'?2:1)
   if(typeof seconds!=='number'||!Number.isInteger(seconds)||seconds<1||seconds>p.maxSeconds)throw new HttpError(400,'模型时长参数不支持')
   const amount=p.rateMicrosPerSecond*seconds
   if(!Number.isSafeInteger(amount)||amount>this.policy.taskLimitMicros)throw new HttpError(402,'单任务费用上限不足')
