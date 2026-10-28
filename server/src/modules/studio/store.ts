@@ -1,3 +1,4 @@
+import { videoSourceLinks } from '../../../../shared/video/sources.js'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import type { CreativeProvider, StudioAsset, StudioKind, StudioProject, StudioSettings, StudioTask, StudioVersion } from '../../../../shared/contracts/studio.js'
@@ -24,6 +25,7 @@ export function settings(value: unknown, kind: StudioKind): StudioSettings {
     for (const key of ['genre', 'mood']) if (result[key] !== undefined) string(result[key], key, 200, true)
     if (result.structure !== undefined && (!Array.isArray(result.structure) || result.structure.length > 30 || result.structure.some(s => s.length > 100))) throw new HttpError(400, '歌曲结构无效')
   } else {
+    try{videoSourceLinks(result.sourceLinks)}catch{throw new HttpError(400,'视频来源关联无效；章节需要小说ID，角色/素材最多各32个')}
     if (result.aspectRatio !== undefined && !['16:9', '9:16', '1:1'].includes(String(result.aspectRatio))) throw new HttpError(400, '画面比例无效')
     if (result.shots !== undefined) {
       let shots: unknown
