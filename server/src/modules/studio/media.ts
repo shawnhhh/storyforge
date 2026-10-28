@@ -64,22 +64,26 @@ export class MediaStore {
     if(u.kind==='media') {const fd=openSync(path,'r'),head=Buffer.alloc(32);try {readSync(fd,head,0,32,0);checkContainer(u.mime,head)}finally{closeSync(fd)}}
     return {u,path}
   }
+  async prepare(id: string) {
+    const {u,path}=await this.verifyUpload(id)
+    if(u.kind!=='media')throw new HttpError(400,'不是媒体上传')
+    const destination=this.objectPath(u.digest)
+    if(existsSync(destination))await this.verify(u.digest);else renameSync(path,destination)
+    return id
+  }
+  publishPrepared(id:string) {
+    const u=this.upload(id);if(u.result)return this.ref(u.result)
+    if(u.kind!=='media'||u.offset!==u.bytes||statSync(this.safe(this.objectPath(u.digest))).size!==u.bytes)throw new HttpError(400,'媒体尚未校验发布')
+    this.db.prepare('INSERT OR IGNORE INTO studio_media_objects(digest,bytes,createdAt) VALUES(?,?,?)').run(u.digest,u.bytes,Date.now())
+    const ref=randomUUID()
+    this.db.prepare('INSERT INTO studio_media_refs VALUES(?,?,?,?,?,?)').run(ref,u.projectId,u.name,u.mime,u.digest,new Date().toISOString())
+    this.db.prepare('UPDATE studio_uploads SET result=? WHERE id=?').run(ref,id)
+    return this.ref(ref)
+  }
   async complete(id: string) {
     const old=this.upload(id);if(old.result)return this.ref(old.result)
-    const {u,path}=await this.verifyUpload(id)
-    if(existsSync(this.objectPath(u.digest)))await this.verify(u.digest)
-    if(u.kind!=='media')throw new HttpError(400,'请使用备份预览入口')
-    // Hashing has an awaited gap; transaction rechecks the receipt and offset.
-    return this.atomic(()=>{
-      const current=this.upload(id);if(current.result)return this.ref(current.result)
-      const destination=this.objectPath(u.digest)
-      if(existsSync(destination)) {this.safe(destination);if(statSync(destination).size!==u.bytes)throw new HttpError(400,'同哈希对象损坏')} else renameSync(path,destination)
-      this.db.prepare('INSERT OR IGNORE INTO studio_media_objects(digest,bytes,createdAt) VALUES(?,?,?)').run(u.digest,u.bytes,Date.now())
-      const ref=randomUUID()
-      this.db.prepare('INSERT INTO studio_media_refs VALUES(?,?,?,?,?,?)').run(ref,u.projectId,u.name,u.mime,u.digest,new Date().toISOString())
-      this.db.prepare('UPDATE studio_uploads SET result=? WHERE id=?').run(ref,id)
-      return this.ref(ref)
-    })
+    await this.prepare(id)
+    return this.atomic(()=>this.publishPrepared(id))
   }
   list(projectId: string) {return this.db.prepare('SELECT r.*,o.bytes FROM studio_media_refs r JOIN studio_media_objects o USING(digest) WHERE projectId=? ORDER BY createdAt,id').all(projectId)}
   ref(id: string) { const r=this.db.prepare('SELECT r.*,o.bytes FROM studio_media_refs r JOIN studio_media_objects o USING(digest) WHERE r.id=?').get(id);if(!r)throw new HttpError(404,'素材不存在');return r }

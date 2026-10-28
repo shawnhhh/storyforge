@@ -18,7 +18,7 @@ async function fileData(file: File): Promise<string> {
 }
 export function VideoWorkspace() {
   usePreferences()
-  const budget = useGenerationBudget()
+  const budget = useGenerationBudget('video')
   const activeId = useRef<string | null>(null)
   const relatedSequence = useRef(0)
   const [draft, setDraft] = useState<{ title: string; content: string; configuration: VideoConfiguration } | null>(null)

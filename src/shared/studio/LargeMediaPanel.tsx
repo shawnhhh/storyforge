@@ -3,9 +3,9 @@ import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex } from '@noble/hashes/utils.js'
 import { request } from '../api/client'
 type Media = {id:string;name:string;mime:string;bytes:number;digest:string}
-export function LargeMediaPanel({projectId}:{projectId:string}) {
+export function LargeMediaPanel({projectId,revision}:{projectId:string;revision?:string}) {
   const [assets,setAssets]=useState<Media[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[preview,setPreview]=useState<{token:string;music:number;video:number;story:number}|null>(null)
-  useEffect(()=>{let active=true;void request<Media[]>(`/studio/projects/${projectId}/media`).then(v=>{if(active)setAssets(v)}).catch(()=>{if(active)setMessage('媒体列表读取失败，请重新打开项目')});return()=>{active=false}},[projectId])
+  useEffect(()=>{let active=true;void request<Media[]>(`/studio/projects/${projectId}/media`).then(v=>{if(active)setAssets(v)}).catch(()=>{if(active)setMessage('媒体列表读取失败，请重新打开项目')});return()=>{active=false}},[projectId,revision])
   async function upload(file:File,kind='media') {
     const hash=sha256.create();for await(const chunk of file.stream())hash.update(chunk)
     const digest=bytesToHex(hash.digest()),key=`sf-upload:${projectId}:${digest}:${kind}`

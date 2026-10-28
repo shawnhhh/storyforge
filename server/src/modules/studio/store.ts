@@ -53,8 +53,9 @@ export class StudioStore {
   constructor(private db: DatabaseSync, provider: CreativeProvider = new MockCreativeProvider(), providers?: readonly AsyncCreativeProvider[], policy?:BudgetPolicy, readonly keyVault?:ServerKeyVault) {
     this.media = new MediaStore(db)
     this.costs = new CostControls(db,policy)
-    this.jobs = new StudioJobs(db, providers ?? [new LocalAsyncProvider(provider)], (id, output) => {
-      if (!output.data.length || output.data.length > 650000 || !['audio/wav','video/webm'].includes(output.mime) || !/^[\w.-]{1,200}$/.test(output.name)) throw new Error('Invalid provider output')
+    this.jobs = new StudioJobs(db, providers ?? [new LocalAsyncProvider(provider)], (id, output, taskId) => {
+      if(output.mediaUploadId){const media=this.media.publishPrepared(output.mediaUploadId);if(media.projectId!==id)throw new Error('Media project mismatch');this.db.prepare('INSERT INTO studio_task_media VALUES(?,?)').run(taskId,media.id);return null}
+      if (!output.data || !output.data.length || output.data.length > 650000 || !['audio/wav','video/webm'].includes(output.mime) || !/^[\w.-]{1,200}$/.test(output.name)) throw new Error('Invalid provider output')
       return this.writeAsset(id, output.name, output.mime, output.data).id
     },this.costs)
   }
@@ -104,7 +105,7 @@ export class StudioStore {
     this.db.prepare('INSERT INTO studio_assets VALUES(?,?,?,?,?,?,?)').run(asset.id, projectId, name, mime, asset.bytes, data, asset.createdAt)
     return asset
   }
-  tasks(id: string): StudioTask[] { this.project(id); return this.db.prepare('SELECT * FROM studio_tasks WHERE projectId=? ORDER BY createdAt DESC,id').all(id) as unknown as StudioTask[] }
+  tasks(id: string): StudioTask[] { this.project(id); return this.db.prepare('SELECT t.*,m.mediaId FROM studio_tasks t LEFT JOIN studio_task_media m ON m.taskId=t.id WHERE t.projectId=? ORDER BY t.createdAt DESC,t.id').all(id) as unknown as StudioTask[] }
   async generate(id: string, body: Record<string, unknown>) {
     const project = this.project(id)
     if (body.version !== project.version) throw new HttpError(409, '项目已更改，请先保存后生成')
@@ -113,8 +114,8 @@ export class StudioStore {
   }
 
   export(id: string, legacyOnly = false) {
-    if (!legacyOnly && this.media.list(id).length) throw new HttpError(413, '大媒体请使用统一媒体备份 v2')
-    const payload = { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
+    if (!legacyOnly && (this.media.list(id).length || this.db.prepare('SELECT 1 FROM studio_task_media m JOIN studio_tasks t ON m.taskId=t.id WHERE t.projectId=?').get(id))) throw new HttpError(413, '大媒体请使用统一媒体备份 v2')
+    const payload = { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id).map(t=>legacyOnly && t.status==='completed' && !t.assetId?{...t,status:'failed' as const,error:'外置媒体由 v2 清单保存'}:t), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
     return { ...payload, sha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex') }
   }
 }

@@ -1,12 +1,13 @@
 import type { ProjectSummary } from '../../../../shared/contracts/studio.js'
 import type { NovelStore } from '../novels/store.js'
 import { Router } from 'express'
+import { HttpError } from '../novels/store.js'
 import { string, type StudioStore } from './store.js'
 export function studioRoutes(store: StudioStore, stories: NovelStore) {
   const router = Router()
   router.get('/costs',(_req,res)=>res.json({models:store.costs.policy.models,monthly:store.costs.month()}))
-  router.post('/projects/:id/estimate',(req,res)=>{const project=store.project(req.params.id);res.json(store.costs.quote({project,prompt:string(req.body.prompt,'提示词',10000)},String(req.body.provider??'mock'),String(req.body.model??'mock-v1')))})
-  router.get('/providers', (_req, res) => res.json(store.jobs.providers.map(p => ({ id: p.id, models: p.models, keyConfigured:store.keyVault?.configured(p.id)??false }))))
+  router.post('/projects/:id/estimate',(req,res)=>{const project=store.project(req.params.id),input={project,prompt:string(req.body.prompt,'提示词',10000)},provider=String(req.body.provider??'mock'),model=String(req.body.model??'mock-v1'),adapter=store.jobs.providers.find(p=>p.id===provider);if(!adapter)throw new HttpError(400,'服务商未启用');adapter.validate(input,model);res.json(store.costs.quote(input,provider,model))})
+  router.get('/providers', (_req, res) => res.json(store.jobs.providers.map(p => ({ id: p.id, models: p.models, capabilities:p.capabilities, keyConfigured:store.keyVault?.configured(p.id)??false }))))
   router.post('/tasks/:id/cancel', (req, res) => res.json(store.jobs.cancel(req.params.id)))
   router.get('/tasks/:id/history', (req, res) => { store.jobs.task(req.params.id); res.json(store.jobs.history(req.params.id)) })
   router.post('/webhooks/:provider', (req, res) => { store.jobs.webhook(req.params.provider, req.body, req.get('x-provider-signature') ?? ''); res.sendStatus(202) })
