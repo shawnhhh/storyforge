@@ -9,7 +9,7 @@ import { MediaStore } from '../media.js'
 import type { ServerKeyVault } from '../secrets.js'
 import { SafeMediaDownloader } from '../download.js'
 import { VideoQuarantine } from './quarantine.js'
-export const hailuoCapabilities={remoteQuery:true,remoteCancel:false,remoteIdempotency:false,webhook:false,localCancellation:true,queuedRemoteCancel:true} as const
+export const hailuoCapabilities={remoteQuery:true,remoteCancel:false,remoteIdempotency:false,webhook:false,localCancellation:true,queuedRemoteCancel:false} as const
 export function hailuoRequest(input:GenerationInput,model:string){
  const s=input.project.settings
  if(input.project.kind!=='video'||model!=='MiniMax-H3'||!input.prompt.trim()||input.prompt.length>2000)throw new HttpError(400,'H3仅支持单镜头视频及最多2000字符提示词')
@@ -26,6 +26,7 @@ export function hailuoRequest(input:GenerationInput,model:string){
 export type HailuoTransport=(method:'POST'|'GET'|'DELETE',path:string,body:unknown,signal:AbortSignal)=>Promise<unknown>
 /** Fixed official control plane, no caller supplied endpoints, no redirects, bounded JSON and no automatic POST retries. */
 export function officialHailuoTransport(vault:ServerKeyVault):HailuoTransport{return async(method,path,body,signal)=>{
+ if(process.env.HTTPS_PROXY||process.env.HTTP_PROXY)throw Error('hailuo-proxy-transport-not-configured')
  const key=vault.get('minimax-hailuo');if(!key)throw Error('hailuo-key-unconfigured')
  if(!/^\/v2\/(?:video_generation(?:\/[\w-]+)?|query\/video_generation\/[\w-]+)$/.test(path))throw Error('invalid-hailuo-path')
  return new Promise((resolve,reject)=>{const req=request(new URL(path,'https://api.minimax.io'),{method,signal,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'}},res=>{let bytes=0;const chunks:Buffer[]=[];res.on('data',(chunk:Buffer)=>{bytes+=chunk.length;if(bytes>1024*1024){res.destroy();reject(Error('hailuo-response-size'));return}chunks.push(chunk)});res.on('error',()=>reject(Error('hailuo-transport')));res.on('end',()=>{if(res.statusCode!==200){reject(method==='GET'&&(res.statusCode===429||Number(res.statusCode)>=500)?new RetryableProviderError('hailuo-query-retry'):Error('hailuo-api-rejected'));return}try{resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))}catch{reject(Error('hailuo-invalid-json'))}})});req.on('error',()=>reject(method==='GET'?new RetryableProviderError('hailuo-query-unavailable'):Error('hailuo-submit-unknown')));req.end(body===undefined?undefined:JSON.stringify(body))})
@@ -78,12 +79,12 @@ export class HailuoProvider implements AsyncCreativeProvider {
    if(uploadId&&this.db.isOpen){rmSync(this.media.pendingPath(uploadId),{force:true});this.db.prepare('DELETE FROM studio_uploads WHERE id=? AND result IS NULL').run(uploadId)}
   }finally{clearTimeout(timer);this.active.delete(id);if(!this.stopped){rmSync(path,{force:true});rmSync(path+'.json',{force:true})}}
  }
- async cancel(id:string,signal:AbortSignal){
+ async cancel(id:string){
   this.active.get(id)?.abort();this.db.prepare("UPDATE studio_hailuo_calls SET state='cancelled' WHERE remoteId=?").run(id)
-  const task=record(record(await this.send('GET',`/v2/query/video_generation/${id}`,undefined,signal)).task)
-  if(task.id!==id)throw Error('hailuo-task-mismatch')
-  // DELETE of a succeeded task destroys its record; NEVER call it for local cancellation.
-  if(task.status==='queued'){const response=record(await this.send('DELETE',`/v2/video_generation/${id}`,undefined,signal));if(response.action!=='cancelled')throw Error('hailuo-cancel-unconfirmed')}
+  // The official DELETE is state-dependent: a queued task can finish between GET and DELETE,
+  // turning cancellation into record deletion. No conditional cancel API is documented.
+  // Fence local publication only; never risk deleting a completed remote result.
  }
+
  stop(){this.stopped=true;for(const c of this.active.values())c.abort()}
 }

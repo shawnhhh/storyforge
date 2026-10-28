@@ -21,13 +21,13 @@
 
 当前官方 H3 支持 768P/2K、整数4–15秒；Highspeed仅768P，Lite/Max支持480P/768P，Max最短5秒。本轮只开放标准 MiniMax-H3；提示词保守上限2000字符。文生需具体比例，图生 content.image_url + role:first_frame，ratio=adaptive。参考图/音频/视频、尾帧、编辑、重生成、Context-IR留待后续，拒绝已知不支持字段。
 
-V2查询/列表仅保留最近7天任务；不能把列表当成按本地幂等键找回提交的 API。官方没有提供本适配器可验证的幂等键机制。callback_url 存在 challenge 验证及状态推送，但未核实安全签名协议；不配置回调，不接收其结果，仍以鉴权查询为准。远程仅 queued 可取消，竞态下可能失败；running/terminal 只执行本地取消，绝不对成功任务 DELETE，避免误删供应商记录。
+V2查询/列表仅保留最近7天任务；不能把列表当成按本地幂等键找回提交的 API。官方没有提供本适配器可验证的幂等键机制。callback_url 存在 challenge 验证及状态推送，但未核实安全签名协议；不配置回调，不接收其结果，仍以鉴权查询为准。官方远程仅 queued 可取消，但查询和DELETE之间可能完成任务，使同一DELETE变成删除成功记录。未发现条件取消机制，因此适配器所有状态只执行本地取消，不调用DELETE，避免误删供应商记录。
 
 ## 数据与费用边界
 
 复用持久化 StudioJobs、不可变输入快照、租约、预算预留与完成结算、Key Vault。提交前先落库 dispatching，再发唯一 POST；响应未知保持记录并失败，不自动重发。拿到 task_id 后可重启恢复查询。查询429/5xx/网络异常使用现有有界重试；任务总期限仍为30分钟。提交失败/未知或本地取消的预留保留，不宣称退费。
 
-默认关闭。启用需显式 `STORYFORGE_HAILUO_ENABLE=official`、Vault master、通过 ServerKeyVault 离线保存 `minimax-hailuo` Key，及显式 `STORYFORGE_MEDIA_BUDGET_CONFIG`。没有浏览器 Key 输入或把 Key 存进工程。固定官方控制面域名 api.minimax.io，不接受用户自定义API地址、不跟随重定向；JSON响应上限1MiB。测试fixture注入只存在测试程序。
+默认关闭。启用需显式 `STORYFORGE_HAILUO_ENABLE=official`、Vault master、通过 ServerKeyVault 离线保存 `minimax-hailuo` Key，及显式 `STORYFORGE_MEDIA_BUDGET_CONFIG`。没有浏览器 Key 输入或把 Key 存进工程。存在HTTP(S)代理时控制面也安全拒绝，等待审计过的代理传输实现。固定官方控制面域名 api.minimax.io，不接受用户自定义API地址、不跟随重定向；JSON响应上限1MiB。测试fixture注入只存在测试程序。
 
 官方 [价格页](https://platform.minimax.io/subscribe/token-plan?tab=api-enterprise) 显示标准 H3 768P $0.08/秒、2K $0.13/秒，输入素材另有规则。本轮仅文本/一张免费范围内首帧；采用至少130000微美元/秒的统一保守预留，不声称实际账单。拒绝 virtual=true 或固定 billingSeconds 规避时长的 H3 配置。例：5秒保守预留650000微美元；默认任务限额不足会拒绝。运营方需核对地域、实时报价和授权后自行配置足额任务/月预算。价格改变需重新审计。
 
@@ -51,7 +51,7 @@ V2查询/列表仅保留最近7天任务；不能把列表当成按本地幂等�
 
 ## 验证和剩余风险
 
-本地 lint、typecheck、build；完整单元/API；H3专项含请求映射、未知提交防重、重启、排队取消、续传、错误长度/MIME/重定向/超限/截断、完整解码/CAS及内容不变。浏览器专项含成功发布、截断失败与刷新恢复。四平台Hailuo专项继承Music3矩阵；完整九Job Chromium/Firefox/macOS Chrome/WebKit回归保留，未删除原断言。具体通过数和最终SHA云端状态以PR正文为准，不把D的绿灯算作E结果。
+本地 lint、typecheck、build；完整单元/API；H3专项含请求映射、未知提交防重、重启、本地取消保护、续传、错误长度/MIME/重定向/超限/截断、完整解码/CAS及内容不变。浏览器专项含成功发布、截断失败与刷新恢复。四平台Hailuo专项继承Music3矩阵；完整九Job Chromium/Firefox/macOS Chrome/WebKit回归保留，未删除原断言。具体通过数和最终SHA云端状态以PR正文为准，不把D的绿灯算作E结果。
 
 当前来源关联是备注级，不自动验证跨模块实体存在性。普通工程备份保留已发布媒体与来源设置；活跃生成恢复依赖原本地SQLite/媒体检查点，不宣称把活跃远程任务迁移到另一台机器。未实测2GiB网络传输、硬件断电/磁盘满或真实模型质量；大媒体通过流式路径，FFmpeg解析第三方媒体仍有资源/解码器安全风险，部署应使用受维护版本并隔离进程资源。macOS WebKit是Playwright引擎，不是Safari原生应用。
 
