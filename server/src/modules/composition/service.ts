@@ -16,6 +16,7 @@ export class CompositionService {
  private token(token:unknown,kind:Preview['kind']){const p=typeof token==='string'?this.previews.get(token):undefined;if(!p||p.kind!==kind||p.expires<Date.now())throw new HttpError(409,'请重新预览后确认');return p}
  private checkStory(c:Composition,old?:Composition){
   const source=this.story.prepare('SELECT novel_id FROM chapters WHERE id=?').get(c.source.chapterId)
+  if(!source&&(!old||old.source.chapterId!==c.source.chapterId||old.source.novelId!==c.source.novelId))throw new HttpError(400,'来源章节不存在，不能新建悬空引用')
   if(source&&source.novel_id!==c.source.novelId)throw new HttpError(400,'来源章节不属于该小说')
   const oldIds=new Set(old?[...old.scenes.flatMap(s=>s.characterIds),...old.shots.flatMap(s=>s.characterIds)]:[])
   for(const id of [...c.scenes.flatMap(s=>s.characterIds),...c.shots.flatMap(s=>s.characterIds)]){
