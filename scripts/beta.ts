@@ -20,7 +20,7 @@ export function pathsOverlap(a: string, b: string, insensitive = process.platfor
   return within(a, b) || within(b, a)
 }
 function canonical(path: string): string {
-  if (!isAbsolute(path) || /[\u0000-\u001f\u007f]/.test(path)) throw Error('必须使用无控制字符的绝对路径')
+  if (!isAbsolute(path) || [...path].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) throw Error('必须使用无控制字符的绝对路径')
   const p = resolve(path)
   return existsSync(p) ? realpathSync(p) : join(canonical(dirname(p)), p.slice(dirname(p).length + 1))
 }

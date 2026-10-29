@@ -20,6 +20,16 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      - name: Preserve beta build inventory and frontend bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-build-linux-${{ github.run_id }}
+          path: |
+            dist/
+            work/beta-build-manifest.json
+            package-lock.json
+            package.json
+          retention-days: 14
       - name: Install media validator
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi
@@ -113,6 +123,16 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      - name: Preserve beta build inventory and frontend bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-build-macos-${{ matrix.browser }}-${{ github.run_id }}
+          path: |
+            dist/
+            work/beta-build-manifest.json
+            package-lock.json
+            package.json
+          retention-days: 14
       - name: Install media validator
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then brew install ffmpeg; else sudo apt-get update && sudo apt-get install -y ffmpeg; fi

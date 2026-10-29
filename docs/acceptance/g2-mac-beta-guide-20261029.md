@@ -6,6 +6,7 @@
 
 - macOS Apple Silicon 使用原生 arm64 Node **24.x** 和 npm；`node -p "process.platform + '/' + process.arch + ' ' + process.version"` 应显示 `darwin/arm64 v24…`。Rosetta/x64 结果不能算 arm64 通过。
 - 锁文件包含 darwin-arm64 的 esbuild、Rolldown、Tailwind oxide、Lightning CSS 可选包；SQLite 使用 Node 内置 `node:sqlite`，没有跨架构复制数据库驱动。每个新 worktree 执行 `npm ci`，不复制其他架构的 node_modules。
+- build生成`work/beta-build-manifest.json`，记录checkout SHA/父提交、Node/OS/架构、锁文件SHA-256和每个dist文件的长度/哈希。完整CI保存Linux及macOS Chrome/WebKit三份构建artifact；仅含前端bundle与依赖清单，不是独立Mac应用或签名安装包，不能代替后端源码和Node运行时。
 - 本地 Mock 试听/预览不要求 GPU 或真实 Provider。运行完整 Hailuo Mock/解码验收需要维护中的 FFmpeg（`brew install ffmpeg`）；FFmpeg 不是视频模型，也不使付费 Provider 自动启用。
 - 浏览器须允许本机媒体播放；WebM 录制取决于浏览器真实能力。Safari 不支持时应显示禁用说明，不能视作导出通过。
 

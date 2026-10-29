@@ -116,7 +116,7 @@ test('beta production preview starts, persists a new work across graceful shutdo
     async function stop() { const c = child!; const exited = new Promise<number | null>(r => c.once('exit', r)); c.kill('SIGTERM'); assert.equal(await exited, 0); child = undefined }
     await start()
     const page = await http(p.webPort, '/'); assert.equal(page.status, 200)
-    const assets = [...page.text.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map(m => m[1]); assert.ok(assets.length >= 2)
+    const assets = [...page.text.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(m => m[1]); assert.ok(assets.length >= 2)
     for (const asset of assets) { const r = await http(p.webPort, asset); assert.equal(r.status, 200); assert.ok(r.text.length > 50); assert.equal(r.text.trimStart().toLowerCase().startsWith('<!doctype'), false) }
     const health = await http(p.webPort, '/api/health'), made = await http(p.webPort, '/api/novels', 'POST', { title: '合成首启作品', description: 'temporary' }, health.generation)
     assert.equal(made.status, 201, made.text)
