@@ -28,6 +28,7 @@ import { searchRoutes } from './modules/search/routes.js'
 export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies, studio?: StudioStore) {
   const app = express()
   app.disable('x-powered-by')
+  app.set('query parser', 'simple')
   app.use((req, res, next) => {
     // Prevent DNS rebinding; Vite forwards the original loopback Host.
     if (!/^127\.0\.0\.1(?::\d+)?$/.test(req.get('host') ?? '')) { res.status(403).json({ message: '只允许 127.0.0.1 访问本地服务' }); return }
@@ -46,9 +47,11 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     }
     next()
   })
-  app.use('/api/unified-backups', express.json({ limit: '129mb' }))
-  app.use('/api/studio/import', express.json({ limit: '65mb' }))
-  app.use(express.json({ limit: '1mb' }))
+  // Local clients send identity JSON. Reject compressed bodies before inflation
+  // (body-parser GHSA-27r3-jxmh-p828); preserve all existing size limits.
+  app.use('/api/unified-backups', express.json({ limit: '129mb', inflate: false }))
+  app.use('/api/studio/import', express.json({ limit: '65mb', inflate: false }))
+  app.use(express.json({ limit: '1mb', inflate: false }))
   app.get('/api/health', (_request, response) => {
     const health: HealthResponse = { status: 'ok' }
     response.json(health)
@@ -93,6 +96,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     void _next
     if (error instanceof HttpError) { res.status(error.status).json({ message: error.message }); return }
     if (error instanceof SyntaxError) { res.status(400).json({ message: 'JSON 格式无效' }); return }
+    if (typeof error === 'object' && error && 'status' in error && error.status === 415) { res.status(415).json({ message: '本地接口只接受未压缩的 JSON 请求' }); return }
     if (typeof error === 'object' && error && 'status' in error && error.status === 413) { res.status(413).json({ message: '正文超过 1MB，请拆分章节' }); return }
     console.error(redact(error instanceof Error?{name:error.name,message:error.message}:error))
     res.status(500).json({ message: '本地服务操作失败，请检查服务日志与磁盘后重试；恢复事务失败会回滚当前数据' })
