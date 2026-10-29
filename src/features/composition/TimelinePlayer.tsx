@@ -18,7 +18,7 @@ export function TimelinePlayer({composition:c,resolved}:{composition:Composition
      if(on&&e.readyState>=1){const seek=Math.min(Math.max(0,target),limit);if(!e.seeking&&Math.abs(e.currentTime-seek)>(state.playing?.2:.015))e.currentTime=seek
       if(track.kind==='video'){const v=e as HTMLVideoElement;if(ctx&&v.readyState>=2){const ratio=Math.min(640/v.videoWidth,360/v.videoHeight);ctx.drawImage(v,(640-v.videoWidth*ratio)/2,(360-v.videoHeight*ratio)/2,v.videoWidth*ratio,v.videoHeight*ratio)}}
       const gain=nodes.current.get(e)?.gain;e.volume=gain?1:clip.gain;if(gain)gain.gain.value=clip.gain
-      if(state.playing&&target<e.duration&&e.paused)void e.play().catch(()=>{setMessage('浏览器拒绝播放；请暂停后重试，或更换支持的媒体编码')})
+      if(state.playing&&target<e.duration&&e.paused)void e.play().catch(error=>{if(error instanceof DOMException&&error.name==='AbortError')return;state.at=t;state.playing=false;setPlaying(false);for(const media of mediaElements.values())media.pause();cancelExport.current=true;if(recorder.current?.state==='recording')recorder.current.stop();setMessage('浏览器拒绝播放；请暂停后重试，或更换支持的媒体编码')})
       if(target>=e.duration)e.pause()
      }else e.pause()
     }
@@ -32,7 +32,7 @@ export function TimelinePlayer({composition:c,resolved}:{composition:Composition
  function seek(value:number){stop();clock.current.at=value;setTime(value)}
  async function start(exporting=false){if(starting.current||recorder.current)return;starting.current=true;try{
    if(!allReady)throw Error('存在未完成或缺失素材，请先修复引用')
-   for(const [id,e]of elements.current){const row=clips.find(x=>x.clip.id===id);if(!row||row.track.muted)continue;if(e.readyState<1||!Number.isFinite(e.duration)||e.duration<=0)throw Error('媒体尚未加载或编码不支持，不能开始预览/导出')}
+   for(const [id,e]of elements.current){const row=clips.find(x=>x.clip.id===id);if(!row||row.track.muted)continue;if(e.error||e.readyState<1||!Number.isFinite(e.duration)||e.duration<=0)throw Error('媒体尚未加载或编码不支持，不能开始预览/导出')}
    if(exporting){
     if(!canExport||duration>30000||clips.length>30||!duration)throw Error('本地导出限30秒、30片段，需支持WebM VP8/Opus的浏览器')
     if(recordedUrl.current){URL.revokeObjectURL(recordedUrl.current);recordedUrl.current='';setUrl('')}
