@@ -45,6 +45,9 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npx playwright install --with-deps ${{ matrix.install }}
+      - name: Start virtual audio output for headless Firefox
+        if: runner.os == 'Linux' && matrix.browser == 'firefox'
+        run: bash tests/e2e/setup-linux-audio.sh
       - run: npm run test:e2e -- composition.spec.ts --project=${{ matrix.browser }}
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}

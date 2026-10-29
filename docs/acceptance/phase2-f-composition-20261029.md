@@ -46,6 +46,10 @@
 - 完整单元/API、本地 lint/typecheck/build；保留完整 Chromium/Firefox/macOS Chrome/WebKit 回归和 Music3/Hailuo/费用专项，新增四平台 Composition 协议工作流。最新 SHA 的精确结果见 PR，不以旧 head 的结果作最终结论。
 - CI 按工作流/分支取消已过期执行，避免多次推送占用旧 runner；最新 head 的失败仍必须修复，未移除原断言或放宽原测试时限。
 
+## 跨浏览器修复记录
+
+Firefox headless 首次录制回归失败，进一步诊断为音频 `OnMediaSinkAudioError`，视频无错误；CI为Linux Firefox配置每runner临时PulseAudio空输出设备，提供真实音频时钟，不静音、跳过或放宽断言。播放器区分设备失败与解码失败，仍中止错误导出。另修复暂停时每帧重复seek，旧BLOB素材接口支持单字节范围、后缀、416及If-Range，保留CSP/nosniff与原下载器校验。失败运行和修复后准确SHA结果记录在PR中。
+
 ## 剩余风险
 
 Mock 分镜需人工校订，没有验收真实导演模型、TTS 或商业成片。没有拖拽波形、自动节拍对齐、转场/交叉淡化、嵌入式视频原声提取或长片服务器渲染。来源删除后保留历史引用会显示过期提示；要再次发送角色上下文需修复引用。历史引用保守保留媒体，可能增加磁盘占用。极大跨模块档案、硬件断电、磁盘满、长时间播放、浏览器解码资源峰值和跨设备录制质量尚未实测。真实付费 Provider 在本轮未启用。
