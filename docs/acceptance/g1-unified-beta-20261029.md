@@ -89,4 +89,6 @@ G2新增`scripts/beta.ts`与8项临时目录测试，覆盖linked/detached/全�
 
 本地完整Chromium首轮另有工作台创建对话框失败（55过/1失败）。读取截图和trace后，Vite服务日志确认它把Playwright在work目录写入的诊断HTML当成页面修改，连续触发full reload，导致保存时导航、表单丢失。修复只排除work/data/dist生成目录的文件监听，保留trace及所有原断言；新增浏览器用例在未保存表单期间连续写入合成HTML，要求无导航且输入保留后可保存。修复后要重跑完整分片，不把失败首轮计为通过。
 
-[G2 Mac安装、启动、回退、恢复与原生人工清单](g2-mac-beta-guide-20261029.md)。云端只检查可执行隔离流程和自动化浏览器，原生Safari/iPhone/物理IME/硬件故障仍待人工签字。G1最终全绿后才补齐G3候选交付记录，不将初始或旧head绿灯代替修复后head。
+在d150514五组CI均通过后，保留成功用例trace复查React警告，确认Hailuo稳定面板与大型媒体面板使用相同工程ID作为兄弟key（本轮保持面板的修复引入）。网络响应的工程ID与警告一致。改为hailuo:前缀保持稳定且不冲突；联动afterEach增加重复key零警告断言，修复前4/4失败、修复后4/4通过。没有忽略console警告或删除原测试；最终HEAD仍需完整复验。
+
+[G2 Mac安装、启动、回退、恢复与原生人工清单](g2-mac-beta-guide-20261029.md) · [G3候选交付及完整验收报告](g3-mac-candidate-20261029.md)。云端自动化不代替原生Safari/iPhone/物理IME/硬件故障人工签字。准确最终SHA及五组CI固定在PR正文，不沿用旧head结果。

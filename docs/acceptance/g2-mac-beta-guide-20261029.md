@@ -30,7 +30,7 @@ node scripts/beta.ts start --profile "$PROFILE"
 
 `git worktree add --detach` 保持原 checkout/分支不变，目标已存在时 Git 拒绝。候选内还提供 `node scripts/beta.ts worktree --path 新绝对路径 --ref 精确SHA`，供下一份候选安全创建 worktree；同样拒绝覆盖和分支切换。
 
-看到 `BETA_READY http://127.0.0.1:端口` 后，在独立浏览器测试配置/私密窗口打开该地址。API 与 Web 端口随机分配并写入 profile，重启保持相同；前端 IndexedDB/localStorage 属于这个端口对应的浏览器配置，服务端备份不能代替尚未上传的浏览器草稿。
+看到 `BETA_READY http://127.0.0.1:端口` 后，在独立、持久的浏览器测试配置打开该地址。私密窗口仅用于短暂预览，关闭后可能清除草稿，不用于跨关闭恢复验收。API 与 Web 端口随机分配并写入 profile，重启保持相同；前端 IndexedDB/localStorage 属于这个端口对应的浏览器配置，服务端备份不能代替尚未上传的浏览器草稿。
 
 ## 启动器实际保护
 
