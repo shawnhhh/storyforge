@@ -1,3 +1,4 @@
+import {CompositionService} from './modules/composition/service.js'
 import { redact } from './modules/studio/secrets.js'
 import { MediaArchive } from './modules/backups/media-archive.js'
 import { UnifiedBackupService } from './modules/backups/unified.js'
@@ -68,7 +69,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     app.post('/api/unified-backups/restore', (req, res) => res.json(unified.restore(req.body.archive,req.body.token,req.body.modules,req.body.confirmation)))
   }
   const novels = new NovelStore(database)
-  if (studio) app.use('/api/studio', studioRoutes(studio, novels))
+  if (studio) {app.use('/api/compositions',new CompositionService(database,studio).router());app.use('/api/studio', studioRoutes(studio, novels))}
   const planning = new PlanningStore(database)
   const profiles = new StoryBibleStore(database)
   const knowledge = new KnowledgeStore(database)

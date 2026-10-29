@@ -48,6 +48,7 @@ export class StudioImporter {
   }
   prepare(input: unknown) {
     const { archive: a, digest, verified } = this.validate(input)
+    if(a.project.settings.composition||a.history.some(v=>v.settings.composition))throw new HttpError(400,'联动工程需要统一备份恢复，不能单项目导入造成悬空引用')
     if (this.db.prepare('SELECT 1 FROM studio_imports WHERE digest=?').get(digest)) throw new HttpError(409, '该工程已导入，请打开已有副本')
     for (const [key, value] of this.previews) if (value.expires < Date.now()) this.previews.delete(key)
     if (this.previews.size >= 100) throw new HttpError(429, '待确认导入过多')
@@ -56,6 +57,7 @@ export class StudioImporter {
   }
   restore(input: unknown, token: unknown, confirmation: unknown) {
     const { archive: a, digest } = this.validate(input)
+    if(a.project.settings.composition||a.history.some(v=>v.settings.composition))throw new HttpError(400,'联动工程需要统一备份恢复')
     const preview = typeof token === 'string' ? this.previews.get(token) : undefined
     if (!preview || preview.digest !== digest || preview.expires < Date.now() || confirmation !== '作为新项目导入') throw new HttpError(400, '请先预览并确认导入')
     this.previews.delete(String(token))

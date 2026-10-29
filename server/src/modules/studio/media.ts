@@ -88,7 +88,9 @@ export class MediaStore {
   list(projectId: string) {return this.db.prepare('SELECT r.*,o.bytes FROM studio_media_refs r JOIN studio_media_objects o USING(digest) WHERE projectId=? ORDER BY createdAt,id').all(projectId)}
   ref(id: string) { const r=this.db.prepare('SELECT r.*,o.bytes FROM studio_media_refs r JOIN studio_media_objects o USING(digest) WHERE r.id=?').get(id);if(!r)throw new HttpError(404,'素材不存在');return r }
   references(digest: string) {return Number(this.db.prepare('SELECT COUNT(*) n FROM studio_media_refs WHERE digest=?').get(digest)!.n)}
-  unlink(id: string) {this.db.prepare('DELETE FROM studio_media_refs WHERE id=?').run(id)}
+  unlink(id: string) {
+    for(const p of this.db.prepare("SELECT settings FROM studio_projects WHERE kind='video' UNION ALL SELECT settings FROM studio_versions").all()){const s=JSON.parse(String(p.settings));if(s.composition){const c=JSON.parse(String(s.composition));const direct=c.tracks.some((t:{clips:{source?:{kind:string;id:string}}[]})=>t.clips.some(x=>x.source?.kind==='media'&&x.source.id===id));const task=this.db.prepare('SELECT taskId FROM studio_task_media WHERE mediaId=?').all(id).map(r=>String(r.taskId));if(direct||c.tracks.some((t:{clips:{source?:{kind:string;id:string}}[]})=>t.clips.some(x=>x.source?.kind==='task'&&task.includes(x.source.id)))||c.shots.some((s:{taskIds:string[]})=>s.taskIds.some(id=>task.includes(id))))throw new HttpError(409,'素材被时间线、分镜任务或历史版本引用，不能解除')} }
+    this.db.prepare('DELETE FROM studio_media_refs WHERE id=?').run(id)}
   async verify(digest: string) { const path=this.safe(this.objectPath(digest));if(await fileHash(path)!==digest)throw new HttpError(400,'媒体对象校验失败');return path }
   gc(now=Date.now()) {
     // Conservative grace period: active backups and interrupted publications can finish first.

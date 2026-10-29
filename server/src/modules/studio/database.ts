@@ -31,6 +31,7 @@ export function openStudioDatabase(dataDir: string) {
       CREATE TABLE IF NOT EXISTS studio_cost_quotes(token TEXT PRIMARY KEY,digest TEXT NOT NULL,amount INTEGER NOT NULL,expires INTEGER NOT NULL,price TEXT NOT NULL,taskId TEXT);
       CREATE TABLE IF NOT EXISTS studio_cost_reservations(taskId TEXT PRIMARY KEY REFERENCES studio_tasks(id),month TEXT NOT NULL,reserved INTEGER NOT NULL,spent INTEGER NOT NULL,status TEXT NOT NULL,price TEXT NOT NULL,createdAt INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS studio_cost_month ON studio_cost_reservations(month);
+      CREATE TABLE IF NOT EXISTS studio_hailuo_calls(key TEXT PRIMARY KEY,digest TEXT NOT NULL,remoteId TEXT,state TEXT NOT NULL,path TEXT NOT NULL,uploadId TEXT,error TEXT);
       CREATE TABLE IF NOT EXISTS studio_music_calls(key TEXT PRIMARY KEY, digest TEXT NOT NULL, state TEXT NOT NULL, uploadId TEXT, error TEXT);
       CREATE TABLE IF NOT EXISTS studio_task_media(taskId TEXT PRIMARY KEY REFERENCES studio_tasks(id),mediaId TEXT REFERENCES studio_media_refs(id) ON DELETE SET NULL);
       PRAGMA user_version=7;
