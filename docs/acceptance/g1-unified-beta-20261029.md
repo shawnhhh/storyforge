@@ -87,4 +87,6 @@
 
 G2新增`scripts/beta.ts`与8项临时目录测试，覆盖linked/detached/全新路径、正式路径及Mac大小写/Unicode保护、符号/硬链接、SHA/端口、环境隔离、WAL/外键/CAS/运行锁，以及真实本地生产预览的首启写入/关闭/重启。`npm run test:safety`把现有跨库恢复、故障中断、Studio导入、幂等、任务/预算、媒体/引用和beta启动集中复验；它是完整单元/API的子集，不重复相加。
 
+本地完整Chromium首轮另有工作台创建对话框失败（55过/1失败）。读取截图和trace后，Vite服务日志确认它把Playwright在work目录写入的诊断HTML当成页面修改，连续触发full reload，导致保存时导航、表单丢失。修复只排除work/data/dist生成目录的文件监听，保留trace及所有原断言；新增浏览器用例在未保存表单期间连续写入合成HTML，要求无导航且输入保留后可保存。修复后要重跑完整分片，不把失败首轮计为通过。
+
 [G2 Mac安装、启动、回退、恢复与原生人工清单](g2-mac-beta-guide-20261029.md)。云端只检查可执行隔离流程和自动化浏览器，原生Safari/iPhone/物理IME/硬件故障仍待人工签字。G1最终全绿后才补齐G3候选交付记录，不将初始或旧head绿灯代替修复后head。
