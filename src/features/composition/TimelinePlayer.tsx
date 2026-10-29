@@ -15,7 +15,7 @@ export function TimelinePlayer({composition:c,resolved}:{composition:Composition
    const ctx=canvas.current?.getContext('2d');if(ctx){ctx.fillStyle='#10131c';ctx.fillRect(0,0,640,360)}
    for(const {track,clip} of clips){const e=elements.current.get(clip.id),on=!track.muted&&t>=clip.startMs&&t<clip.startMs+clip.durationMs
     if(e){const target=(clip.offsetMs+t-clip.startMs)/1000,limit=Number.isFinite(e.duration)?Math.max(0,e.duration-.04):0
-     if(on&&e.readyState>=1){const seek=Math.min(Math.max(0,target),limit);if(Math.abs(e.currentTime-seek)>.2||!state.playing)e.currentTime=seek
+     if(on&&e.readyState>=1){const seek=Math.min(Math.max(0,target),limit);if(!e.seeking&&Math.abs(e.currentTime-seek)>(state.playing?.2:.015))e.currentTime=seek
       if(track.kind==='video'){const v=e as HTMLVideoElement;if(ctx&&v.readyState>=2){const ratio=Math.min(640/v.videoWidth,360/v.videoHeight);ctx.drawImage(v,(640-v.videoWidth*ratio)/2,(360-v.videoHeight*ratio)/2,v.videoWidth*ratio,v.videoHeight*ratio)}}
       const gain=nodes.current.get(e)?.gain;e.volume=gain?1:clip.gain;if(gain)gain.gain.value=clip.gain
       if(state.playing&&target<e.duration&&e.paused)void e.play().catch(()=>{setMessage('浏览器拒绝播放；请暂停后重试，或更换支持的媒体编码')})

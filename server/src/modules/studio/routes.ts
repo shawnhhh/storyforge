@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto'
 import type { ProjectSummary } from '../../../../shared/contracts/studio.js'
 import type { NovelStore } from '../novels/store.js'
 import { Router } from 'express'
@@ -40,7 +41,14 @@ export function studioRoutes(store: StudioStore, stories: NovelStore) {
   router.get('/assets/:id/content', (req, res) => {
     const asset = store.asset(req.params.id)
     res.setHeader('Content-Type', String(asset.mime)); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox")
-    res.setHeader('Cache-Control', 'no-store'); res.send(Buffer.from(asset.data as Uint8Array))
+    const data=Buffer.from(asset.data as Uint8Array),etag='"'+createHash('sha256').update(data).digest('hex')+'"'
+    res.set('Cache-Control','no-store').set('Accept-Ranges','bytes').set('ETag',etag)
+    if(req.get('range')&&(!req.get('if-range')||req.get('if-range')===etag)){
+      const ranges=req.range(data.length,{combine:true})
+      if(!ranges||typeof ranges==='number'||ranges.type!=='bytes'||ranges.length!==1){res.set('Content-Range',`bytes */${data.length}`).status(416).end();return}
+      const {start,end}=ranges[0];res.set('Content-Range',`bytes ${start}-${end}/${data.length}`).status(206).send(data.subarray(start,end+1));return
+    }
+    res.send(data)
   })
   router.get('/projects/:id/tasks', (req, res) => res.json(store.tasks(req.params.id)))
   router.post('/projects/:id/generate', async (req, res) => res.status(202).json(await store.generate(req.params.id, req.body ?? {})))
