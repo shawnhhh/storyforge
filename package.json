@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && node scripts/beta-manifest.ts",
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:all": "concurrently -k -n web,server \"npm run dev\" \"npm run dev:server\"",
@@ -13,14 +13,17 @@
     "start:server": "tsx --env-file-if-exists=.env server/src/index.ts",
     "typecheck": "tsc -b && tsc -p server/tsconfig.json && tsc -p tests/e2e/tsconfig.json && tsc -p tests/unit/tsconfig.json",
     "test": "node --import tsx --test server/tests/*.test.ts tests/unit/*.test.ts",
-    "test:e2e": "node --import tsx tests/e2e/run.ts"
+    "test:e2e": "node --import tsx tests/e2e/run.ts",
+    "test:safety": "node --import tsx --test server/tests/backups.test.ts server/tests/unified-backup.test.ts server/tests/restore-crash.test.ts server/tests/studio-import.test.ts server/tests/studio-integration-safety.test.ts server/tests/studio-jobs.test.ts server/tests/studio-safety-costs.test.ts server/tests/media-storage.test.ts server/tests/composition.test.ts server/tests/service-lock.test.ts server/tests/planning-migrations.test.ts server/tests/beta-runtime.test.ts server/tests/http-body-safety.test.ts"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "@tiptap/core": "^3.32.0",
     "@tiptap/pm": "^3.32.0",
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
     "express": "^5.3.0",
+    "ipaddr.js": "^2.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

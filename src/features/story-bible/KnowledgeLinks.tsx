@@ -35,10 +35,15 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
   }
   const active = useRef(false)
   const mounted = useRef(false)
+  // A delayed read must never replace an acknowledged newer revision.
+  function acceptSnapshot(value: KnowledgeSnapshot) {
+    setSnapshot(current => current && current.version > value.version ? current : value)
+  }
   useEffect(() => {
     mounted.current = true
-    storyApi.links(novelId).then(value => { if (mounted.current) setSnapshot(value) }).catch(reason => { if (mounted.current) setError(reason instanceof Error ? reason.message : '读取关联失败') })
-    return () => { mounted.current = false }
+    let current = true
+    storyApi.links(novelId).then(value => { if (current) acceptSnapshot(value) }).catch(reason => { if (current) setError(reason instanceof Error ? reason.message : '读取关联失败') })
+    return () => { current = false; mounted.current = false }
   }, [novelId])
   useEffect(() => { onBusy(busy); return () => onBusy(false) }, [busy, onBusy])
   useEffect(() => {
@@ -52,7 +57,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
   async function refresh() {
     if (active.current) return
     active.current = true; setBusy(true)
-    try { const fresh = await storyApi.links(novelId); if (mounted.current) { setSnapshot(fresh); setError(''); setConflict(false) } }
+    try { const fresh = await storyApi.links(novelId); if (mounted.current) { acceptSnapshot(fresh); setError(''); setConflict(false) } }
     catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : '读取关联失败') }
     finally { active.current = false; if (mounted.current) setBusy(false) }
   }
@@ -62,7 +67,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
     try {
       const fresh = await storyApi.saveLinks(novelId, { version: snapshot.version, links })
       if (adding) { void draft.protection.saved({ target, label, note }) }
-      if (mounted.current) { setSnapshot(fresh); if (adding) { setTarget(''); setNote(''); setSaved(true) } }
+      if (mounted.current) { acceptSnapshot(fresh); if (adding) { setTarget(''); setNote(''); setSaved(true) } }
     } catch (reason) {
       if (mounted.current) { setError(reason instanceof Error ? reason.message : '保存关联失败，输入已保留，可重试'); if (reason instanceof ApiError && [400, 404, 409].includes(reason.status)) setConflict(true) }
     } finally { active.current = false; if (mounted.current) setBusy(false) }
@@ -82,7 +87,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
     {saved && <p role="status">已保存到数据库</p>}
     {error && <p role="alert">保存失败 · {error}；输入已保留。{conflict ? '请先刷新关联，核对最新记录。' : '可重试操作。'}</p>}
     {!snapshot && !error && <p role="status">正在读取关联…</p>}
-    <ul className="profile-associations">{outgoing.map(item => <li key={item.id}><div><button disabled={busy || disabled || !onOpen} onClick={() => open(item.target.kind, item.target.id)}>{name(item.target.kind, item.target.id)}</button><span> · {item.label}</span>{item.note && <p className="knowledge-note">{item.note}</p>}{source.kind === 'chapter' && <details><summary>查阅资料内容</summary><p className="knowledge-note">{item.target.kind === 'world' ? data.world.find(record => record.id === item.target.id)?.description : Object.entries(data.characters.find(record => record.id === item.target.id)?.fields ?? {}).filter(([, value]) => value).map(([, value]) => value).join('\n')}</p></details>}</div><button disabled={blocked} aria-label={`移除引用 ${name(item.target.kind, item.target.id)}`} onClick={() => { void save(snapshot!.links.filter(row => row.id !== item.id)) }}>移除</button></li>)}</ul>
+    <ul className="profile-associations">{outgoing.map(item => <li key={item.id}><div><button disabled={busy || disabled || !onOpen} onClick={() => open(item.target.kind, item.target.id)}>{name(item.target.kind, item.target.id)}</button><span> · {item.label}</span>{item.note && <p className="knowledge-note">{item.note}</p>}{source.kind === 'chapter' && <details><summary>查阅资料内容</summary><p className="knowledge-note">{item.target.kind === 'world' ? data.world.find(record => record.id === item.target.id)?.description : Object.entries(data.characters.find(record => record.id === item.target.id)?.fields ?? {}).filter(([, value]) => value).map(([, value]) => value).join('\n')}</p></details>}</div><button disabled={blocked} aria-label={`移除引用 ${name(item.target.kind, item.target.id)}`} onClick={() => { if (window.confirm(`删除引用“${name(item.source.kind, item.source.id)} → ${name(item.target.kind, item.target.id)} · ${item.label}”？不删除正文和资料，引用进入回收站保留 30 天。`)) void save(snapshot!.links.filter(row => row.id !== item.id)) }}>移除</button></li>)}</ul>
     {source.kind !== 'character' && <fieldset disabled={blocked} className="knowledge-add"><legend>{source.kind === 'chapter' ? '添加资料引用' : '添加设定关联'}</legend>
       <label>引用资料<select aria-label="引用资料" value={target} onChange={event => change({ target: event.target.value })}><option value="">选择资料</option>{targets.map(item => <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>{item.title}</option>)}</select></label>
       <label>引用用途<input maxLength={80} value={label} onChange={event => change({ label: event.target.value })} /></label>

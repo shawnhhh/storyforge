@@ -1,0 +1,52 @@
+name: Studio cost confirmation acceptance
+on:
+  pull_request:
+    paths:
+      - 'tests/e2e/studio-costs.spec.ts'
+      - 'src/shared/studio/GenerationBudget.tsx'
+      - '.github/workflows/studio-cost-confirmation.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  confirmation:
+    runs-on: macos-latest
+    name: Cost confirmation macOS (${{ matrix.browser }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chrome
+            project: chromium
+            channel: chrome
+          - browser: webkit
+            project: webkit
+            channel: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: brew install ffmpeg
+      - run: npm test
+      - run: npx playwright install ${{ matrix.browser }}
+      - name: Repeat cost confirmation cancellation and settlement ten times
+        run: npm run test:e2e -- --project=${{ matrix.project }} studio-costs.spec.ts --repeat-each=10
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - name: Music video and durable task regression
+        run: npm run test:e2e -- --project=${{ matrix.project }} music.spec.ts video.spec.ts studio-jobs.spec.ts
+        env:
+          E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cost-confirmation-${{ matrix.browser }}-${{ github.run_id }}
+          path: work/e2e-results/
+          retention-days: 7

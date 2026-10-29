@@ -1,3 +1,11 @@
+import {CompositionService} from './modules/composition/service.js'
+import { redact } from './modules/studio/secrets.js'
+import { MediaArchive } from './modules/backups/media-archive.js'
+import { UnifiedBackupService } from './modules/backups/unified.js'
+import { studioRoutes } from './modules/studio/routes.js'
+import type { StudioStore } from './modules/studio/store.js'
+import { TrashStore } from './modules/trash/store.js'
+import { trashRoutes } from './modules/trash/routes.js'
 import { DashboardStore } from './modules/dashboard/store.js'
 import { dashboardRoutes } from './modules/dashboard/routes.js'
 import { KnowledgeStore } from './modules/story-bible/knowledge.js'
@@ -17,9 +25,10 @@ import { StoryBibleStore } from './modules/story-bible/store.js'
 import { aiRoutes, type AiDependencies } from './modules/ai/routes.js'
 import { searchRoutes } from './modules/search/routes.js'
 
-export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies) {
+export function createApp(database: DatabaseSync, backups?: BackupService, ai?: AiDependencies, studio?: StudioStore) {
   const app = express()
   app.disable('x-powered-by')
+  app.set('query parser', 'simple')
   app.use((req, res, next) => {
     // Prevent DNS rebinding; Vite forwards the original loopback Host.
     if (!/^127\.0\.0\.1(?::\d+)?$/.test(req.get('host') ?? '')) { res.status(403).json({ message: '只允许 127.0.0.1 访问本地服务' }); return }
@@ -34,16 +43,36 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
       }
       if (!req.is('application/json')) { res.status(415).json({ message: '请求必须使用 JSON' }); return }
       if (backups?.busy) { res.status(423).json({ message: '备份或恢复正在进行，请稍后重试' }); return }
-      if (backups && req.get('X-StoryForge-Generation') !== backups.generation) { res.status(409).json({ message: '服务已重启或数据库已恢复。请先导出未保存草稿，再刷新整个页面。' }); return }
+      if (backups && !/^\/api\/studio\/webhooks\/[\w-]+$/.test(req.path) && req.get('X-StoryForge-Generation') !== backups.generation) { res.status(409).json({ message: '服务已重启或数据库已恢复。请先导出未保存草稿，再刷新整个页面。' }); return }
     }
     next()
   })
-  app.use(express.json({ limit: '1mb' }))
+  // Local clients send identity JSON. Reject compressed bodies before inflation
+  // (body-parser GHSA-27r3-jxmh-p828); preserve all existing size limits.
+  app.use('/api/unified-backups', express.json({ limit: '129mb', inflate: false }))
+  app.use('/api/studio/import', express.json({ limit: '65mb', inflate: false }))
+  app.use(express.json({ limit: '1mb', inflate: false }))
   app.get('/api/health', (_request, response) => {
     const health: HealthResponse = { status: 'ok' }
     response.json(health)
   })
+  if (studio && backups) {
+    const unified = new UnifiedBackupService(database, studio.backupDatabase, backups)
+    const mediaArchive = new MediaArchive(studio.media,unified)
+    app.post('/api/media-backups',async(req,res)=>res.status(201).json(await mediaArchive.create(req.body.drafts)))
+    app.get('/api/media-backups/:id/content',(req,res)=>res.set('Content-Type','application/octet-stream').set('Content-Disposition','attachment; filename=storyforge-media.sfm').sendFile(studio.media.safe(mediaArchive.path(req.params.id))))
+    app.post('/api/media-backups/preview',async(req,res)=>res.json(await mediaArchive.preview(req.body.uploadId)))
+    app.post('/api/media-backups/restore',async(req,res)=>res.json(await mediaArchive.restore(req.body.token,req.body.modules,req.body.confirmation)))
+    app.get('/api/unified-backups/drafts', (_req,res) => { res.setHeader('Cache-Control','no-store'); res.json(unified.recoveredDrafts()) })
+    app.post('/api/unified-backups/export', (req, res) => {
+      res.setHeader('Cache-Control','no-store'); res.setHeader('Content-Disposition','attachment; filename="storyforge-unified.json"')
+      res.json(unified.create(req.body.drafts))
+    })
+    app.post('/api/unified-backups/preview', (req, res) => res.json(unified.prepare(req.body.archive)))
+    app.post('/api/unified-backups/restore', (req, res) => res.json(unified.restore(req.body.archive,req.body.token,req.body.modules,req.body.confirmation)))
+  }
   const novels = new NovelStore(database)
+  if (studio) {app.use('/api/compositions',new CompositionService(database,studio).router());app.use('/api/studio', studioRoutes(studio, novels))}
   const planning = new PlanningStore(database)
   const profiles = new StoryBibleStore(database)
   const knowledge = new KnowledgeStore(database)
@@ -56,6 +85,7 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     res.send(exported.body)
   })
   if (backups) app.use('/api', backupRoutes(backups))
+  app.use('/api', trashRoutes(new TrashStore(database)))
   app.use('/api', searchRoutes(database))
   app.use('/api', planningRoutes(planning))
   app.use('/api', dashboardRoutes(new DashboardStore(database)))
@@ -66,8 +96,9 @@ export function createApp(database: DatabaseSync, backups?: BackupService, ai?: 
     void _next
     if (error instanceof HttpError) { res.status(error.status).json({ message: error.message }); return }
     if (error instanceof SyntaxError) { res.status(400).json({ message: 'JSON 格式无效' }); return }
+    if (typeof error === 'object' && error && 'status' in error && error.status === 415) { res.status(415).json({ message: '本地接口只接受未压缩的 JSON 请求' }); return }
     if (typeof error === 'object' && error && 'status' in error && error.status === 413) { res.status(413).json({ message: '正文超过 1MB，请拆分章节' }); return }
-    console.error(error)
+    console.error(redact(error instanceof Error?{name:error.name,message:error.message}:error))
     res.status(500).json({ message: '本地服务操作失败，请检查服务日志与磁盘后重试；恢复事务失败会回滚当前数据' })
   }
   app.use(errors)

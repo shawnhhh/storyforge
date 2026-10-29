@@ -34,7 +34,7 @@ for (const module of ['dashboard', 'knowledge'] as const) for (const withPlannin
       db.exec('PRAGMA foreign_keys=ON')
       migrate(db, 2); db.exec(ddl(module))
       db.prepare('INSERT INTO schema_migrations VALUES (3,?)').run('legacy-branch')
-      if (withPlanning) migratePlanning(db)
+      if (withPlanning) migratePlanning(db, 1)
       let novels = new NovelStore(db)
       const novel = novels.create('Mock 跨分支作品', '')
       const chapter = novels.createChapter(novel.id, novel.version, '保留章节').chapter

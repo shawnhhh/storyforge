@@ -1,4 +1,4 @@
-import { expect, test, chromium, webkit, type Page } from '@playwright/test'
+import { expect, test, chromium, firefox, webkit, type Page } from '@playwright/test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -15,12 +15,38 @@ async function seed(page: Page) {
   }
   return { novel, chapters, headers }
 }
-async function open(page: Page, name: string) {
+async function open(page: Page, name: string, destination: 'editable' | 'recovery' = 'editable') {
   await page.goto('/')
   if ((page.viewportSize()?.width ?? 1440) <= 720) {
     await page.locator('.dashboard-work').filter({ has: page.getByRole('heading', { name, exact: true }) }).getByRole('button', { name: '打开作品', exact: true }).click()
-    await page.locator('.chapter-select').filter({ hasText: '第一章' }).click()
+    // A visible chapter button can precede the lazy source editor's save queue.
+    // Wait before asking that editor to leave; never bypass its save guard.
+    const first = page.locator('.chapter-select').filter({ hasText: '第一章' })
+    if (await first.getAttribute('aria-current') !== 'page') {
+      await expect(chapterBody(page)).toHaveAttribute('contenteditable', 'true')
+      await expect(chapterBody(page)).toBeEditable()
+      await first.click()
+    }
+    // Focus mode hides navigation; keep asserting its underlying selected ID.
+    const picker = page.locator('.chapter-navigation select[aria-label="跳转章节"]')
+    const firstId = await picker.getByRole('option', { name: '1. 第一章', exact: true }).evaluate(option => (option as HTMLOptionElement).value)
+    async function expectDestination() {
+      await expect(picker).toHaveValue(firstId)
+      await expect(first).toHaveAttribute('aria-current', 'page')
+      await expect(page.getByRole('textbox', { name: '章节标题', exact: true })).toHaveValue('第一章')
+      if (destination === 'recovery') {
+        // A pending recovery choice must lock prose until explicit consent.
+        await expect(page.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()
+        await expect(chapterBody(page)).toHaveAttribute('contenteditable', 'false')
+        await expect.poll(() => chapterBody(page).evaluate(element => (element as HTMLElement).isContentEditable)).toBe(false)
+        await expect(page.getByRole('textbox', { name: '章节标题', exact: true })).toBeDisabled()
+      } else {
+        await expectChapterReady(page, '第一章')
+      }
+    }
+    await expectDestination()
     await page.getByRole('button', { name: '专注写作', exact: true }).click()
+    await expectDestination()
   } else {
     await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name }).click()
   }
@@ -36,8 +62,22 @@ async function drafts(page: Page) {
   })
 }
 const errors = new WeakMap<Page, string[]>()
-test.beforeEach(({ page }) => { const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message)) })
-test.afterEach(({ page }) => { expect(errors.get(page)).toEqual([]) })
+const lifecycles = new WeakMap<Page, { events: { event: string; elapsedMs: number }[]; cleanup: () => void }>()
+test.beforeEach(({ page }) => {
+  const list: string[] = []; errors.set(page, list); page.on('pageerror', error => list.push(error.message))
+  const started = performance.now(), events: { event: string; elapsedMs: number }[] = []
+  const record = (event: string) => () => events.push({ event, elapsedMs: Math.round(performance.now() - started) })
+  const closed = record('page-closed'), crashed = record('page-crashed'), disconnected = record('browser-disconnected')
+  page.on('close', closed); page.on('crash', crashed)
+  const browser = page.context().browser(); browser?.on('disconnected', disconnected)
+  lifecycles.set(page, { events, cleanup: () => { page.off('close', closed); page.off('crash', crashed); browser?.off('disconnected', disconnected) } })
+})
+test.afterEach(async ({ page }, testInfo) => {
+  const lifecycle = lifecycles.get(page)
+  lifecycle?.cleanup()
+  if (testInfo.status !== testInfo.expectedStatus) await testInfo.attach('browser-lifecycle', { body: JSON.stringify({ events: lifecycle?.events ?? [], pageClosed: page.isClosed(), browserConnected: page.context().browser()?.isConnected() ?? null }), contentType: 'application/json' })
+  expect(errors.get(page)).toEqual([])
+})
 
 test('normal saves clear protected drafts and switching chapters cannot mix content', async ({ page }) => {
   const { novel } = await seed(page); await open(page, novel.title)
@@ -108,8 +148,10 @@ test('several windows and chapters preserve all drafts and resolving one leaves 
 
 test('persistent browser profile restores after the browser process closes and restarts', async ({ page, baseURL, browserName }) => {
   const { novel } = await seed(page), dir = mkdtempSync(join(tmpdir(), 'storyforge-browser-profile-'))
-  const browserType = browserName === 'webkit' ? webkit : chromium
-  const launch = () => browserType.launchPersistentContext(dir, { baseURL, headless: true, ...(browserName === 'chromium' && process.env.E2E_CHROMIUM_PATH ? { executablePath: process.env.E2E_CHROMIUM_PATH } : {}) })
+  const browserType = { chromium, firefox, webkit }[browserName]
+  // The independent profile follows the project's Chrome channel and executable.
+  const chromiumOptions = browserName === 'chromium' ? { channel: process.env.E2E_CHROMIUM_CHANNEL || undefined, ...(process.env.E2E_CHROMIUM_PATH ? { executablePath: process.env.E2E_CHROMIUM_PATH } : {}) } : {}
+  const launch = () => browserType.launchPersistentContext(dir, { baseURL, headless: true, ...chromiumOptions })
   let context = await launch()
   try {
     const first = await context.newPage(); await open(first, novel.title); await expectChapterReady(first, '第一章'); await failWrites(first)
@@ -188,11 +230,12 @@ test('mobile recovery works with IndexedDB disabled and cleans the fallback jour
   const { novel } = await seed(page); await open(page, novel.title); await expectChapterReady(page, '第一章'); await failWrites(page)
   await chapterBody(page).fill('移动端降级草稿')
   await expect(page.getByText('临时草稿已保护 · 此浏览器', { exact: true })).toBeVisible()
-  page.once('dialog', dialog => dialog.accept()); await page.reload(); await open(page, novel.title)
+  page.once('dialog', dialog => dialog.accept()); await page.reload(); await open(page, novel.title, 'recovery')
   await expect(page.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.unroute('**/api/chapters/*'); await page.getByRole('button', { name: '恢复此草稿', exact: true }).click()
   await expect(chapterBody(page)).toHaveText('移动端降级草稿')
+  await expectChapterReady(page, '第一章', '移动端降级草稿')
   await expect(page.locator('.save-status')).toHaveText('已保存到数据库')
   await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('storyforge:protected-draft:v1:')))).toEqual([])
 })
@@ -283,4 +326,62 @@ test('restoring an isolated database backup requires a choice before an old-gene
   const after = await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()
   expect(after.version).toBe(2)
   expect(after.content.content[0].content[0].text).toBe('备份之后尚未保存的虚构草稿')
+})
+
+test('closing a tab with only IndexedDB available retains the draft and reopening never replays it silently', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('disabled for test', 'SecurityError') } })
+  })
+  const { novel, chapters } = await seed(page)
+  await open(page, novel.title); await expectChapterReady(page, '第一章'); await failWrites(page)
+  const content = '关闭标签后必须明确恢复的 IndexedDB 草稿'
+  const before = await (await page.request.get(`/api/chapters/${chapters[0].id}`)).json()
+  await chapterBody(page).fill(content)
+  await expect(page.getByText('临时草稿已保护 · 此浏览器', { exact: true })).toBeVisible()
+  await page.close()
+  const reopened = await context.newPage()
+  const reopenedErrors: string[] = []
+  reopened.on('pageerror', error => reopenedErrors.push(error.message))
+  try {
+    await open(reopened, novel.title, 'recovery')
+    await expect(reopened.getByRole('button', { name: '恢复此草稿', exact: true })).toBeVisible()
+    await expect(chapterBody(reopened)).toHaveAttribute('contenteditable', 'false')
+    const unchanged = await (await reopened.request.get(`/api/chapters/${chapters[0].id}`)).json()
+    expect(unchanged).toEqual(before)
+    await reopened.getByRole('button', { name: '恢复此草稿', exact: true }).click()
+    await expect(chapterBody(reopened)).toHaveText(content)
+    await expect(reopened.locator('.save-status')).toHaveText('已保存到数据库')
+    await expect.poll(() => drafts(reopened)).toEqual([])
+    const saved = await (await reopened.request.get(`/api/chapters/${chapters[0].id}`)).json()
+    expect(saved.version).toBe(before.version + 1)
+    expect(saved.content.content[0].content[0].text).toBe(content)
+    expect(reopenedErrors).toEqual([])
+  } finally { await reopened.close() }
+})
+
+test('IndexedDB-only recovery retries after a synchronous open denial', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('disabled for test', 'SecurityError') } })
+    const original = indexedDB.open.bind(indexedDB)
+    let denied = false
+    indexedDB.open = (...args) => {
+      if (args[0] === 'storyforge-protected-drafts' && !denied) { denied = true; throw new DOMException('temporary denial', 'SecurityError') }
+      return original(...args)
+    }
+  })
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const modulePath = '/src/shared/drafts/store.ts'
+    const store = await import(modulePath)
+    let failure = ''
+    try { await store.readLocalDrafts('retry-test') } catch (error) { failure = String(error) }
+    const draft = { schema: 1, id: crypto.randomUUID(), key: 'retry-test', token: crypto.randomUUID(), revision: 1, updatedAt: new Date().toISOString(), base: '', generation: null, value: { content: '浏览器允许存储后恢复本机保护' } }
+    await store.persistLocalDraft(draft)
+    const records = await store.readLocalDrafts(draft.key)
+    await store.removeLocalDraft(draft)
+    return { failure, records, draft, remaining: await store.readLocalDrafts(draft.key) }
+  })
+  expect(result.failure).toContain('禁止读取')
+  expect(result.records).toEqual([result.draft])
+  expect(result.remaining).toEqual([])
 })

@@ -1,3 +1,4 @@
+import { openDeleteMenu } from './trash-helpers.js'
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { newCharacter, newWorld } from '../../src/features/story-bible/model.js'
@@ -109,6 +110,7 @@ test('unified knowledge CRUD, filters, existing relations, world links and chapt
   const json = JSON.parse(readFileSync((await (await download).path())!, 'utf8'))
   expect(json.knowledge.profiles.characters).toHaveLength(2)
   expect(json.knowledge.references.links).toHaveLength(2)
+  page.once('dialog', dialog => dialog.accept())
   await references.getByRole('button', { name: '移除引用 云城 <&>', exact: true }).click()
   await expect(references.getByText('核对港口布局', { exact: true })).toHaveCount(0)
   expect(errors).toEqual([])
@@ -165,9 +167,11 @@ test('library deletion cleans chapter references and narrow layouts keep control
   await expect(links(page).getByRole('button', { name: '测试地点', exact: true })).toBeVisible()
   await list(page).getByRole('button').filter({ hasText: '测试地点' }).click()
   page.once('dialog', dialog => dialog.dismiss())
+  await openDeleteMenu(page, '删除资料')
   await page.getByRole('button', { name: '删除资料', exact: true }).click()
   await expect(page.getByLabel('设定名称', { exact: true })).toHaveValue('测试地点')
   page.once('dialog', dialog => dialog.accept())
+  await openDeleteMenu(page, '删除资料')
   await page.getByRole('button', { name: '删除资料', exact: true }).click()
   await expect(list(page).getByRole('button')).toHaveCount(2)
   await list(page).getByRole('button').filter({ hasText: '测试势力' }).click()
@@ -181,4 +185,36 @@ test('library deletion cleans chapter references and narrow layouts keep control
   await expect(references.getByRole('button', { name: '测试地点', exact: true })).toHaveCount(0)
   await expect(references.getByLabel('引用资料')).not.toContainText('测试地点')
   await expect(page.getByRole('textbox', { name: '小说正文' })).toBeEmpty()
+})
+
+test('late initial association read cannot erase an acknowledged new link', async ({ page }) => {
+  const title = `关联读取乱序回归-${crypto.randomUUID()}`
+  await seed(page, title)
+  let reads = 0, release!: () => void, delivered!: () => void
+  const held = new Promise<void>(resolve => { release = resolve })
+  const finished = new Promise<void>(resolve => { delivered = resolve })
+  await page.route('**/knowledge-links', async route => {
+    if (route.request().method() !== 'GET' || ++reads !== 1) { await route.continue(); return }
+    const response = await route.fetch()
+    await held
+    await route.fulfill({ response }); delivered()
+  })
+  try {
+    await list(page).getByRole('button').filter({ hasText: '测试地点' }).click()
+    await links(page).getByLabel('引用资料').selectOption({ label: '测试势力 · 势力组织' })
+    const savedResponse = page.waitForResponse(response => response.url().endsWith('/knowledge-links') && response.request().method() === 'PUT' && response.status() === 200)
+    await links(page).getByRole('button', { name: '添加关联', exact: true }).click()
+    const response = await savedResponse
+    const acknowledged = await response.json()
+    expect(acknowledged.links).toHaveLength(1)
+    await expect(links(page).getByRole('button', { name: '测试势力', exact: true })).toBeVisible()
+    release(); await finished
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    await expect(links(page).getByRole('button', { name: '测试势力', exact: true })).toBeVisible()
+    await page.reload()
+    await page.getByRole('navigation', { name: '小说列表' }).getByRole('button', { name: title }).click()
+    await module(page, '创作资料库')
+    await list(page).getByRole('button').filter({ hasText: '测试地点' }).click()
+    await expect(links(page).getByRole('button', { name: '测试势力', exact: true })).toBeVisible()
+  } finally { release(); await page.unrouteAll({ behavior: 'ignoreErrors' }) }
 })
