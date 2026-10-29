@@ -1,5 +1,8 @@
 import {test,expect,type Page} from '@playwright/test'
 import {readFileSync} from 'node:fs'
+const duplicateKeys=new WeakMap<Page,string[]>()
+test.beforeEach(({page})=>{const messages:string[]=[];duplicateKeys.set(page,messages);page.on('console',message=>{if(message.text().includes('Encountered two children with the same key'))messages.push(message.text())})})
+test.afterEach(({page})=>{expect(duplicateKeys.get(page)??[],'联动组件必须保持唯一且稳定的React身份').toEqual([])})
 async function seed(page:Page,paragraphs=['虚构人物走进雨夜。','远方传来钟声。']){
  const health=await page.request.get('/api/health'),headers={'X-StoryForge-Generation':health.headers()['x-storyforge-generation']??''}
  const n=await(await page.request.post('/api/novels',{headers,data:{title:'联动测试-'+crypto.randomUUID(),description:''}})).json()
