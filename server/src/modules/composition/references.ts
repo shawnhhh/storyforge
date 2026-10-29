@@ -8,6 +8,7 @@ export function resolveSource(db:DatabaseSync,s:ClipSource,prefix=''):{url:strin
   if(!t)throw new HttpError(400,'时间线生成任务不存在')
   if(t.assetId)return resolveSource(db,{kind:'asset',id:String(t.assetId)},prefix)
   if(t.mediaId)return resolveSource(db,{kind:'media',id:String(t.mediaId)},prefix)
+  if(t.status==='completed')throw new HttpError(400,'生成任务的结果素材已缺失，不能作为时间线来源')
   const p=db.prepare(`SELECT kind FROM ${prefix}studio_projects WHERE id=?`).get(String(t.projectId))
   return{url:'',mime:p?.kind==='video'?'video/webm':'audio/wav',status:String(t.status)}
  }
