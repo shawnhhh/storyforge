@@ -20,7 +20,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['server/**/*.ts'],
+    files: ['server/**/*.ts', 'scripts/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
 ])

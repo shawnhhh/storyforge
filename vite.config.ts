@@ -5,7 +5,7 @@ import { defineConfig, loadEnv } from 'vite'
 export default defineConfig(({ mode, command }) => {
   // Production builds and isolated browser tests never load application secrets.
   // Local development may still read SERVER_PORT from the user's env file.
-  const isolated = command === 'build' || Boolean(process.env.E2E_BASE_URL)
+  const isolated = command === 'build' || Boolean(process.env.E2E_BASE_URL) || process.env.STORYFORGE_BETA === '1'
   const env = isolated ? {} : loadEnv(mode, process.cwd(), 'SERVER_PORT')
   const port = process.env.SERVER_PORT ?? env.SERVER_PORT ?? '3001'
   return {
@@ -19,6 +19,6 @@ export default defineConfig(({ mode, command }) => {
       host: '127.0.0.1',
       proxy: { '/api': `http://127.0.0.1:${port}` },
     },
-    preview: { host: '127.0.0.1' },
+    preview: { host: '127.0.0.1', proxy: { '/api': `http://127.0.0.1:${port}` } },
   }
 })
