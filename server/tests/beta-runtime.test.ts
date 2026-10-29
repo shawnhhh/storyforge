@@ -15,7 +15,7 @@ import { MockCreativeProvider } from '../src/modules/studio/provider.js'
 import { createHash } from 'node:crypto'
 
 function fixture(full = false) {
-  const root = mkdtempSync(join(tmpdir(), 'sf-beta-')), repo = join(root, 'repo'), worktree = join(root, 'code'), profile = join(root, 'profile')
+  const root = mkdtempSync(join(tmpdir(), 'sf-beta-')), repo = join(root, 'repo'), worktree = join(root, '候选 code'), profile = join(root, 'profile')
   mkdirSync(repo)
   const git = (args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' })
   git(['init', '-q']); git(['config', 'user.name', 'Synthetic test']); git(['config', 'user.email', 'mock@example.invalid'])
@@ -45,7 +45,7 @@ test('beta guards refuse repository/ancestor paths, real default paths, existing
   const f = fixture()
   try {
     const { homedir } = await import('node:os')
-    for (const p of [join(f.repo, 'data'), join(f.worktree, 'backups'), f.root, join(homedir(), 'Library/Application Support/StoryForge'), 'relative-profile']) await assert.rejects(initializeProfile(f.worktree, p))
+    for (const p of [join(f.repo, 'data'), join(f.worktree, 'backups'), f.root, join(homedir(), 'Library/Application Support/StoryForge'), join(f.root, 'bad\tpath'), 'relative-profile']) await assert.rejects(initializeProfile(f.worktree, p))
     const old = join(f.root, 'existing'); mkdirSync(old); writeFileSync(join(old, 'do-not-change'), 'synthetic witness')
     await assert.rejects(initializeProfile(f.worktree, old)); assert.equal(readFileSync(join(old, 'do-not-change'), 'utf8'), 'synthetic witness')
   } finally { f.close() }
@@ -115,7 +115,9 @@ test('beta production preview starts, persists a new work across graceful shutdo
     }
     async function stop() { const c = child!; const exited = new Promise<number | null>(r => c.once('exit', r)); c.kill('SIGTERM'); assert.equal(await exited, 0); child = undefined }
     await start()
-    assert.equal((await http(p.webPort, '/')).status, 200)
+    const page = await http(p.webPort, '/'); assert.equal(page.status, 200)
+    const assets = [...page.text.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map(m => m[1]); assert.ok(assets.length >= 2)
+    for (const asset of assets) { const r = await http(p.webPort, asset); assert.equal(r.status, 200); assert.ok(r.text.length > 50); assert.equal(r.text.trimStart().toLowerCase().startsWith('<!doctype'), false) }
     const health = await http(p.webPort, '/api/health'), made = await http(p.webPort, '/api/novels', 'POST', { title: '合成首启作品', description: 'temporary' }, health.generation)
     assert.equal(made.status, 201, made.text)
     const providers = JSON.parse((await http(p.webPort, '/api/studio/providers')).text) as { id: string }[]; assert.deepEqual(providers.map(p => p.id), ['mock'])

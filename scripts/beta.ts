@@ -20,7 +20,7 @@ export function pathsOverlap(a: string, b: string, insensitive = process.platfor
   return within(a, b) || within(b, a)
 }
 function canonical(path: string): string {
-  if (!isAbsolute(path) || /[\r\n\0]/.test(path)) throw Error('必须使用无控制字符的绝对路径')
+  if (!isAbsolute(path) || /[\u0000-\u001f\u007f]/.test(path)) throw Error('必须使用无控制字符的绝对路径')
   const p = resolve(path)
   return existsSync(p) ? realpathSync(p) : join(canonical(dirname(p)), p.slice(dirname(p).length + 1))
 }
@@ -36,7 +36,7 @@ export function worktreeInfo(root: string, detached = true) {
     try { branch = git(root, ['symbolic-ref', '--short', '-q', 'HEAD']) } catch { /* Detached HEAD is required. */ }
     if (branch) throw Error('测试worktree必须为detached HEAD，禁止修改来源分支')
   }
-  const roots = git(root, ['worktree', 'list', '--porcelain']).split('\n').filter(s => s.startsWith('worktree ')).map(s => canonical(s.slice(9)))
+  const roots = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0').filter(s => s.startsWith('worktree ')).map(s => canonical(s.slice(9)))
   return { root, roots, sha: git(root, ['rev-parse', 'HEAD']) }
 }
 function safeRoot(root: string, worktree: string) {
