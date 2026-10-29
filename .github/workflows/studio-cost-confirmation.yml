@@ -5,6 +5,9 @@ on:
       - 'tests/e2e/studio-costs.spec.ts'
       - 'src/shared/studio/GenerationBudget.tsx'
       - '.github/workflows/studio-cost-confirmation.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

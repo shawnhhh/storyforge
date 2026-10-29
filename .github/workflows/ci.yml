@@ -2,6 +2,9 @@ name: StoryForge checks
 on:
   push:
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -183,6 +186,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps firefox
+      - name: Start virtual audio output for headless Firefox
+        run: bash tests/e2e/setup-linux-audio.sh
       - name: IME form-control regression (Firefox)
         if: matrix.shard == 1
         run: npm run test:e2e -- --project=firefox planning story-bible --grep composition

@@ -47,7 +47,7 @@ export class StudioJobs {
   private atomic<T>(fn: () => T): T { this.db.exec('BEGIN IMMEDIATE'); try { const result = fn(); this.db.exec('COMMIT'); return result } catch (e) { this.db.exec('ROLLBACK'); throw e } }
   private event(id: string, status: string) { this.db.prepare('INSERT INTO studio_job_events(taskId,status,at) VALUES(?,?,?)').run(id, status, Date.now()) }
   history(id: string) { return this.db.prepare('SELECT status,at FROM studio_job_events WHERE taskId=? ORDER BY id').all(id) }
-  submit(input: GenerationInput, body: Record<string, unknown>) {
+  submit(input: GenerationInput, body: Record<string, unknown>, onSubmit?: (taskId:string)=>void) {
     const provider = this.providers.find(p => p.id === (body.provider ?? 'mock')), model = String(body.model ?? 'mock-v1')
     if (!provider) throw new HttpError(400, '服务商未启用')
     provider.validate(input, model)
@@ -62,7 +62,7 @@ export class StudioJobs {
       this.db.prepare('INSERT INTO studio_tasks VALUES(?,?,?,?,?,?,?,?,?)').run(id, input.project.id, provider.id, 'queued', 0, input.prompt, null, null, new Date(now).toISOString())
       this.costs?.reserve(id,input,provider.id,model,body.confirmation)
       this.db.prepare('INSERT INTO studio_jobs(taskId,provider,model,key,digest,snapshot,due,deadline) VALUES(?,?,?,?,?,?,?,?)').run(id, provider.id, model, key, digest, snapshot, now, now + 30 * 60 * 1000)
-      this.event(id, 'submitted'); this.event(id, 'queued'); return id
+      onSubmit?.(id); this.event(id, 'submitted'); this.event(id, 'queued'); return id
     })
     this.wake(); return this.task(id)
   }

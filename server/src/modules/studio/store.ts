@@ -1,3 +1,5 @@
+import {parseComposition,type Composition} from '../../../../shared/video/composition.js'
+import {validateMediaReferences} from '../composition/references.js'
 import { videoSourceLinks } from '../../../../shared/video/sources.js'
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
@@ -42,6 +44,7 @@ export function settings(value: unknown, kind: StudioKind): StudioSettings {
       }
     }
   }
+  if(result.composition!==undefined){if(kind!=='video')throw new HttpError(400,'时间线必须是视频工程');try{parseComposition(result.composition)}catch{throw new HttpError(400,'分镜或时间线格式无效')}}
   return result
 }
 const mapProject = (row: Record<string, unknown>): StudioProject => ({ ...row, settings: JSON.parse(String(row.settings)) }) as unknown as StudioProject
@@ -49,6 +52,7 @@ const assetColumns = 'id,projectId,name,mime,bytes,createdAt'
 export class StudioStore {
   get backupDatabase() { return this.db }
   importer() { return new StudioImporter(this.db) }
+  checkComposition?: (c:Composition,old?:Composition)=>void
   readonly jobs: StudioJobs
   readonly media: MediaStore
   readonly costs: CostControls
@@ -71,6 +75,7 @@ export class StudioStore {
     return mapProject(row)
   }
   private transaction<T>(action: () => T): T {
+    if(this.db.isTransaction)return action()
     this.db.exec('BEGIN IMMEDIATE')
     try { const value = action(); this.db.exec('COMMIT'); return value } catch (e) { this.db.exec('ROLLBACK'); throw e }
   }
@@ -79,14 +84,16 @@ export class StudioStore {
   }
   create(body: Record<string, unknown>) {
     if (body.kind !== 'music' && body.kind !== 'video') throw new HttpError(400, '业务模块无效')
-    const project: StudioProject = { id: randomUUID(), kind: body.kind, title: string(body.title, '项目名称', 200), content: '', settings: {}, version: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-    return this.transaction(() => { this.db.prepare('INSERT INTO studio_projects VALUES(?,?,?,?,?,?,?,?)').run(project.id, project.kind, project.title, '', '{}', 1, project.createdAt, project.updatedAt); this.remember(project); return project })
+    const project: StudioProject = { id: randomUUID(), kind: body.kind, title: string(body.title, '项目名称', 200), content: '', settings: settings(body.settings??{},body.kind), version: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    if(project.settings.composition){const c=parseComposition(project.settings.composition);validateMediaReferences(this.db,c);this.checkComposition?.(c)}
+    return this.transaction(() => { this.db.prepare('INSERT INTO studio_projects VALUES(?,?,?,?,?,?,?,?)').run(project.id, project.kind, project.title, '', JSON.stringify(project.settings), 1, project.createdAt, project.updatedAt); this.remember(project); return project })
   }
   save(id: string, body: Record<string, unknown>) {
     return this.transaction(() => {
       const current = this.project(id)
       if (body.version !== current.version) throw new HttpError(409, '项目已更改，请保留本机编辑并重新载入')
       const project = { ...current, title: string(body.title, '项目名称', 200), content: string(body.content, '内容', 200000, true), settings: settings(body.settings, current.kind), version: current.version + 1, updatedAt: new Date().toISOString() }
+      if(project.settings.composition){const c=parseComposition(project.settings.composition);validateMediaReferences(this.db,c);this.checkComposition?.(c,current.settings.composition?parseComposition(current.settings.composition):undefined)}
       this.db.prepare('UPDATE studio_projects SET title=?,content=?,settings=?,version=?,updatedAt=? WHERE id=?').run(project.title, project.content, JSON.stringify(project.settings), project.version, project.updatedAt, id)
       this.remember(project); return project
     })
@@ -116,6 +123,7 @@ export class StudioStore {
   }
 
   export(id: string, legacyOnly = false) {
+    if(!legacyOnly&&(this.project(id).settings.composition||this.history(id).some(v=>v.settings.composition)))throw new HttpError(413,'联动工程请使用统一备份以保持跨工程引用')
     if (!legacyOnly && (this.media.list(id).length || this.db.prepare('SELECT 1 FROM studio_task_media m JOIN studio_tasks t ON m.taskId=t.id WHERE t.projectId=?').get(id))) throw new HttpError(413, '大媒体请使用统一媒体备份 v2')
     const payload = { schema: 1, project: this.project(id), history: this.history(id), tasks: this.tasks(id).map(t=>legacyOnly && t.status==='completed' && !t.assetId?{...t,status:'failed' as const,error:'外置媒体由 v2 清单保存'}:t), assets: this.assets(id).map(asset => ({ ...asset, data: Buffer.from(this.asset(asset.id).data as Uint8Array).toString('base64') })) }
     return { ...payload, sha256: createHash('sha256').update(JSON.stringify(payload)).digest('hex') }
