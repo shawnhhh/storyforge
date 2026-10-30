@@ -1,0 +1,135 @@
+/* StoryForge's shared desktop palette. Business workspaces retain their own layouts. */
+:root {
+  --sf-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  --sf-surface: #fff;
+  --sf-panel: #f5f5f7;
+  --sf-field: #fafafa;
+  --sf-preview: #f5f5f7;
+  --sf-text: #252528;
+  --sf-muted: #6e6e73;
+  --sf-border: #dcdce0;
+  --sf-accent: #0067d9;
+  --sf-accent-hover: #005bbf;
+  --sf-accent-text: #fff;
+  --sf-selected: #e6eef8;
+  --sf-focus: #007aff;
+  --sf-error: #a73532;
+  --sf-sidebar: #eeeeef;
+  --sf-toolbar: #f9f9fa;
+  --sf-radius: 8px;
+  --sf-radius-large: 12px;
+  --sf-shadow: #00000016;
+  font-family: var(--sf-font);
+  color: var(--sf-text);
+  background: var(--sf-panel);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:root[data-theme=dark] {
+  --sf-surface: #202024;
+  --sf-panel: #262629;
+  --sf-field: #2c2c30;
+  --sf-preview: #25252a;
+  --sf-text: #ededf0;
+  --sf-muted: #b0b0ba;
+  --sf-border: #424248;
+  --sf-accent: #8bbdff;
+  --sf-accent-hover: #1266c7;
+  --sf-selected: #334760;
+  --sf-focus: #8bbdff;
+  --sf-error: #ffb1a5;
+  --sf-sidebar: #29292c;
+  --sf-toolbar: #242427;
+  --sf-shadow: #00000050;
+  color-scheme: dark;
+  color: var(--sf-text);
+  background: var(--sf-panel);
+}
+body { margin: 0; font-family: var(--sf-font); }
+button, input, textarea, select { font-family: inherit; }
+button, select { transition: background-color 140ms ease, border-color 140ms ease; }
+a { text-underline-offset: 3px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--sf-focus); outline-offset: 3px;
+}
+button.primary, .music-workbench button.primary, .video-studio .video-primary {
+  color: #fff; background: var(--sf-accent-hover); border-color: var(--sf-accent-hover);
+}
+button.primary:hover:not(:disabled), .music-workbench button.primary:hover:not(:disabled), .video-studio .video-primary:hover:not(:disabled) {
+  background: #004eaa; border-color: #004eaa;
+}
+.theme-control { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--sf-muted); font-size: 13px; }
+.theme-control select { width: auto; min-width: 0; padding: 6px 5px; background: transparent; color: var(--sf-text); border: 0; border-radius: 6px; }
+.theme-control > span { font-size: 17px; }
+.module-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 16px; }
+.module-toolbar nav { display: flex; align-items: center; gap: 14px; }
+.module-toolbar a { font-size: 13px; color: var(--sf-muted); text-decoration: none; }
+.module-toolbar a:hover { color: var(--sf-accent); }
+.music-workbench, .video-studio, .studio-frame {
+  color: var(--sf-text); background: var(--sf-surface); font-family: var(--sf-font); font-size: 14px; line-height: 1.55;
+}
+.music-workbench { padding: 0; }
+.music-workbench > header, .video-top, .studio-frame > header {
+  min-height: 74px; padding: 15px 28px; margin: 0; background: var(--sf-toolbar); border-bottom: 1px solid var(--sf-border);
+}
+.music-workbench h1, .video-top h1, .studio-frame h1 { font-size: 21px; font-weight: 600; letter-spacing: -.5px; }
+.music-workbench > header .music-note, .video-eyebrow { font-size: 10px; letter-spacing: 1.5px; color: var(--sf-muted); }
+.music-layout, .video-layout { max-width: none; grid-template-columns: 238px minmax(0, 1fr); gap: 0; }
+.music-layout > aside, .video-layout > aside {
+  background: var(--sf-sidebar); border: 0; border-right: 1px solid var(--sf-border); padding: 25px 18px; border-radius: 0; min-height: calc(100dvh - 74px);
+}
+.music-layout > section { border: 0; border-radius: 0; padding: 30px clamp(24px, 4vw, 64px); background: var(--sf-surface); }
+.video-editor { padding: 30px clamp(24px, 4vw, 64px); }
+.music-workbench h2, .video-studio h2 { font-size: 17px; font-weight: 600; letter-spacing: -.25px; }
+.music-workbench :is(input,textarea,select,button), .video-studio :is(input,textarea,select,button), .studio-frame :is(input,textarea,select,button) {
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 8px 11px; color: var(--sf-text); background: var(--sf-field); font: inherit;
+}
+.music-workbench button, .video-studio button, .studio-frame button { font-size: 13px; line-height: 1.5; }
+.music-workbench :is(input[type=checkbox],input[type=radio]), .video-studio :is(input[type=checkbox],input[type=radio]) { width: auto; accent-color: var(--sf-accent-hover); }
+.music-workbench button:hover:not(:disabled), .video-studio button:hover:not(:disabled), .studio-frame button:hover:not(:disabled) { background: var(--sf-selected); }
+.music-projects { gap: 3px; }
+.music-projects button, .video-layout nav button { border: 0; background: transparent; text-align: left; border-radius: 7px; padding: 10px 11px; }
+.music-projects button[aria-current=true], .video-layout nav button[aria-current=true] { background: var(--sf-selected); color: var(--sf-accent); }
+.music-workbench label, .video-studio label { font-size: 13px; color: var(--sf-muted); }
+.music-lyrics { border-color: transparent !important; background: var(--sf-surface) !important; padding: 16px 4px !important; font-size: 17px !important; line-height: 1.9; min-height: 330px; }
+.music-lyrics:focus { border-color: var(--sf-border) !important; padding-inline: 12px !important; }
+.music-actions { gap: 9px; margin-block: 18px; }
+.music-asset, .video-card, .video-shots li { border-color: var(--sf-border); border-radius: var(--sf-radius-large); background: var(--sf-surface); box-shadow: none; }
+.music-asset { border: 0; border-top: 1px solid var(--sf-border); border-radius: 0; padding: 18px 0; }
+.video-shots { gap: 0; }
+.video-shots li { padding: 24px 0; border: 0; border-bottom: 1px solid var(--sf-border); border-radius: 0; }
+.video-card { padding: 22px; }
+.music-error { margin: 16px 24px; padding: 10px 14px; border: 0; border-left: 3px solid var(--sf-error); border-radius: 3px; color: var(--sf-error); background: var(--sf-panel); }
+.music-workbench > p[role=status] { padding-inline: 28px; font-size: 12px; color: var(--sf-muted); }
+.music-workbench > p[role=status]:empty { display: none; }
+.music-workbench hr { border: 0; border-top: 1px solid var(--sf-border); margin-block: 26px; }
+.music-workbench figure, .video-studio figure { margin: 0; }
+.music-workbench figcaption, .video-studio figcaption { font-size: 12px; color: var(--sf-muted); }
+.music-workbench progress, .video-studio progress, .studio-frame progress { accent-color: var(--sf-accent-hover); height: 6px; }
+.music-workbench .theme-control, .video-studio .theme-control { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin: 0; }
+.music-workbench .theme-control select, .video-studio .theme-control select { border: 0; background: transparent; width: auto; padding: 5px; font-size: 12px; }
+.music-workbench :focus-visible, .video-studio :focus-visible, .studio-frame :focus-visible { outline-color: var(--sf-focus); }
+.composition-panel fieldset { border-color: var(--sf-border); border-radius: var(--sf-radius); }
+.studio-frame { padding: 0 28px 28px; text-align: left; }
+.studio-frame > header { margin-inline: -28px; }
+.local-dialog, .novel-dialog { border-radius: 14px; box-shadow: 0 20px 70px var(--sf-shadow); }
+@media (max-width: 1000px) {
+  .music-layout, .video-layout { grid-template-columns: 200px minmax(0, 1fr); }
+  .music-config { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .music-layout > section, .video-editor { padding: 24px; }
+}
+@media (max-width: 700px) {
+  .music-workbench > header, .video-top { padding: 14px 16px; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .module-toolbar { justify-content: flex-start; gap: 12px; }
+  .module-toolbar nav { gap: 12px; }
+  .music-layout, .video-layout { grid-template-columns: minmax(0, 1fr); }
+  .music-layout > aside, .video-layout > aside { min-height: 0; padding: 18px 16px; border-right: 0; border-bottom: 1px solid var(--sf-border); }
+  .music-layout > section, .video-editor { padding: 22px 16px; }
+  .music-config { grid-template-columns: minmax(0, 1fr); }
+  .music-projects { max-height: 160px; overflow: auto; }
+  .video-card { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; scroll-behavior: auto !important; }
+}

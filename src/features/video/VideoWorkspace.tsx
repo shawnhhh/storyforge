@@ -9,6 +9,7 @@ import type { StudioAsset, StudioProject, StudioTask, StudioVersion } from '../.
 import { MockVideoAdapter, readVideoConfiguration, validateVideo, type VideoConfiguration } from '../../../shared/video/model'
 import { ApiError, request } from '../../shared/api/client'
 import { usePreferences } from '../preferences/usePreferences'
+import { ThemeControl } from '../../shared/ui/ThemeControl'
 import '../preferences/preferences.css'
 import { AssetPreview, TaskProgress } from '../../shared/studio/StudioFrame'
 import './video.css'
@@ -20,7 +21,7 @@ async function fileData(file: File): Promise<string> {
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('素材读取失败')); reader.readAsDataURL(file) })
 }
 export function VideoWorkspace() {
-  usePreferences()
+  const preferences = usePreferences()
   const budget = useGenerationBudget('video')
   const activeId = useRef<string | null>(null)
   const relatedSequence = useRef(0)
@@ -89,7 +90,7 @@ export function VideoWorkspace() {
   }
   function updateShot(index: number, patch: Partial<VideoConfiguration['shots'][number]>) { setConfiguration(value => ({ ...value, shots: value.shots.map((shot, i) => i === index ? { ...shot, ...patch } : shot) })) }
   return <main className="video-studio">
-    <header className="video-top"><div><span className="video-eyebrow">STORYFORGE / VIDEO</span><h1>视频工作台</h1></div><a href="#">小说</a></header>
+    <header className="video-top"><div><span className="video-eyebrow">STORYFORGE / VIDEO</span><h1>视频工作台</h1></div><div className="module-toolbar"><nav aria-label="创作模块"><a href="#">小说</a><a href="#music">音乐工作台</a></nav><ThemeControl value={preferences.value.theme} onChange={theme => preferences.change({ ...preferences.value, theme })} /></div></header>
     <div className="video-layout"><aside><h2>视频项目</h2><SequenceLauncher disabled={busy||dirty} onCreated={async p=>{display(p);await related(p.id);await loadProjects()}}/><ImportPanel kind="video" disabled={busy || dirty} onImported={loadProjects} /><button disabled={!ready || busy || dirty} onClick={() => void execute(async () => { const value = await request<StudioProject>(path, 'POST', { kind: 'video', title: '未命名视频' }); display(value); await related(value.id); await loadProjects(); setMessage('已创建视频项目') })}>新建视频项目</button><nav aria-label="视频项目列表">{projects.map(value => <button aria-current={project?.id === value.id ? 'page' : undefined} key={value.id} disabled={busy} onClick={() => void select(value.id)}>{value.title}</button>)}</nav><p>素材与版本保存在本机 Studio 数据库。请定期导出工程文件。</p></aside>
     <section className="video-editor"><p role="status" data-video-message>{message}{dirty ? ' · 有未保存更改' : ''}</p>{project ? <fieldset className="video-fields" disabled={busy}>
       <fieldset disabled={sequenceDirty} style={{border:0,padding:0}}><div className="video-toolbar"><button onClick={exportDraft}>导出未保存草稿</button>{draft && <button onClick={() => { setTitle(draft.title); setContent(draft.content); setConfiguration(draft.configuration); setDraft(null); setMessage('本机草稿已载入，请核对后保存') }}>恢复本机草稿</button>}<label>视频名称<input aria-label="视频名称" value={title} onChange={event => setTitle(event.target.value)} maxLength={200} /></label><button className="video-primary" disabled={busy} onClick={() => void save()}>保存视频项目</button><a download href={`/api/studio/projects/${project.id}/export`}>导出工程 JSON</a></div><p className="video-backup-note">小说备份不包含视频，请定期导出工程。</p>

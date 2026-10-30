@@ -24,7 +24,7 @@ type Entry = Outline | Plotline | PlotCard | Foreshadow
 const labels: Record<Section, string> = { outlines: '小说大纲', plotlines: '剧情线', cards: '剧情卡片', foreshadows: '伏笔管理' }
 const statusLabels: Record<PlanningSaveStatus, string> = { saved: '已保存到数据库', pending: '等待保存', saving: '保存中…', failed: '保存失败 · 草稿已保留', conflict: '版本冲突 · 草稿已保留' }
 
-export function PlanningPanel({ novelId, chapters, onBack, onDirty, initialSelection, onOpen }: { onOpen?: OpenMaterial; initialSelection?: SearchHit | null; novelId: string; chapters: ChapterSummary[]; onBack: () => void; onDirty: (dirty: boolean) => void }) {
+export function PlanningPanel({ initialTimeline = false, novelId, chapters, onBack, onDirty, initialSelection, onOpen }: { initialTimeline?: boolean; onOpen?: OpenMaterial; initialSelection?: SearchHit | null; novelId: string; chapters: ChapterSummary[]; onBack: () => void; onDirty: (dirty: boolean) => void }) {
   const [loaded, setLoaded] = useState<{ snapshot: PlanningSnapshot } | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -42,16 +42,16 @@ export function PlanningPanel({ novelId, chapters, onBack, onDirty, initialSelec
     return () => { active = false }
   }, [novelId, attempt])
   if (!loaded) return <section className="planning-panel"><button onClick={onBack}>返回写作</button>{error ? <div role="alert">{error}<button onClick={() => { void (async () => { try { const drafts = await readLocalDrafts<PlanningSnapshot>(`planning:${novelId}`); if (drafts.length) { for (const draft of drafts) downloadDraft(draft.value) } else { const legacy = readDraft(novelId); if (legacy) downloadDraft(legacy.snapshot); else setError('此作品没有本机草稿') } } catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取本机草稿') } })() }}>导出本机规划草稿</button><button onClick={() => { setError(''); setAttempt(value => value + 1) }}>重试加载</button></div> : <p role="status">正在加载创作规划…</p>}</section>
-  return <PlanningEditor key={`${novelId}:${attempt}`} initial={loaded.snapshot} focusAi={focusAi} initialSelection={initialSelection} onOpen={onOpen} chapters={chapters} onBack={onBack} onDirty={onDirty} onReload={focus => { setFocusAi(!!focus); setLoaded(null); setAttempt(value => value + 1) }} />
+  return <PlanningEditor initialTimeline={initialTimeline} key={`${novelId}:${attempt}`} initial={loaded.snapshot} focusAi={focusAi} initialSelection={initialSelection} onOpen={onOpen} chapters={chapters} onBack={onBack} onDirty={onDirty} onReload={focus => { setFocusAi(!!focus); setLoaded(null); setAttempt(value => value + 1) }} />
 }
-function PlanningEditor({ initial, focusAi, chapters, onBack, onReload, onDirty, initialSelection, onOpen }: { onOpen?: OpenMaterial; initialSelection?: SearchHit | null; initial: PlanningSnapshot; focusAi: boolean; chapters: ChapterSummary[]; onBack: () => void; onReload: (focusAi?: boolean) => void; onDirty: (dirty: boolean) => void }) {
+function PlanningEditor({ initialTimeline, initial, focusAi, chapters, onBack, onReload, onDirty, initialSelection, onOpen }: { initialTimeline: boolean; onOpen?: OpenMaterial; initialSelection?: SearchHit | null; initial: PlanningSnapshot; focusAi: boolean; chapters: ChapterSummary[]; onBack: () => void; onReload: (focusAi?: boolean) => void; onDirty: (dirty: boolean) => void }) {
   const draft = useDraftProtection(`planning:${initial.novelId}`, initial)
   const { protection } = draft
   const [snapshot, setSnapshot] = useState(initial)
   const [materials, setMaterials] = useState<{ bible: StoryBible; knowledge: KnowledgeSnapshot } | null>(null)
   const [materialError, setMaterialError] = useState('')
   const [materialAttempt, setMaterialAttempt] = useState(0)
-  const [showTimeline, setShowTimeline] = useState(false)
+  const [showTimeline, setShowTimeline] = useState(initialTimeline)
   useEffect(() => {
     let active = true
     Promise.all([storyApi.list(initial.novelId), storyApi.links(initial.novelId)]).then(([bible, knowledge]) => {
