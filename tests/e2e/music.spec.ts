@@ -85,3 +85,30 @@ test('music stale save preserves lyrics and wrong-project navigation remains blo
   expect((await persisted.json()).content).toBe('另一窗口已保存的歌词')
   await page.getByRole('button', { name: '放弃本次编辑' }).click()
 })
+
+test('music local lyrics outline navigates sections and exports unsaved TXT draft', async ({ page }) => {
+  await page.goto('/#music')
+  await page.getByLabel('歌曲名称', { exact: true }).fill('免费歌词导航演示')
+  await page.getByRole('button', { name: '创建歌曲', exact: true }).click()
+  const text = '[主歌]\n夜晚的风\n[副歌]\n星光不眠'
+  await page.getByLabel('歌词', { exact: true }).fill(text)
+  const outline = page.getByRole('region', { name: '歌词结构导航' })
+  await expect(outline).toContainText('2 段')
+  const nav = page.getByRole('navigation', { name: '跳转歌词段落' })
+  await expect(nav.locator('button')).toHaveCount(2)
+  await nav.locator('button').nth(1).click()
+  const offset = text.indexOf('[副歌]')
+  await expect.poll(() => page.getByLabel('歌词', { exact: true })
+    .evaluate(el => (el as HTMLTextAreaElement).selectionStart)).toBe(offset)
+  await expect(page.getByText('有未保存编辑', { exact: true })).toBeVisible()
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: '将当前歌词导出为 TXT' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('免费歌词导航演示.txt')
+  const chunks: Buffer[] = []
+  const stream = await download.createReadStream()
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk))
+  expect(Buffer.concat(chunks).toString('utf8')).toBe(text)
+  await expect(page.getByText('有未保存编辑', { exact: true })).toBeVisible()
+})
