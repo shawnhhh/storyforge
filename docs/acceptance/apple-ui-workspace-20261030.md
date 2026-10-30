@@ -47,6 +47,7 @@
 - 统一备份错误已精准修复：新增多作品fixture暴露旧递归remap会将与ID同值的 `main/subplot` 类型、标题或正文误映射为UUID。仅在语义ID/引用键上重映射，已知JSON图结构容器继续递归处理；正文、类型枚举、提示词、备注和JSON样式文本逐字保留。服务回归保留合法碰撞ID（修复前1失败、修复后通过），检查真实引用重映射、源作品未变、恢复后再导出/预览以及外键完整。另有多小说E2E往返验证；测试种子与生产UI一致生成唯一ID，不把更换种子当服务修复。无schema变更。
 - 本地首次 build 因沙箱禁止 `git` 子进程失败、首次单元因禁止监听失败；改用获准执行环境重跑。不是产品代码通过的替代声明。
 - 本地 Firefox 下载两个官方地址均被网络策略403拒绝，实际 Firefox E2E 入口已执行，但因浏览器缺失启动失败；不计通过。使用仓库原 Firefox CI 获取真实结果。macOS Chrome/WebKit 仅由现有 macOS CI 执行。
+- macOS Chrome在修复后同源提交的完整单进程集合通过144项后触及原900秒整套预算，11项未跑，无断言失败；同次WebKit完整155/155通过。将macOS完整集合改为与Linux一致的三个顺序隔离分片，仍执行全部155项，每项/每轮原超时不变，没有通过提高超时掩盖问题。最终准确HEAD的全部结果见PR验收表。
 - 拓宽费用确认工作流 paths，使共享样式、Music/Video 与首帧主题改动也触发原 macOS 费用回归；没有减少任何旧测试。
 
 ## 实际截图索引
@@ -83,6 +84,7 @@
 |`tests/e2e/chapter-inspector.spec.ts`|新增真实关联、CAS、输入/选区、双面板同步及备份往返5例|
 |`server/src/modules/backups/unified.ts`|只重映射语义ID/引用，保留类型与正文内容|
 |`server/tests/unified-backup.test.ts`|新增合法ID碰撞及备份再次往返安全回归|
+|`.github/workflows/ci.yml`|macOS完整集合使用三个隔离分片，保留全部用例与原超时|
 |`.github/workflows/studio-cost-confirmation.yml`|扩大费用确认回归的UI触发范围|
 |`docs/acceptance/apple-ui/*.png`|24张实际应用截图|
 |本报告|中文验收与文件/截图索引|

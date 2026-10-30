@@ -182,8 +182,13 @@ jobs:
       - name: Repeat isolated backup draft recovery five times (WebKit)
         if: matrix.browser == 'webkit'
         run: npm run test:e2e -- --project=webkit draft-recovery.spec.ts --grep 'restoring an isolated database backup' --repeat-each=5
-      - name: Complete browser regression
-        run: npm run test:e2e -- --project=${{ matrix.project }}
+      # Keep all tests and their original deadlines. Fresh isolated services per
+      # shard prevent accumulated restore fixtures from exhausting one 900s run.
+      - name: Complete browser regression (three isolated shards)
+        run: |
+          npm run test:e2e -- --project=${{ matrix.project }} --shard=1/3
+          npm run test:e2e -- --project=${{ matrix.project }} --shard=2/3
+          npm run test:e2e -- --project=${{ matrix.project }} --shard=3/3
         env:
           E2E_CHROMIUM_CHANNEL: ${{ matrix.channel }}
       - name: Upload macOS browser diagnostics
