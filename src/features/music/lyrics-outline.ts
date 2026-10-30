@@ -35,6 +35,6 @@ export function analyzeLyrics(text: string): LyricsOutlineAnalysis {
 }
 
 export function lyricsTextFilename(title: string): string {
-  const safe = title.replace(/[<>:"/\\|?*\u0000-\u001f]/gu, '_').trim().replace(/[. ]+$/gu, '').slice(0, 60)
+  const safe = Array.from(title, character => (/[<>:"/\\|?*]/u.test(character) || character.codePointAt(0)! < 32 || character.codePointAt(0) === 127) ? '_' : character).join('').trim().replace(/[. ]+$/gu, '').slice(0, 60)
   return (safe || 'music-lyrics') + '.txt'
 }
