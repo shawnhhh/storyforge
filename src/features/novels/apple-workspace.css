@@ -1,0 +1,116 @@
+/* Desktop writing shell. All data and editor ownership stay in the existing modules. */
+.workspace.apple-workspace{background:var(--sf-surface);color:var(--sf-text);min-width:0}
+.apple-workspace .library-pane{width:236px;padding:20px 12px 12px;background:var(--sf-sidebar,var(--sf-panel));gap:3px;overflow:auto}
+.apple-workspace .brand{padding:0 8px;margin-bottom:18px;gap:10px}
+.apple-workspace .brand strong{font-size:18px;letter-spacing:-.5px}
+.apple-workspace .brand-mark{background:var(--sf-accent-hover);width:32px;height:32px;border-radius:9px;font-size:20px;box-shadow:inset 0 0 0 1px #ffffff20}
+.apple-workspace .brand small{font-size:10px;margin-top:3px}
+.apple-workspace .dashboard-home{margin:0;padding:7px 9px;text-align:left;background:transparent;border:0;font-size:13px}
+.apple-workspace .workspace-module-entry{padding:7px 9px;margin:0;background:transparent;border:0;border-radius:6px;color:var(--sf-text);font-size:13px;text-decoration:none;text-align:left}
+.apple-workspace .workspace-module-entry:hover{background:var(--sf-selected)}
+.apple-workspace .library-utilities{margin:8px 0;gap:6px}
+.apple-workspace .library-utilities button{border:0;background:transparent;font-size:11px;padding:5px}
+.apple-workspace .library-heading{padding:6px 8px;margin:0;font-size:11px}
+.apple-workspace .novel-list{flex:none;min-height:36px;max-height:140px}
+.apple-workspace .novel-item{gap:9px;padding:8px;margin:1px 0;border-radius:7px}
+.apple-workspace .novel-item small{margin-top:3px;font-size:10px}
+.apple-workspace .book-icon{font-size:20px;color:var(--sf-accent)}
+.apple-workspace .workspace-sections{display:flex;flex-direction:column;align-items:stretch;padding:9px 0;margin:4px 0;border-top:1px solid var(--sf-divider,var(--sf-border));border-bottom:1px solid var(--sf-divider,var(--sf-border));gap:1px;flex-shrink:0}
+.apple-workspace .workspace-sections button{text-align:left;border:0;background:transparent;padding:6px 10px;font-size:12px;border-radius:6px;color:var(--sf-muted)}
+.apple-workspace .workspace-sections button[aria-pressed=true]{color:var(--sf-text);background:var(--sf-selected);font-weight:600}
+.apple-workspace .chapter-pane{background:transparent;border:0;padding:8px 0;width:100%;flex:1;min-height:140px;overflow:hidden}
+.apple-workspace .chapter-heading{padding:0 8px;margin-bottom:5px;font-size:11px}
+.apple-workspace .chapter-search{font-size:11px;padding:6px 8px;margin-bottom:5px;background:var(--sf-field);border-color:var(--sf-divider,var(--sf-border))}
+.apple-workspace .chapter-list{flex:1;min-height:32px}
+.apple-workspace .chapter-select{padding:7px 8px;font-size:12px;gap:8px}
+.apple-workspace .chapter-list li{margin:1px 0}
+.apple-workspace .chapter-select[aria-current=page]{opacity:1}
+.apple-workspace .chapter-list li.active{background:var(--sf-selected)}
+.apple-workspace .order-buttons{height:14px}
+.apple-workspace .library-bottom{padding-top:8px;gap:5px;flex-shrink:0}
+.apple-workspace .library-bottom button{font-size:11px;padding:4px;border:0;background:transparent;text-align:left}
+.apple-workspace .library-bottom small{font-size:9px;text-align:left;padding:5px 4px}
+.apple-workspace .workspace-heading{min-height:72px;padding:12px 24px;gap:12px;background:var(--sf-toolbar,var(--sf-panel));border-color:var(--sf-divider,var(--sf-border));flex-wrap:wrap}
+.apple-workspace .workspace-heading>div:first-of-type{flex:1;min-width:80px}
+.apple-workspace .workspace-heading h1{font-size:17px;letter-spacing:-.4px;font-weight:600}
+.apple-workspace .eyebrow{font-size:10px;margin-bottom:4px;color:var(--sf-muted);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.apple-workspace .workspace-display-tools{display:flex;align-items:center;gap:8px}
+.apple-workspace .workspace-heading .button-row{gap:5px}
+.apple-workspace .workspace-heading button,.apple-workspace .workspace-heading select{font-size:11px;padding:6px 8px}
+.apple-workspace .sidebar-toggle{border:0;background:transparent;font-size:20px!important;padding:4px!important;color:var(--sf-muted)}
+.apple-workspace .pending-note{padding:5px 24px;font-size:10px;line-height:1.5;background:var(--sf-panel);color:var(--sf-muted);height:25px;overflow:hidden}
+.apple-workspace .chapter-navigation{padding:8px 24px;gap:6px;background:var(--sf-surface);border-color:var(--sf-divider,var(--sf-border))}
+.apple-workspace .chapter-navigation button,.apple-workspace .chapter-navigation select{font-size:11px;padding:5px 7px;border:0;background:var(--sf-panel)}
+.apple-workspace .chapter-navigation select{max-width:none}
+.apple-workspace .chapter-position,.apple-workspace .shortcut-help{font-size:10px}
+.apple-workspace .editor-pane{background:var(--sf-surface);--writing-inset:32px}
+.apple-workspace .editor-heading{padding:16px 32px 8px;font-size:10px}
+.apple-workspace .chapter-title{font-size:28px;line-height:1.4;margin-top:18px;margin-bottom:22px;color:var(--sf-text)}
+.apple-workspace .editor-tools{border-color:var(--sf-divider,var(--sf-border));padding-right:16px}
+.apple-workspace .editor-tools button{font-size:11px;padding:6px 8px}
+.apple-workspace .format-bar{padding:6px 24px;gap:1px}
+.apple-workspace .document{padding-top:24px;padding-bottom:72px;scrollbar-gutter:stable}
+.apple-workspace .tiptap{color:var(--sf-text);line-height:2;letter-spacing:.015em}
+.apple-workspace .editor-footer{padding:10px 24px;color:var(--sf-muted);border-color:var(--sf-divider,var(--sf-border));font-size:10px}
+.apple-workspace .chapter-references{background:var(--sf-panel);border-color:var(--sf-divider,var(--sf-border));padding:6px 24px}
+.apple-workspace .chapter-references>button{border:0;background:transparent;padding:3px;font-size:11px;color:var(--sf-muted)}
+.apple-workspace .writing-area{position:relative;overflow:hidden}
+.apple-workspace .inspector-slot{width:300px;min-width:300px;min-height:0;overflow:auto;border-left:1px solid var(--sf-divider,var(--sf-border));background:var(--sf-panel)}
+.apple-workspace .inspector-slot[hidden]{display:none}
+.apple-workspace.sidebar-collapsed .library-pane{display:none}
+.workspace.apple-workspace.focused .library-pane,.workspace.apple-workspace.focused .inspector-slot{display:none}
+.workspace.apple-workspace.focused .workspace-heading>div:first-of-type{display:flex;align-items:center;gap:18px}
+.workspace.apple-workspace.focused .workspace-display-tools{display:none}
+.workspace.apple-workspace.focused .editor-pane{--writing-inset:48px;background:var(--sf-surface)}
+.workspace.apple-workspace.focused .document{max-width:min(100%,850px);align-self:center}
+.workspace.apple-workspace.focused .chapter-title{max-width:754px;align-self:center;margin:16px auto}
+@media(min-width:721px) and (max-width:1179px){
+ .apple-workspace .library-pane{width:208px}
+ .apple-workspace .inspector-slot{position:absolute;right:0;top:0;bottom:0;width:300px;min-width:0;z-index:6;box-shadow:-12px 0 32px var(--sf-shadow)}
+ .apple-workspace .workspace-heading .button-row{flex:1}
+}
+@media(max-width:720px){
+ .workspace.apple-workspace,.workspace.apple-workspace:not(.focused){flex-direction:column;min-width:0}
+ .workspace.apple-workspace .library-pane{width:100%;height:170px;max-height:170px;display:flex;flex-direction:row;flex-wrap:wrap;gap:3px 8px;padding:8px 12px;overflow:auto;border-right:0;border-bottom:1px solid var(--sf-border)}
+ .workspace.apple-workspace .brand,.workspace.apple-workspace .sidebar-note,.workspace.apple-workspace .library-bottom small{display:none}
+ .workspace.apple-workspace .library-utilities{margin:0}
+ .workspace.apple-workspace .library-heading{padding:0;width:auto}
+ .workspace.apple-workspace .novel-list{width:100%;min-height:32px;max-height:40px;display:flex;overflow:auto}
+ .workspace.apple-workspace .novel-item{width:auto;min-width:130px;max-width:220px;padding:5px;flex-shrink:0}
+ .workspace.apple-workspace .workspace-sections{flex-direction:row;min-height:32px;width:100%;overflow:auto;padding:0;margin:0;border:0}
+ .workspace.apple-workspace .workspace-sections button{white-space:nowrap;padding:5px 8px}
+ .workspace.apple-workspace .chapter-pane{flex:none;display:flex;flex-direction:row;flex-wrap:wrap;width:100%;max-height:none;min-height:40px;gap:4px;padding:4px 0}
+ .workspace.apple-workspace .chapter-heading{margin:0;flex-shrink:0;gap:4px}
+ .workspace.apple-workspace .chapter-search{width:100px;margin:0}
+ .workspace.apple-workspace .chapter-list{display:flex;gap:4px;min-width:80px;min-height:32px;overflow:auto}
+ .workspace.apple-workspace .chapter-list li{min-width:130px}
+ .workspace.apple-workspace .chapter-select{padding:3px 6px}
+ .workspace.apple-workspace .order-buttons{display:none}
+ .workspace.apple-workspace .library-bottom{padding:0;margin:0;flex-direction:row;gap:8px}
+ .workspace.apple-workspace .workspace-heading{min-height:60px;padding:8px 12px;gap:6px}
+ .workspace.apple-workspace .workspace-heading h1{font-size:15px}
+ .workspace.apple-workspace .workspace-heading .button-row{flex:1;flex-shrink:1}
+ .workspace.apple-workspace .workspace-heading button,.workspace.apple-workspace .workspace-heading select{font-size:10px;padding:5px}
+ .workspace.apple-workspace .workspace-display-tools{gap:4px}
+ .workspace.apple-workspace .writing-area{flex-direction:row}
+ .workspace.apple-workspace .chapter-navigation{padding:6px 12px}
+ .workspace.apple-workspace .editor-pane{--writing-inset:24px}
+ .workspace.apple-workspace .editor-heading{padding:10px 24px}
+ .workspace.apple-workspace .chapter-title{font-size:24px;margin-block:12px}
+ .workspace.apple-workspace .format-bar{padding:4px 12px}
+ .workspace.apple-workspace .inspector-slot{position:absolute;right:0;top:0;bottom:0;width:min(320px,100%);min-width:0;z-index:6;box-shadow:-8px 0 32px var(--sf-shadow)}
+ .workspace.apple-workspace.sidebar-collapsed .library-pane,.workspace.apple-workspace.focused .library-pane{display:none}
+}
+/* The native shell takes precedence over legacy global dark input/button fills. */
+:root[data-theme=dark] .apple-workspace .chapter-title{background:transparent}
+:root[data-theme=dark] .apple-workspace :is(.dashboard-home,.workspace-module-entry,.library-utilities button,.workspace-sections button,.library-bottom button,.chapter-select,.order-buttons button,.sidebar-toggle,.format-bar button,.chapter-references>button){background:transparent}
+:root[data-theme=dark] .apple-workspace .workspace-sections button[aria-pressed=true],
+:root[data-theme=dark] .apple-workspace .format-bar button[aria-pressed=true]{background:var(--sf-selected)}
+:root[data-theme=dark] .apple-workspace .novel-item{background:transparent}
+:root[data-theme=dark] .apple-workspace .novel-item.selected{background:var(--sf-selected)}
+:root[data-theme=dark] .apple-workspace .inspector-tabs button{background:transparent}
+:root[data-theme=dark] .apple-workspace .inspector-tabs button[aria-selected=true]{background:var(--sf-surface)}
+:root[data-theme=dark] .apple-workspace :is(.inspector-close,.inspector-record,.inspector-section-heading button,.inspector-link-meta button,.inspector-inline-link,.inspector-relations button){background:transparent}
+
+:root[data-theme=dark] .workspace.apple-workspace.focused .editor-pane{background:#202023}
+@media(min-width:721px){.workspace.apple-workspace[data-layout=compact] .library-pane{width:170px}}

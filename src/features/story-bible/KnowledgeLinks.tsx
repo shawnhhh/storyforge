@@ -7,6 +7,7 @@ import type { ChapterSummary } from '../../../shared/contracts/novels.js'
 import { worldCategories } from '../../../shared/contracts/story-bible.js'
 import { ApiError } from '../../shared/api/client.js'
 import { storyApi } from './api.js'
+import { listenKnowledgeChanges, notifyKnowledgeChange } from './knowledge-events.js'
 
 export type OpenMaterial = (kind: 'characters' | 'world' | 'chapter', id: string) => void
 interface Props {
@@ -45,6 +46,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
     storyApi.links(novelId).then(value => { if (current) acceptSnapshot(value) }).catch(reason => { if (current) setError(reason instanceof Error ? reason.message : '读取关联失败') })
     return () => { current = false; mounted.current = false }
   }, [novelId])
+  useEffect(() => listenKnowledgeChanges(novelId, acceptSnapshot), [novelId])
   useEffect(() => { onBusy(busy); return () => onBusy(false) }, [busy, onBusy])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (active.current) { event.preventDefault(); event.returnValue = '' } }
@@ -66,6 +68,7 @@ export function KnowledgeLinks({ novelId, source, data, chapters, disabled, onBu
     active.current = true; setBusy(true); setError('')
     try {
       const fresh = await storyApi.saveLinks(novelId, { version: snapshot.version, links })
+      notifyKnowledgeChange(novelId, fresh)
       if (adding) { void draft.protection.saved({ target, label, note }) }
       if (mounted.current) { acceptSnapshot(fresh); if (adding) { setTarget(''); setNote(''); setSaved(true) } }
     } catch (reason) {

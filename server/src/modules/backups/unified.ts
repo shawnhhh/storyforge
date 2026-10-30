@@ -42,16 +42,25 @@ function load(db: DatabaseSync, source: Tables) {
     db.exec('COMMIT')
   } catch (error) { if (db.isTransaction) db.exec('ROLLBACK'); throw error }
 }
-function remap(value: unknown, ids: Map<string,string>): unknown {
+// Only identifiers carry graph identity. A valid record ID may also be a
+// plotline kind ("main"), a title, or a word in prose; those values are content.
+const referenceKey = /(?:^id$|_ids?$|Ids?$)/
+const jsonContainers = new Set(['data', 'settings', 'payload', 'composition', 'shots'])
+function remap(value: unknown, ids: Map<string,string>, key = ''): unknown {
   if (typeof value === 'string') {
-    if (ids.has(value)) return ids.get(value)!
-    if ((value.startsWith('[') || value.startsWith('{'))) { try { return JSON.stringify(remap(JSON.parse(value),ids)) } catch { return value } }
+    if (referenceKey.test(key)) return ids.get(value) ?? value
+    // These are the persisted graph containers in planning, trash, Studio and
+    // protected drafts. Never parse user-authored content/prompt/fields as IDs.
+    if (jsonContainers.has(key) && (value.startsWith('[') || value.startsWith('{'))) {
+      try { return JSON.stringify(remap(JSON.parse(value), ids)) } catch { return value }
+    }
     return value
   }
-  if (Array.isArray(value)) return value.map(v=>remap(v,ids))
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,remap(v,ids)]))
+  if (Array.isArray(value)) return value.map(v=>remap(v,ids,key))
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,remap(v,ids,k)]))
   return value
 }
+
 export class UnifiedBackupService {
   private previews = new Map<string,{ digest: string; expires: number }>()
   constructor(private story: DatabaseSync, private studio: DatabaseSync, private backups: BackupService) {}
@@ -162,7 +171,7 @@ export class UnifiedBackupService {
           if(this.story.prepare('PRAGMA main.foreign_key_check').all().length || this.story.prepare('PRAGMA studio_restore.foreign_key_check').all().length) fail()
           if(selected.includes('drafts')) {
             for (const draft of stage.payload.drafts) this.story.prepare('INSERT INTO studio_restore.unified_drafts VALUES(?,?)').run(randomUUID(),JSON.stringify(remap(draft,ids)))
-            for (const row of stage.payload.studio.unified_drafts) this.story.prepare('INSERT INTO studio_restore.unified_drafts VALUES(?,?)').run(randomUUID(),String(remap(row.payload,ids)))
+            for (const row of stage.payload.studio.unified_drafts) this.story.prepare('INSERT INTO studio_restore.unified_drafts VALUES(?,?)').run(randomUUID(),String(remap(row.payload,ids,'payload')))
           }
           beforeCommit?.()
           this.story.exec('COMMIT')

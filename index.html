@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Resolve the persisted appearance before the application stylesheet paints.
+      try {
+        const value = JSON.parse(localStorage.getItem('storyforge:preferences:v1') || '{}').theme
+        document.documentElement.dataset.theme = value === 'dark' || value === 'light' ? value : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      } catch { document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' }
+    </script>
     <title>StoryForge · 原创故事工作台</title>
   </head>
   <body>
