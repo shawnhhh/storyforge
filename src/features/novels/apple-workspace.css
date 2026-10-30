@@ -111,3 +111,6 @@
 :root[data-theme=dark] .apple-workspace .inspector-tabs button{background:transparent}
 :root[data-theme=dark] .apple-workspace .inspector-tabs button[aria-selected=true]{background:var(--sf-surface)}
 :root[data-theme=dark] .apple-workspace :is(.inspector-close,.inspector-record,.inspector-section-heading button,.inspector-link-meta button,.inspector-inline-link,.inspector-relations button){background:transparent}
+
+:root[data-theme=dark] .workspace.apple-workspace.focused .editor-pane{background:#202023}
+@media(min-width:721px){.workspace.apple-workspace[data-layout=compact] .library-pane{width:170px}}

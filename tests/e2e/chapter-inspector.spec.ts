@@ -30,16 +30,18 @@ async function seed(page: Page) {
   const guide = await post(root + '/characters', { ...newCharacter(), name: '陈泊', fields: { ...newCharacter().fields, identity: '灯塔守望者', personality: '寡言而可靠' } })
   const hero = await post(root + '/characters', { ...newCharacter(), name: '顾遥', category: '主角', fields: { ...newCharacter().fields, identity: '归航的记录员', goals: '寻找那封信的寄件人' }, relations: [{ targetId: guide.id, kind: '旧识' }], worldIds: [place.id] })
   const knowledge = await put(root + '/knowledge-links', { version: 0, links: [
-    { id: 'hero-chapter', source: { kind: 'chapter', id: first.chapter.id }, target: { kind: 'character', id: hero.id }, label: '出场人物', note: '' },
-    { id: 'place-chapter', source: { kind: 'chapter', id: first.chapter.id }, target: { kind: 'world', id: place.id }, label: '故事地点', note: '核对海岸与灯塔的位置' },
-    { id: 'history-chapter', source: { kind: 'chapter', id: first.chapter.id }, target: { kind: 'world', id: history.id }, label: '提及事件', note: '' },
-    { id: 'place-organization', source: { kind: 'world', id: place.id }, target: { kind: 'world', id: organization.id }, label: '驻地组织', note: '' },
+    { id: crypto.randomUUID(), source: { kind: 'chapter', id: first.chapter.id }, target: { kind: 'character', id: hero.id }, label: '出场人物', note: '' },
+    { id: crypto.randomUUID(), source: { kind: 'chapter', id: first.chapter.id }, target: { kind: 'world', id: place.id }, label: '故事地点', note: '核对海岸与灯塔的位置' },
+    { id: crypto.randomUUID(), source: { kind: 'chapter', id: first.chapter.id }, target: { kind: 'world', id: history.id }, label: '提及事件', note: '' },
+    { id: crypto.randomUUID(), source: { kind: 'world', id: place.id }, target: { kind: 'world', id: organization.id }, label: '驻地组织', note: '' },
   ] })
+  // Match production-created IDs; enum strings are values, never identifiers.
+  const mainId = crypto.randomUUID(), subplotId = crypto.randomUUID(), mainCardId = crypto.randomUUID()
   const planning = emptyPlanning()
-  planning.plotlines.push({ id: 'main', title: '归航与寻信', content: '追寻一封旧信，重新连接离散的人。', kind: 'main' }, { id: 'subplot', title: '守灯人的约定', content: '陈泊等待一位失约的故人。', kind: 'subplot' })
-  planning.outlines.push({ id: 'outline', kind: 'chapter', parentId: null, title: '归港大纲', content: '重返故乡，发现灯塔里的第一条线索。', chapterIds: [first.chapter.id] })
-  for (const [id, plotlineId, title] of [['card-main', 'main', '雾中重逢'], ['card-subplot', 'subplot', '灯塔来信']] as const) planning.cards.push({ id, title, content: '在旧码头会面，交换一条关于寄件人的线索。', summary: '顾遥与陈泊重逢', status: 'writing', plotlineId, storyTime: '归航日 · 清晨', timeOrder: 2, chapterIds: [first.chapter.id], characterIds: [hero.id, guide.id], worldIds: [place.id] })
-  planning.foreshadows.push({ id: 'foreshadow', title: '信封上的灯塔印记', content: '印记与旧港封航档案上的图案一致。', status: 'planted', plantedChapterIds: [first.chapter.id], plannedChapterIds: [second.chapter.id], resolvedChapterIds: [], chapterIds: [], cardIds: ['card-main'] })
+  planning.plotlines.push({ id: mainId, title: '归航与寻信', content: '追寻一封旧信，重新连接离散的人。', kind: 'main' }, { id: subplotId, title: '守灯人的约定', content: '陈泊等待一位失约的故人。', kind: 'subplot' })
+  planning.outlines.push({ id: crypto.randomUUID(), kind: 'chapter', parentId: null, title: '归港大纲', content: '重返故乡，发现灯塔里的第一条线索。', chapterIds: [first.chapter.id] })
+  for (const [id, plotlineId, title] of [[mainCardId, mainId, '雾中重逢'], [crypto.randomUUID(), subplotId, '灯塔来信']] as const) planning.cards.push({ id, title, content: '在旧码头会面，交换一条关于寄件人的线索。', summary: '顾遥与陈泊重逢', status: 'writing', plotlineId, storyTime: '归航日 · 清晨', timeOrder: 2, chapterIds: [first.chapter.id], characterIds: [hero.id, guide.id], worldIds: [place.id] })
+  planning.foreshadows.push({ id: crypto.randomUUID(), title: '信封上的灯塔印记', content: '印记与旧港封航档案上的图案一致。', status: 'planted', plantedChapterIds: [first.chapter.id], plannedChapterIds: [second.chapter.id], resolvedChapterIds: [], chapterIds: [], cardIds: [mainCardId] })
   await put(root + '/planning', { version: 0, ...planning })
   await page.goto('/')
   await page.getByRole('navigation', { name: '小说列表', exact: true }).getByRole('button', { name: novel.title }).click()
@@ -95,7 +97,8 @@ test('chapter association writes survive refresh, stay chapter scoped and reject
   await expect(panel.getByRole('alert')).toBeVisible()
   await expect(panel.getByLabel('选择章节关联人物')).toHaveValue(f.guide.id)
   await page.unroute('**/knowledge-links')
-  const concurrent = await page.request.put('/api' + f.root + '/knowledge-links', { headers: f.headers, data: { ...f.knowledge, links: [...f.knowledge.links, { id: 'concurrent', source: { kind: 'chapter', id: f.second.id }, target: { kind: 'world', id: f.organization.id }, label: '另一窗口的关联', note: '' }] } })
+  const concurrentId = crypto.randomUUID()
+  const concurrent = await page.request.put('/api' + f.root + '/knowledge-links', { headers: f.headers, data: { ...f.knowledge, links: [...f.knowledge.links, { id: concurrentId, source: { kind: 'chapter', id: f.second.id }, target: { kind: 'world', id: f.organization.id }, label: '另一窗口的关联', note: '' }] } })
   expect(concurrent.ok()).toBe(true)
   await panel.getByRole('button', { name: '添加关联', exact: true }).click()
   await expect(panel.getByRole('alert')).toContainText('刷新资料并核对')
@@ -121,7 +124,7 @@ test('chapter association writes survive refresh, stay chapter scoped and reject
   await panel.getByRole('button', { name: '取消章节关联 陈泊', exact: true }).click()
   await expect(panel.getByRole('button', { name: '查看人物档案 陈泊', exact: true })).toHaveCount(0)
   const links = (await (await page.request.get('/api' + f.root + '/knowledge-links')).json()).links
-  expect(links.some((link: { id: string }) => link.id === 'concurrent')).toBe(true)
+  expect(links.some((link: { id: string }) => link.id === concurrentId)).toBe(true)
   expect(await (await page.request.get(`/api/chapters/${f.first.id}`)).json()).toEqual(f.first)
 })
 
@@ -186,4 +189,33 @@ test('legacy reference editor and inspector share acknowledged revisions without
   expect(snapshot.links.some((link: { target: { id: string } }) => link.target.id === f.guide.id)).toBe(true)
   expect(snapshot.links.some((link: { note: string }) => link.note === '旧引用面板保存的备注同样可实时查阅')).toBe(true)
   expect(await (await page.request.get(`/api/chapters/${f.first.id}`)).json()).toEqual(before)
+})
+
+test('multiple inspector fixtures retain planning enums and references through full backup copy and subsequent preview', async ({ page }) => {
+  const first = await seed(page), second = await seed(page)
+  const originals = await Promise.all([first, second].map(async fixture => ({
+    chapter: await (await page.request.get(`/api/chapters/${fixture.first.id}`)).json(),
+    planning: await (await page.request.get('/api' + fixture.root + '/planning')).json(),
+  })))
+  const backup = await page.request.post('/api/unified-backups/export', { headers: first.headers, data: { drafts: [] } })
+  expect(backup.ok()).toBe(true)
+  const archive = await backup.json()
+  const preview = await page.request.post('/api/unified-backups/preview', { headers: first.headers, data: { archive } })
+  expect(preview.status()).toBe(200)
+  const restore = await page.request.post('/api/unified-backups/restore', { headers: first.headers, data: { archive, token: (await preview.json()).token, modules: ['story'], confirmation: '恢复为新副本' } })
+  expect(restore.status()).toBe(200)
+  const { idMap } = await restore.json()
+  for (const [index, fixture] of [first, second].entries()) {
+    const source = await (await page.request.get('/api' + fixture.root + '/planning')).json()
+    expect(source).toEqual(originals[index].planning)
+    const copy = await (await page.request.get(`/api/novels/${idMap[fixture.novel.id]}/planning`)).json()
+    expect(copy.plotlines.map((line: { kind: string }) => line.kind)).toEqual(['main', 'subplot'])
+    expect(copy.cards.map((card: { plotlineId: string }) => card.plotlineId)).toEqual(source.cards.map((card: { plotlineId: string }) => idMap[card.plotlineId]))
+    expect(copy.cards.every((card: { chapterIds: string[] }) => card.chapterIds.includes(idMap[fixture.first.id]))).toBe(true)
+    expect(await (await page.request.get(`/api/chapters/${fixture.first.id}`)).json()).toEqual(originals[index].chapter)
+  }
+  const nextBackup = await page.request.post('/api/unified-backups/export', { headers: first.headers, data: { drafts: [] } })
+  expect(nextBackup.status()).toBe(200)
+  const nextPreview = await page.request.post('/api/unified-backups/preview', { headers: first.headers, data: { archive: await nextBackup.json() } })
+  expect(nextPreview.status(), await nextPreview.text()).toBe(200)
 })

@@ -21,6 +21,8 @@ async function create(page: Page) {
 
 test('Apple workspace creates chapters, commits simulated Chinese input and restores saved prose after reload', async ({ page }) => {
   const title = await create(page)
+  await expect(page.getByRole('link', { name: '音乐创作', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: '视频创作', exact: true })).toBeVisible()
   const body = chapterBody(page)
   await page.getByLabel('章节标题', { exact: true }).fill('归航')
   await body.focus()

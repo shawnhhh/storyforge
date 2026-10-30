@@ -6,6 +6,7 @@
   --sf-field: #fafafa;
   --sf-preview: #f5f5f7;
   --sf-text: #252528;
+  --sf-page: #f7f8fa;
   --sf-muted: #6e6e73;
   --sf-border: #dcdce0;
   --sf-accent: #0067d9;
@@ -21,7 +22,7 @@
   --sf-shadow: #00000016;
   font-family: var(--sf-font);
   color: var(--sf-text);
-  background: var(--sf-panel);
+  background: var(--sf-page);
   color-scheme: light;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -31,7 +32,7 @@
   --sf-panel: #262629;
   --sf-field: #2c2c30;
   --sf-preview: #25252a;
-  --sf-text: #ededf0;
+  --sf-text: #e5e5ea;
   --sf-muted: #b0b0ba;
   --sf-border: #424248;
   --sf-accent: #8bbdff;

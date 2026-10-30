@@ -4,6 +4,12 @@ on:
     paths:
       - 'tests/e2e/studio-costs.spec.ts'
       - 'src/shared/studio/GenerationBudget.tsx'
+      # Shared visual changes also affect the cost-confirmation dialog.
+      - 'src/shared/styles/**'
+      - 'src/features/music/**'
+      - 'src/features/video/**'
+      - 'src/main.tsx'
+      - 'index.html'
       - '.github/workflows/studio-cost-confirmation.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}

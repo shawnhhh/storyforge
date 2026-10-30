@@ -1,3 +1,4 @@
+import type { RichTextDocument } from '../../shared/contracts/novels.js'
 import { StoryBibleStore } from '../src/modules/story-bible/store.js'
 import { PlanningStore } from '../src/modules/planning/store.js'
 import { emptyPlanning } from '../../shared/contracts/planning.js'
@@ -113,6 +114,42 @@ test('story graph restores chapters, world, character links, outlines and prose 
  const materials=bible.list(copy);assert.deepEqual(materials.characters[0].worldIds,[result.idMap[world.id]])
  const planning=plan.read(copy);assert.deepEqual(planning.outlines[0].chapterIds,[result.idMap[chapter.id]]);assert.deepEqual(planning.outlines[0].characterIds,[result.idMap[character.id]])
  assert.equal(f.novels.chapter(chapter.id).content.content![0].content![0].text,'完整正文')
+ assert.deepEqual(f.db.prepare('PRAGMA foreign_key_check').all(),[])
+ }finally{f.close()}
+})
+
+test('restore remaps semantic references while preserving enum and prose values equal to record IDs',()=>{
+ const f=fixture();try{
+ const plan=new PlanningStore(f.db),originals:{novelId:string;chapterId:string;prose:RichTextDocument}[]=[]
+ for(let i=0;i<2;i++){
+  const n=f.novels.create('main','subplot'),c=f.novels.createChapter(n.id,n.version,'main').chapter
+  const prose={type:'doc' as const,content:[{type:'paragraph',content:[{type:'text',text:'main'}]},{type:'paragraph',content:[{type:'text',text:'{"id":"main","kind":"subplot"}'}]}]}
+  f.novels.saveChapter(c.id,c.version,'main',prose)
+  const data=emptyPlanning()
+  data.plotlines=[{id:'main',title:'subplot',content:'main',kind:'main'},{id:'subplot',title:'main',content:'subplot',kind:'subplot'}]
+  data.cards=[{id:'card-'+i,title:'main',content:'{"id":"main"}',summary:'subplot',status:'planned',plotlineId:'main',storyTime:'main',timeOrder:1,chapterIds:[c.id]}]
+  plan.save(n.id,0,data);originals.push({novelId:n.id,chapterId:c.id,prose})
+ }
+ const music=f.store.create({kind:'music',title:'main'}),savedMusic=f.store.save(music.id,{...music,content:'main',settings:{style:'main',prompt:'{"id":"main"}'}})
+ const recoveredPayload={module:'story',value:{novelId:originals[0].novelId,chapterId:originals[0].chapterId,content:'main',note:'{"id":"main"}'}}
+ f.studio.prepare('INSERT INTO unified_drafts VALUES(?,?)').run('draft-reference',JSON.stringify(recoveredPayload))
+ const archive=f.service.create([]),r=f.service.restore(archive,f.service.prepare(archive).token,['story','music','drafts'],'恢复为新副本')
+ for(const original of originals){
+  const copy=plan.read(r.idMap[original.novelId])
+  assert.deepEqual(copy.plotlines.map(line=>line.kind),['main','subplot'])
+  assert.deepEqual(copy.plotlines.map(line=>line.content),['main','subplot'])
+  assert.deepEqual(copy.plotlines.map(line=>line.title),['subplot','main'])
+  assert.equal(copy.cards[0].plotlineId,r.idMap.main)
+  assert.deepEqual(copy.cards[0].chapterIds,[r.idMap[original.chapterId]])
+  assert.equal(copy.cards[0].content,'{"id":"main"}');assert.equal(copy.cards[0].summary,'subplot');assert.equal(copy.cards[0].storyTime,'main')
+  assert.deepEqual(f.novels.chapter(r.idMap[original.chapterId]).content,original.prose)
+  assert.deepEqual(f.novels.chapter(original.chapterId).content,original.prose)
+ }
+ const restoredDraft=f.service.recoveredDrafts().map(row=>JSON.parse(String(row.payload))).find(draft=>draft.value.novelId===r.idMap[originals[0].novelId])
+ assert.ok(restoredDraft);assert.equal(restoredDraft.value.chapterId,r.idMap[originals[0].chapterId]);assert.equal(restoredDraft.value.content,'main');assert.equal(restoredDraft.value.note,recoveredPayload.value.note)
+ assert.equal(f.store.project(r.idMap[music.id]).content,savedMusic.content)
+ assert.deepEqual(f.store.project(r.idMap[music.id]).settings,savedMusic.settings)
+ const next=f.service.create([]);assert.doesNotThrow(()=>f.service.prepare(next))
  assert.deepEqual(f.db.prepare('PRAGMA foreign_key_check').all(),[])
  }finally{f.close()}
 })
